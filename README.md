@@ -1,135 +1,231 @@
 # DiegoMusic
 
-Cliente privado para explorar el catálogo de YouTube y reproducir audio mediante un resolutor propio desplegado en VPS. En iPhone, iPad y macOS usa AVPlayer y una interfaz Bauhaus digital con controles Hi‑Fi; no es una aplicación oficial ni está afiliada con YouTube o Google.
+Cliente privado de música para iPhone, iPad y Mac. Usa YouTube Data API v3 para explorar el catálogo y un resolutor propio para entregar audio a un reproductor nativo `AVPlayer`.
 
-## Destinos
+DiegoMusic no es una aplicación oficial ni está afiliada con YouTube o Google. Su uso debe respetar las condiciones del servicio y los derechos aplicables al contenido.
 
-- iOS/iPadOS 17 o posterior.
-- macOS 13 o posterior.
-- Bundle ID: `com.diegocainzos.DiegoMusic`.
-- Core Data para biblioteca, playlists, historial y preferencias. SwiftData requiere macOS 14 y no es compatible con el mínimo acordado.
+## Características
 
-## Configuración local
+- Búsqueda y metadatos mediante la API oficial de YouTube.
+- Reproductor compacto y ampliado con una estética Bauhaus digital y Hi‑Fi.
+- Un único `AVPlayer` con play, pausa, seek, cola y avance automático.
+- Reproducción en segundo plano y con la pantalla bloqueada en iOS.
+- Integración con Centro de control, pantalla bloqueada y auriculares.
+- Biblioteca local con favoritos, playlists e historial opcional mediante Core Data.
+- Resolutor privado FastAPI + `yt-dlp`, protegido por Bearer token.
+- HTTPS automático mediante Caddy.
+- Caché multicapa para acelerar repeticiones y precargar la siguiente pista.
 
-Las credenciales nunca deben copiarse a Swift, documentación o logs. Decláralas únicamente en `.env`:
+## Plataformas y requisitos
 
-```dotenv
-YOUTUBE_DATA_KEY=valor_local
-AUDIO_RESOLVER_BASE_URL=https://audio.example.com
-AUDIO_RESOLVER_API_TOKEN=token_aleatorio_de_32_caracteres_o_mas
+| Componente | Requisito |
+| --- | --- |
+| iPhone/iPad | iOS/iPadOS 17 o posterior |
+| Mac | macOS 13 o posterior |
+| Desarrollo | Xcode 15 o posterior para SDK iOS 17 |
+| Resolver | Docker Engine con Docker Compose v2 |
+| VPS | Dominio público, puertos 80/443 y almacenamiento persistente |
+| Catálogo | Clave de YouTube Data API v3 |
+
+El bundle ID es `com.diegocainzos.DiegoMusic`. El proyecto usa Core Data porque SwiftData requiere macOS 14 y el destino mínimo es macOS 13.
+
+## Arquitectura
+
+```text
+                           CATÁLOGO
+DiegoMusic ── YouTube Data API v3 ──> búsqueda y metadatos
+
+                         REPRODUCCIÓN
+videoId ──> ResolverService ──> yt-dlp ──> fuente temporal
+   │               │
+   │               ├── sesión opaca con expiración
+   │               ├── proxy HTTP HEAD/Range
+   │               └── caché M4A persistente
+   │
+   └──────── URL opaca temporal ────────> AVPlayer
 ```
 
-`AUDIO_RESOLVER_API_TOKEN` debe coincidir con `DIEGOMUSIC_API_TOKEN` en el VPS. Genera el xcconfig ignorado y el proyecto:
+La aplicación nunca recibe la URL upstream de Googlevideo ni sus cabeceras. El resolutor conserva esa información en memoria y solo entrega una URL opaca de vida limitada.
+
+Directorios principales:
+
+```text
+DiegoMusic/App             Arranque, entorno y navegación
+DiegoMusic/Core            Dominio, red, Core Data y preferencias
+DiegoMusic/YouTube         YouTube Data API, DTOs y mapeo
+DiegoMusic/AudioPlayer     AVPlayer, resolver, Now Playing y controles remotos
+DiegoMusic/Design          Sistema visual Bauhaus Hi‑Fi
+ResolverService/app        FastAPI, yt-dlp, sesiones y cachés
+ResolverService/tests      Pruebas del resolutor
+Tests/UnitTests            Pruebas Swift
+openspec/changes           Decisiones, especificaciones y tareas
+```
+
+## Caché multicapa
+
+1. **Descriptores en DiegoMusic**: un actor Swift reutiliza sesiones vigentes, aplica margen de expiración y deduplica solicitudes simultáneas.
+2. **Resoluciones en el VPS**: caché LRU `videoId → ResolvedAudio`, con 500 entradas y TTL máximo de 3 horas por defecto.
+3. **Audio M4A persistente**: la primera reproducción descarga el archivo en segundo plano mediante rangos de 4 MiB, escritura atómica y expulsión LRU.
+4. **Cola**: DiegoMusic precarga silenciosamente la siguiente pista y reintenta una vez si una sesión desaparece.
+
+Un token emitido durante el calentamiento cambia automáticamente a disco cuando el M4A está listo. El volumen Docker conserva hasta 5 GiB por defecto, con un máximo de 256 MiB por pista, y sobrevive a recreaciones de los contenedores.
+
+## Configuración segura
+
+Hay dos archivos locales diferentes y ambos están ignorados por Git:
+
+### 1. Configuración de la aplicación
+
+Crea `./.env` en la raíz:
+
+```dotenv
+YOUTUBE_DATA_KEY=REEMPLAZAR_LOCALMENTE
+AUDIO_RESOLVER_BASE_URL=https://audio.example.com
+AUDIO_RESOLVER_API_TOKEN=REEMPLAZAR_CON_TOKEN_ALEATORIO
+```
+
+El generador transforma estas variables en `Config/Secrets.xcconfig` sin imprimir los valores:
 
 ```bash
 ./scripts/generate-project.sh
 ```
 
-El script no muestra el valor. `Config/Secrets.xcconfig` y `.env` están excluidos mediante `.gitignore`. Restringe la clave en Google Cloud a YouTube Data API v3 y aplica límites de cuota; una clave dentro de una aplicación cliente no puede considerarse totalmente secreta.
+### 2. Configuración del resolutor
 
-## Proyecto reproducible
+```bash
+cd ResolverService
+cp .env.example .env
+```
 
-`project.yml` es la fuente de verdad. `generate-project.sh` descarga XcodeGen 2.46.0 bajo `.pi/tools/xcodegen`, verifica su SHA-256 y no requiere instalación global. El binario local no se versiona.
+Edita `ResolverService/.env` y configura como mínimo:
+
+```dotenv
+RESOLVER_DOMAIN=audio.example.com
+DIEGOMUSIC_API_TOKEN=EL_MISMO_TOKEN_DE_LA_APLICACION
+```
+
+`AUDIO_RESOLVER_API_TOKEN` y `DIEGOMUSIC_API_TOKEN` deben contener exactamente el mismo valor. Usa un token aleatorio de al menos 32 caracteres y guárdalo en un gestor de contraseñas.
+
+No ejecutes `docker compose config` sin filtrar su salida: puede expandir variables sensibles. Para validar la configuración sin mostrarla usa:
+
+```bash
+docker compose --file compose.yml config --quiet
+```
+
+## Puesta en marcha
+
+### Resolver local o VPS
+
+```bash
+cd ResolverService
+docker compose --file compose.yml config --quiet
+docker compose --file compose.yml up --detach --build
+docker compose --file compose.yml ps
+```
+
+Caddy expone únicamente 80/443. FastAPI permanece dentro de la red Docker en el puerto 8080. Comprueba el servicio:
+
+```bash
+curl --fail https://audio.example.com/health
+```
+
+Para un VPS real, configura antes el registro DNS del dominio hacia la IP pública. Caddy solicitará y renovará el certificado TLS automáticamente. Consulta [`ResolverService/README.md`](ResolverService/README.md) para despliegue, rotación de token, actualizaciones y operación de la caché.
+
+### Aplicación
+
+Desde la raíz del repositorio:
 
 ```bash
 ./scripts/generate-project.sh
 open DiegoMusic.xcodeproj
 ```
 
-Para iOS 17 se necesita una versión de Xcode que incluya el SDK correspondiente. Es posible seleccionar Xcode sin modificar el sistema:
+`project.yml` es la fuente de verdad. El script instala XcodeGen 2.46.0 dentro de `.pi/tools` cuando no existe una instalación disponible y verifica su SHA-256.
+
+En Xcode:
+
+1. Selecciona el target `DiegoMusic`.
+2. Abre **Signing & Capabilities**.
+3. Mantén firma automática y selecciona tu Team.
+4. Elige un Mac, simulador o dispositivo compatible.
+5. Ejecuta con `⌘R`.
+
+## Instalar en un iPhone
+
+1. Usa una versión de Xcode compatible con la versión de iOS del teléfono.
+2. Despliega primero el resolutor con HTTPS válido.
+3. Conecta y desbloquea el iPhone y acepta la relación de confianza.
+4. Activa **Ajustes → Privacidad y seguridad → Modo de desarrollador**.
+5. Selecciona el dispositivo en Xcode y pulsa **Run**.
+6. Prueba play/pause, seek, auriculares, pantalla bloqueada y Centro de control.
+
+Con un Personal Team gratuito será necesario volver a firmar la aplicación periódicamente. La reproducción bloqueada debe validarse en hardware real; el simulador no reproduce fielmente ese ciclo de vida.
+
+## Validación
+
+Validación completa:
 
 ```bash
-export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-```
-
-## Arquitectura
-
-- `DiegoMusic/App`: arranque, entorno e interfaz adaptable.
-- `DiegoMusic/Core`: dominio, red y Core Data.
-- `DiegoMusic/YouTube`: endpoint, DTOs, mapper y servicio Data API.
-- `DiegoMusic/AudioPlayer`: cliente del resolutor, AVPlayer, sesión de audio y controles remotos.
-- `DiegoMusic/Design`: sistema visual Bauhaus Hi‑Fi y estados accesibles.
-- `ResolverService`: FastAPI, yt-dlp, sesiones opacas, proxy Range y despliegue Docker/Caddy.
-- `Tests/UnitTests`: catálogo, configuración, errores, cola, cliente del resolutor y persistencia.
-
-Flujo de reproducción:
-
-```text
-YouTube Data API → videoId → VPS privado → sesión de audio opaca → AVPlayer
-```
-
-El cliente no recibe la URL upstream de Googlevideo. El VPS conserva esa URL y sus cabeceras únicamente en memoria, y expone un token temporal capaz de atender `GET`, `HEAD` y HTTP Range. No se guarda audio permanentemente.
-
-## VPS privado
-
-Consulta [`ResolverService/README.md`](ResolverService/README.md) para preparar DNS, Docker Compose, Caddy HTTPS, token, actualización de yt-dlp y rotación de credenciales.
-
-Resumen:
-
-```bash
-cd ResolverService
-cp .env.example .env
-# Edita dominio y token sin mostrarlos en logs.
-docker compose --file compose.yml up --detach --build
-```
-
-El servicio interno no publica el puerto 8080. Solo Caddy expone 80/443 y los access logs permanecen desactivados por defecto.
-
-El resolutor reutiliza resoluciones vigentes, conserva hasta 5 GiB de M4A en un volumen LRU y sirve repeticiones desde disco. La primera reproducción calienta la caché en background; `docker compose down` conserva el volumen.
-
-## Reproducción nativa
-
-- Dock compacto sin vídeo y ampliación sin reiniciar la pista.
-- AVPlayer único con progreso, seek, cola y avance automático.
-- `AVAudioSession` en categoría `.playback` para iPhone.
-- Background audio, pantalla bloqueada y comandos play/pause/anterior/siguiente/seek.
-- `MPNowPlayingInfoCenter` con título, canal, duración, posición y velocidad.
-- Errores sanitizados: la interfaz nunca muestra credenciales ni URLs firmadas.
-- Caché de descriptores en memoria y un reintento automático tras reinicios del resolutor.
-- Precarga silenciosa de la siguiente pista de la cola.
-
-## Pruebas
-
-Con Xcode 15 o posterior y sus simuladores instalados:
-
-```bash
-./scripts/validate.sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./scripts/validate.sh
 ```
 
 Comprobaciones individuales:
 
 ```bash
 ./scripts/verify-no-secrets.py
-ResolverService/.venv/bin/pytest -q ResolverService/tests
+./scripts/validate-resolver.sh
 
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 xcodebuild -project DiegoMusic.xcodeproj -scheme DiegoMusic \
-  -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test
+  -destination 'platform=macOS,arch=arm64' \
+  CODE_SIGNING_ALLOWED=NO test
 
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 xcodebuild -project DiegoMusic.xcodeproj -scheme DiegoMusic \
-  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
+  -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO build-for-testing
 ```
 
-## Instalar en un iPhone
+Las pruebas Python sustituyen `yt-dlp` y Googlevideo por dobles locales. No necesitan credenciales ni exponen URLs firmadas.
 
-1. Instala una versión de Xcode compatible con el iOS del dispositivo: Xcode 15+ para iOS 17 y Xcode 16+ para iOS 18.
-2. Despliega primero el VPS y completa las tres variables de `.env`.
-3. Ejecuta `./scripts/generate-project.sh` y abre `DiegoMusic.xcodeproj`.
-4. En **Xcode → Settings → Accounts**, añade tu Apple Account.
-5. Conecta y desbloquea el iPhone, acepta la confianza y activa **Ajustes → Privacidad y seguridad → Modo de desarrollador**.
-6. En el target `DiegoMusic`, abre **Signing & Capabilities**, activa firma automática y selecciona tu Team.
-7. Selecciona el iPhone como destino y pulsa **Run** (`⌘R`).
-8. Reproduce una canción, bloquea la pantalla y comprueba los controles del sistema.
+## Operación del resolutor
 
-No hace falta publicar en App Store. Con un Personal Team gratuito tendrás que volver a firmar la app periódicamente. La validación real de background audio debe hacerse en un dispositivo; el simulador no reproduce fielmente el ciclo de vida de pantalla bloqueada.
+Estado y logs sanitizados:
 
-## Capacidades Pi locales
+```bash
+cd ResolverService
+docker compose --file compose.yml ps
+docker compose --file compose.yml logs --tail 100 resolver
+```
 
-`.pi/settings.json` activa únicamente en este proyecto:
+Uso del volumen de audio:
 
-- `pi-subagents`;
-- `@upstash/context7-pi`;
-- `@narumitw/pi-chrome-devtools`.
+```bash
+docker compose --file compose.yml exec resolver \
+  du -sh /var/cache/diegomusic
+```
 
-OpenSpec está instalado bajo `.pi/openspec`. Ejecuta `/reload` al abrir Pi desde este directorio para registrar herramientas, skills y comandos `/opsx:*`.
+Actualizar la imagen y `yt-dlp`:
+
+```bash
+docker compose --file compose.yml build --pull --no-cache resolver
+docker compose --file compose.yml up --detach
+```
+
+`docker compose down` conserva los volúmenes. No uses `down --volumes` salvo que quieras eliminar también la caché M4A y los datos de Caddy.
+
+## Seguridad
+
+- No versionar ni mostrar `.env`, `ResolverService/.env` o `Config/Secrets.xcconfig`.
+- No registrar URLs de YouTube Data API completas: contienen la clave como query parameter.
+- No registrar Bearer tokens, tokens opacos de stream, cookies, PO tokens ni URLs multimedia firmadas.
+- No exponer directamente el puerto 8080 ni convertir el resolutor en un proxy de URLs arbitrarias.
+- Mantener desactivados los access logs de Caddy o redactar `/v1/audio/stream/*` antes de habilitarlos.
+- Proteger el volumen `audio_cache`: contiene archivos de audio completos.
+- Restringir la clave de Google Cloud a YouTube Data API v3 y aplicar límites de cuota.
+
+Consulta [`AGENTS.md`](AGENTS.md) antes de realizar cambios automatizados en el repositorio.
+
+## Herramientas del proyecto
+
+Las capacidades Pi, OpenSpec, XcodeGen y demás herramientas están instaladas localmente bajo `.pi`; no requieren ni deben crear instalaciones globales. Después de sincronizar cambios de configuración Pi, reinicia Pi o ejecuta `/reload` desde este directorio.
