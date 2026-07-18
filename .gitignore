@@ -1,0 +1,25 @@
+# Credenciales locales
+.env
+Config/Secrets.xcconfig
+
+# Dependencias, herramientas y artefactos locales de Pi
+.pi/npm/
+.pi/tools/
+.pi/openspec/node_modules/
+.pi-subagents/
+
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+
+# Python y macOS
+__pycache__/
+*.pyc
+.DS_Store
+
+# Informes locales
+.pi/reports/

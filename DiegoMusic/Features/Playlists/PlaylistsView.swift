@@ -1,0 +1,129 @@
+import SwiftUI
+
+struct PlaylistsView: View {
+    @ObservedObject var library: LibraryStore
+    @State private var newName = ""
+    @State private var expandedPlaylists: Set<UUID> = []
+    @State private var errorMessage: String?
+    let onPlay: (MediaItem) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            SectionHeader(eyebrow: "Secuencias locales", title: "Playlists", color: DiegoTheme.green)
+
+            HStack {
+                TextField("Nombre de la nueva playlist", text: $newName)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(createPlaylist)
+                Button(action: createPlaylist) { Label("Crear", systemImage: "plus") }
+                    .buttonStyle(HiFiButtonStyle(color: DiegoTheme.green))
+            }
+
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(DiegoTheme.red)
+            }
+
+            if library.playlists.isEmpty {
+                EmptyStateView(
+                    title: "Sin playlists",
+                    symbol: "music.note.list",
+                    description: "Crea una mezcla local para empezar."
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 18) {
+                        ForEach(library.playlists) { playlist in
+                            DisclosureGroup(isExpanded: expandedBinding(for: playlist.id)) {
+                                VStack(spacing: 8) {
+                                    if playlist.entries.isEmpty {
+                                        Text("Añade elementos desde Búsqueda.")
+                                            .font(.callout)
+                                            .foregroundStyle(.secondary)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    ForEach(Array(playlist.entries.sorted(by: { $0.position < $1.position }).enumerated()), id: \.element.id) { index, entry in
+                                        HStack(spacing: 10) {
+                                            Button { onPlay(entry.mediaItem) } label: {
+                                                VStack(alignment: .leading) {
+                                                    Text(entry.title).font(.headline).lineLimit(1)
+                                                    Text(entry.channelTitle).font(.caption).foregroundStyle(.secondary)
+                                                }
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                            }
+                                            .buttonStyle(.plain)
+                                            Button { move(entry, in: playlist, by: -1) } label: { Image(systemName: "arrow.up") }
+                                                .disabled(index == 0)
+                                                .accessibilityLabel("Subir elemento")
+                                            Button { move(entry, in: playlist, by: 1) } label: { Image(systemName: "arrow.down") }
+                                                .disabled(index == playlist.entries.count - 1)
+                                                .accessibilityLabel("Bajar elemento")
+                                            Button { remove(entry, from: playlist) } label: { Image(systemName: "trash") }
+                                                .accessibilityLabel("Eliminar de la playlist")
+                                        }
+                                        .padding(.vertical, 4)
+                                    }
+                                }
+                                .padding(.top, 12)
+                            } label: {
+                                HStack {
+                                    Circle().fill(DiegoTheme.green).frame(width: 46, height: 46)
+                                    VStack(alignment: .leading) {
+                                        Text(playlist.name).font(.title3.bold())
+                                        Text("\(playlist.entries.count) elementos").font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Button { delete(playlist) } label: { Image(systemName: "trash") }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Eliminar playlist")
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .bauhausCard(accent: DiegoTheme.green)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(28)
+    }
+
+    private func expandedBinding(for id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { expandedPlaylists.contains(id) },
+            set: { expanded in
+                if expanded { expandedPlaylists.insert(id) }
+                else { expandedPlaylists.remove(id) }
+            }
+        )
+    }
+
+    private func createPlaylist() {
+        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        do {
+            _ = try library.createPlaylist(named: name)
+            newName = ""
+            errorMessage = nil
+        } catch {
+            errorMessage = "No se pudo crear la playlist."
+        }
+    }
+
+    private func remove(_ entry: PlaylistEntry, from playlist: LocalPlaylist) {
+        do { try library.remove(entry, from: playlist); errorMessage = nil }
+        catch { errorMessage = "No se pudo eliminar el elemento." }
+    }
+
+    private func move(_ entry: PlaylistEntry, in playlist: LocalPlaylist, by offset: Int) {
+        do { try library.move(entry, in: playlist, by: offset); errorMessage = nil }
+        catch { errorMessage = "No se pudo reordenar la playlist." }
+    }
+
+    private func delete(_ playlist: LocalPlaylist) {
+        do { try library.delete(playlist); errorMessage = nil }
+        catch { errorMessage = "No se pudo eliminar la playlist." }
+    }
+}

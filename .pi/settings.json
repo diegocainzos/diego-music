@@ -1,0 +1,7 @@
+{
+  "packages": [
+    "npm:pi-subagents",
+    "npm:@upstash/context7-pi",
+    "npm:@narumitw/pi-chrome-devtools"
+  ]
+}
