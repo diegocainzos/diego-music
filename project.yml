@@ -42,8 +42,10 @@ targets:
         LSApplicationCategoryType: public.app-category.music
         NSHumanReadableCopyright: "Proyecto educativo privado"
         YOUTUBE_DATA_KEY: $(YOUTUBE_DATA_KEY)
-        NSAppTransportSecurity:
-          NSAllowsArbitraryLoadsInWebContent: false
+        AUDIO_RESOLVER_BASE_URL: $(AUDIO_RESOLVER_BASE_URL)
+        AUDIO_RESOLVER_API_TOKEN: $(AUDIO_RESOLVER_API_TOKEN)
+        UIBackgroundModes:
+          - audio
     settings:
       base:
         PRODUCT_NAME: DiegoMusic
@@ -53,7 +55,7 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         SUPPORTS_MACCATALYST: false
         ENABLE_HARDENED_RUNTIME: true
-        CODE_SIGN_ENTITLEMENTS: Config/DiegoMusic.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Config/DiegoMusic.entitlements
     scheme:
       gatherCoverageData: true
       testTargets:

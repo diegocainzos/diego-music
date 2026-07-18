@@ -8,29 +8,31 @@ final class AppEnvironment: ObservableObject {
     let queue: PlaybackQueue
     let library: LibraryStore
     let playbackSettings: PlaybackSettings
-    let shieldSettings: ShieldSettings
-    let contentBlocker: ContentBlocker
-    let player: PlayerCoordinator
+    let player: AudioPlayerCoordinator
+    let resolverConfigured: Bool
 
     init(modelContext: NSManagedObjectContext, transport: any HTTPTransport = URLSessionTransport()) {
         let library = LibraryStore(context: modelContext)
         let queue = PlaybackQueue()
         let playbackSettings = PlaybackSettings(libraryStore: library)
-        let shieldSettings = ShieldSettings(libraryStore: library)
-        let contentBlocker = ContentBlocker()
-        let configuration = try? APIConfiguration.live()
+
+        let resolver: any AudioStreamResolving
+        if let configuration = try? AudioResolverConfiguration.live() {
+            resolver = AudioResolverClient(configuration: configuration, transport: transport)
+            resolverConfigured = true
+        } else {
+            resolver = UnavailableAudioResolver()
+            resolverConfigured = false
+        }
 
         self.library = library
         self.queue = queue
         self.playbackSettings = playbackSettings
-        self.shieldSettings = shieldSettings
-        self.contentBlocker = contentBlocker
-        youtubeService = YouTubeDataService(configuration: configuration, transport: transport)
-        player = PlayerCoordinator(
-            queue: queue,
-            contentBlocker: contentBlocker,
-            shieldSettings: shieldSettings
+        youtubeService = YouTubeDataService(
+            configuration: try? APIConfiguration.live(),
+            transport: transport
         )
+        player = AudioPlayerCoordinator(queue: queue, resolver: resolver)
     }
 
     func play(_ item: MediaItem) {
@@ -38,9 +40,5 @@ final class AppEnvironment: ObservableObject {
         if playbackSettings.historyEnabled {
             try? library.addHistory(item)
         }
-    }
-
-    func refreshShield() async {
-        await player.reloadWithCurrentShield()
     }
 }

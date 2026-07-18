@@ -1,0 +1,9 @@
+{
+	admin off
+}
+
+{$RESOLVER_DOMAIN} {
+	# Caddy no genera access logs mientras no se declare la directiva `log`.
+	header -Server
+	reverse_proxy resolver:8080
+}

@@ -8,6 +8,7 @@ export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Develope
 
 ./scripts/generate-project.sh
 ./scripts/verify-no-secrets.py
+./scripts/validate-resolver.sh
 
 xcodebuild \
   -project DiegoMusic.xcodeproj \

@@ -46,8 +46,8 @@ final class LibraryStoreTests: XCTestCase {
 
     func testPreferencePersistsInContext() throws {
         let store = makeStore()
-        try store.setPreference(ShieldMode.aggressive.rawValue, for: "privacyShield.mode")
-        XCTAssertEqual(store.preference(for: "privacyShield.mode"), ShieldMode.aggressive.rawValue)
+        try store.setPreference("true", for: "playback.historyEnabled")
+        XCTAssertEqual(store.preference(for: "playback.historyEnabled"), "true")
     }
 
     private func makeStore() -> LibraryStore {

@@ -91,10 +91,8 @@ struct RootView: View {
             PlaylistsView(library: environment.library, onPlay: environment.play)
         case .settings:
             SettingsView(
-                settings: environment.shieldSettings,
                 playbackSettings: environment.playbackSettings,
-                blocker: environment.contentBlocker,
-                onApply: { Task { await environment.refreshShield() } }
+                resolverConfigured: environment.resolverConfigured
             )
         }
     }

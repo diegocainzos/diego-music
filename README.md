@@ -1,6 +1,6 @@
 # DiegoMusic
 
-Cliente educativo y privado para explorar y reproducir música con APIs oficiales de YouTube en iPhone, iPad y macOS. La identidad visual combina Bauhaus digital con controles Hi‑Fi skeuomórficos; no es una aplicación oficial ni está afiliada con YouTube o Google.
+Cliente privado para explorar el catálogo de YouTube y reproducir audio mediante un resolutor propio desplegado en VPS. En iPhone, iPad y macOS usa AVPlayer y una interfaz Bauhaus digital con controles Hi‑Fi; no es una aplicación oficial ni está afiliada con YouTube o Google.
 
 ## Destinos
 
@@ -11,13 +11,15 @@ Cliente educativo y privado para explorar y reproducir música con APIs oficiale
 
 ## Configuración local
 
-La clave nunca debe copiarse a Swift, documentación o logs. Declárala únicamente en `.env`:
+Las credenciales nunca deben copiarse a Swift, documentación o logs. Decláralas únicamente en `.env`:
 
-```text
+```dotenv
 YOUTUBE_DATA_KEY=valor_local
+AUDIO_RESOLVER_BASE_URL=https://audio.example.com
+AUDIO_RESOLVER_API_TOKEN=token_aleatorio_de_32_caracteres_o_mas
 ```
 
-Genera el xcconfig ignorado y el proyecto:
+`AUDIO_RESOLVER_API_TOKEN` debe coincidir con `DIEGOMUSIC_API_TOKEN` en el VPS. Genera el xcconfig ignorado y el proyecto:
 
 ```bash
 ./scripts/generate-project.sh
@@ -45,38 +47,42 @@ export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 - `DiegoMusic/App`: arranque, entorno e interfaz adaptable.
 - `DiegoMusic/Core`: dominio, red y Core Data.
 - `DiegoMusic/YouTube`: endpoint, DTOs, mapper y servicio Data API.
-- `DiegoMusic/WebPlayer`: IFrame Player oficial y puente Swift–JavaScript.
-- `DiegoMusic/PrivacyShield`: reglas, compilación WebKit y laboratorio controlado.
+- `DiegoMusic/AudioPlayer`: cliente del resolutor, AVPlayer, sesión de audio y controles remotos.
 - `DiegoMusic/Design`: sistema visual Bauhaus Hi‑Fi y estados accesibles.
-- `Tests/UnitTests`: endpoint, mapeo, errores, cola, mensajes, reglas y persistencia.
+- `ResolverService`: FastAPI, yt-dlp, sesiones opacas, proxy Range y despliegue Docker/Caddy.
+- `Tests/UnitTests`: catálogo, configuración, errores, cola, cliente del resolutor y persistencia.
 
-## Identidad del reproductor y errores 152/153
+Flujo de reproducción:
 
-YouTube exige que los reproductores embebidos identifiquen la aplicación mediante `HTTP Referer` o un identificador equivalente. DiegoMusic prepara el HTML con el origen `https://com.diegocainzos.diegomusic`, derivado del bundle ID, usa ese mismo valor en `origin` y `widget_referrer`, y aplica `strict-origin-when-cross-origin`.
-
-Los códigos 152/153 en WKWebView suelen indicar que YouTube no pudo validar esa identidad o detectó una discordancia entre `origin` y `Referer`. El reproductor también mantiene un viewport mínimo de 200×200 puntos, como exige la documentación oficial.
-
-Prueba live opcional contra el vídeo oficial de referencia:
-
-```bash
-RUN_YOUTUBE_PLAYER_LIVE_TEST=1 \
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-xcodebuild -project DiegoMusic.xcodeproj -scheme DiegoMusic \
-  -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO \
-  -only-testing:DiegoMusicTests/WebResourcesTests/testOfficialPlayerAcceptsBundleIdentity test
+```text
+YouTube Data API → videoId → VPS privado → sesión de audio opaca → AVPlayer
 ```
 
-## PrivacyShield
+El cliente no recibe la URL upstream de Googlevideo. El VPS conserva esa URL y sus cabeceras únicamente en memoria, y expone un token temporal capaz de atender `GET`, `HEAD` y HTTP Range. No se guarda audio permanentemente.
 
-Modos:
+## VPS privado
 
-- **Desactivado:** no instala reglas.
-- **Equilibrado:** bloquea redes publicitarias conocidas y prioriza la reproducción.
-- **Agresivo:** añade patrones de anuncios de YouTube y puede necesitar recuperación.
+Consulta [`ResolverService/README.md`](ResolverService/README.md) para preparar DNS, Docker Compose, Caddy HTTPS, token, actualización de yt-dlp y rotación de credenciales.
 
-Las reglas se compilan con `WKContentRuleListStore` antes de recargar el reproductor. El laboratorio incluido demuestra de forma determinista la diferencia entre recursos permitidos y bloqueados. Se pueden importar listas JSON compatibles desde Ajustes.
+Resumen:
 
-No es técnicamente posible garantizar el bloqueo permanente de todos los anuncios dentro de un iframe de otro origen: YouTube puede cambiar endpoints y compartir infraestructura entre contenido y publicidad. DiegoMusic aplica bloqueo real de mejor esfuerzo, permite actualizar reglas y ofrece recuperación inmediata sin reemplazar el reproductor oficial ni extraer streams.
+```bash
+cd ResolverService
+cp .env.example .env
+# Edita dominio y token sin mostrarlos en logs.
+docker compose --file compose.yml up --detach --build
+```
+
+El servicio interno no publica el puerto 8080. Solo Caddy expone 80/443 y los access logs permanecen desactivados por defecto.
+
+## Reproducción nativa
+
+- Dock compacto sin vídeo y ampliación sin reiniciar la pista.
+- AVPlayer único con progreso, seek, cola y avance automático.
+- `AVAudioSession` en categoría `.playback` para iPhone.
+- Background audio, pantalla bloqueada y comandos play/pause/anterior/siguiente/seek.
+- `MPNowPlayingInfoCenter` con título, canal, duración, posición y velocidad.
+- Errores sanitizados: la interfaz nunca muestra credenciales ni URLs firmadas.
 
 ## Pruebas
 
@@ -90,6 +96,7 @@ Comprobaciones individuales:
 
 ```bash
 ./scripts/verify-no-secrets.py
+ResolverService/.venv/bin/pytest -q ResolverService/tests
 
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 xcodebuild -project DiegoMusic.xcodeproj -scheme DiegoMusic \
@@ -99,6 +106,19 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 xcodebuild -project DiegoMusic.xcodeproj -scheme DiegoMusic \
   -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
 ```
+
+## Instalar en un iPhone
+
+1. Instala una versión de Xcode compatible con el iOS del dispositivo: Xcode 15+ para iOS 17 y Xcode 16+ para iOS 18.
+2. Despliega primero el VPS y completa las tres variables de `.env`.
+3. Ejecuta `./scripts/generate-project.sh` y abre `DiegoMusic.xcodeproj`.
+4. En **Xcode → Settings → Accounts**, añade tu Apple Account.
+5. Conecta y desbloquea el iPhone, acepta la confianza y activa **Ajustes → Privacidad y seguridad → Modo de desarrollador**.
+6. En el target `DiegoMusic`, abre **Signing & Capabilities**, activa firma automática y selecciona tu Team.
+7. Selecciona el iPhone como destino y pulsa **Run** (`⌘R`).
+8. Reproduce una canción, bloquea la pantalla y comprueba los controles del sistema.
+
+No hace falta publicar en App Store. Con un Personal Team gratuito tendrás que volver a firmar la app periódicamente. La validación real de background audio debe hacerse en un dispositivo; el simulador no reproduce fielmente el ciclo de vida de pantalla bloqueada.
 
 ## Capacidades Pi locales
 

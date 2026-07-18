@@ -1,3 +1,0 @@
-[
-  {"trigger":{"url-filter":".*diegomusic-ad-test.*"},"action":{"type":"block"}}
-]

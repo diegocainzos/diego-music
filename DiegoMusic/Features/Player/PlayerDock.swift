@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PlayerDock: View {
-    @ObservedObject var player: PlayerCoordinator
+    @ObservedObject var player: AudioPlayerCoordinator
     @ObservedObject var queue: PlaybackQueue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
@@ -9,7 +9,7 @@ struct PlayerDock: View {
     var body: some View {
         Group {
             if let current = queue.current {
-                VStack(spacing: expanded ? 16 : 8) {
+                VStack(spacing: expanded ? 16 : 9) {
                     if expanded {
                         expandedPlayer(current)
                     } else {
@@ -17,23 +17,23 @@ struct PlayerDock: View {
                     }
 
                     if let error = player.errorMessage {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(DiegoTheme.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: 10) {
+                            Label(error, systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(DiegoTheme.red)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Button("Reintentar") { player.retry() }
+                                .font(.caption.bold())
+                                .buttonStyle(HiFiButtonStyle(color: DiegoTheme.red))
+                        }
                     }
                 }
                 .padding(expanded ? 16 : 10)
-                .frame(maxWidth: expanded ? 1040 : .infinity)
+                .frame(maxWidth: expanded ? 980 : .infinity)
                 .background(.ultraThinMaterial)
-                .background(DiegoTheme.paper.opacity(0.94))
+                .background(DiegoTheme.paper.opacity(0.96))
                 .overlay(alignment: .top) { Rectangle().fill(DiegoTheme.ink).frame(height: 2) }
                 .shadow(color: DiegoTheme.ink.opacity(0.22), radius: 16, y: -4)
-            } else {
-                YouTubePlayerView(coordinator: player)
-                    .frame(width: 1, height: 1)
-                    .opacity(0.001)
-                    .accessibilityHidden(true)
             }
         }
         .frame(maxWidth: .infinity)
@@ -41,72 +41,141 @@ struct PlayerDock: View {
 
     private func compactPlayer(_ current: MediaItem) -> some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 12) {
-                compactWebPlayer
+            HStack(spacing: 12) {
+                artwork(current, size: 64)
                 compactMetadata(current)
                 controls
                 expandButton
             }
 
-            VStack(spacing: 10) {
-                compactWebPlayer
+            VStack(spacing: 9) {
                 HStack(spacing: 10) {
+                    artwork(current, size: 54)
                     compactMetadata(current)
-                    controls
                     expandButton
                 }
+                controls
             }
         }
     }
 
-    private var compactWebPlayer: some View {
-        YouTubePlayerView(coordinator: player)
-            .frame(width: 200, height: 200)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay { RoundedRectangle(cornerRadius: 8).stroke(DiegoTheme.ink, lineWidth: 2) }
-    }
-
     private func compactMetadata(_ current: MediaItem) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(current.title).font(.headline).lineLimit(1)
-            Text(current.channelTitle).font(.caption).foregroundStyle(DiegoTheme.ink.opacity(0.65)).lineLimit(1)
+            Text(current.channelTitle)
+                .font(.caption)
+                .foregroundStyle(DiegoTheme.ink.opacity(0.65))
+                .lineLimit(1)
+            stateLabel
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func expandedPlayer(_ current: MediaItem) -> some View {
         VStack(spacing: 14) {
-            YouTubePlayerView(coordinator: player)
-                .aspectRatio(16 / 9, contentMode: .fit)
-                .frame(minWidth: 200, maxWidth: 640, minHeight: 200, maxHeight: 360)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay { RoundedRectangle(cornerRadius: 10).stroke(DiegoTheme.ink, lineWidth: 2) }
-
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(current.title).font(.title3.bold()).lineLimit(2)
-                    Text(current.channelTitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                    progressControl
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 20) {
+                    artwork(current, size: 180)
+                    expandedMetadata(current)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                controls
-                expandButton
+                VStack(spacing: 14) {
+                    artwork(current, size: 150)
+                    expandedMetadata(current)
+                }
             }
-
             queueEditor
         }
     }
 
+    private func expandedMetadata(_ current: MediaItem) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(current.title).font(.title2.bold()).lineLimit(2)
+            Text(current.channelTitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            stateLabel
+            progressControl
+            HStack(spacing: 12) {
+                controls
+                Spacer(minLength: 8)
+                expandButton
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func artwork(_ item: MediaItem, size: CGFloat) -> some View {
+        AsyncImage(url: item.thumbnailURL) { phase in
+            switch phase {
+            case let .success(image):
+                image.resizable().scaledToFill()
+            case .failure:
+                artworkPlaceholder
+            case .empty:
+                ZStack {
+                    artworkPlaceholder
+                    ProgressView().tint(DiegoTheme.ink)
+                }
+            @unknown default:
+                artworkPlaceholder
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .overlay { RoundedRectangle(cornerRadius: 9).stroke(DiegoTheme.ink, lineWidth: 2) }
+        .accessibilityHidden(true)
+    }
+
+    private var artworkPlaceholder: some View {
+        ZStack {
+            DiegoTheme.yellow
+            Circle().fill(DiegoTheme.ink).padding(13)
+            Circle().fill(DiegoTheme.paper).padding(25)
+        }
+    }
+
+    @ViewBuilder
+    private var stateLabel: some View {
+        switch player.playbackState {
+        case .idle:
+            Label("Preparado", systemImage: "circle")
+        case .resolving:
+            Label("Resolviendo en tu VPS…", systemImage: "network")
+                .foregroundStyle(DiegoTheme.blue)
+        case .buffering:
+            Label("Cargando audio…", systemImage: "waveform")
+                .foregroundStyle(DiegoTheme.blue)
+        case .playing:
+            Label("Reproduciendo", systemImage: "speaker.wave.2.fill")
+                .foregroundStyle(DiegoTheme.green)
+        case .paused:
+            Label("En pausa", systemImage: "pause.circle.fill")
+        case .ended:
+            Label("Finalizada", systemImage: "checkmark.circle.fill")
+        case .failed:
+            Label("No disponible", systemImage: "exclamationmark.circle.fill")
+                .foregroundStyle(DiegoTheme.red)
+        }
+    }
+
     private var controls: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             Button(action: { player.previous() }) { Image(systemName: "backward.fill") }
-                .disabled(!queue.canRetreat)
+                .disabled(!queue.canRetreat && player.currentTime < 1)
                 .accessibilityLabel("Anterior")
             Button(action: { player.togglePlayback() }) {
-                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.title3)
-                    .frame(width: 24, height: 24)
+                Group {
+                    if player.isLoading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                    }
+                }
+                .font(.title3)
+                .frame(width: 26, height: 26)
             }
+            .disabled(player.playbackState == .resolving)
             .accessibilityLabel(player.isPlaying ? "Pausar" : "Reproducir")
             Button(action: { player.next() }) { Image(systemName: "forward.fill") }
                 .disabled(!queue.canAdvance)
@@ -135,6 +204,7 @@ struct PlayerDock: View {
                 value: Binding(get: { player.progress }, set: { player.seek(to: $0) }),
                 in: 0...1
             )
+            .disabled(player.duration <= 0)
             .tint(DiegoTheme.red)
             .accessibilityLabel("Posición de reproducción")
             .accessibilityValue("\(format(player.currentTime)) de \(format(player.duration))")
@@ -150,7 +220,7 @@ struct PlayerDock: View {
                     .font(.caption.bold())
                     .tracking(1.5)
                 Spacer()
-                Button("Vaciar") { queue.clear() }
+                Button("Vaciar") { player.clearQueue() }
                     .font(.caption.bold())
                     .disabled(queue.items.isEmpty)
             }
@@ -174,7 +244,7 @@ struct PlayerDock: View {
                             Button { queue.move(id: item.id, by: 1) } label: { Image(systemName: "arrow.down") }
                                 .disabled(index == queue.items.count - 1)
                                 .accessibilityLabel("Bajar en la cola")
-                            Button { queue.remove(id: item.id) } label: { Image(systemName: "trash") }
+                            Button { player.removeFromQueue(id: item.id) } label: { Image(systemName: "trash") }
                                 .accessibilityLabel("Eliminar de la cola")
                         }
                         .font(.callout)
