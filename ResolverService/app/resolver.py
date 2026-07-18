@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from typing import Mapping, Protocol
+from typing import Literal, Mapping, Protocol
 from urllib.parse import parse_qs, urlsplit
 
 from .config import Settings
@@ -30,10 +30,28 @@ class AudioResolutionError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class ResolvedAudio:
-    upstream_url: str
+    upstream_url: str | None
     headers: Mapping[str, str]
     content_type: str
     upstream_expires_at: datetime | None = None
+    cached_path: Path | None = None
+    content_length: int | None = None
+    cache_status: Literal["miss", "resolution", "disk"] = "miss"
+
+    @property
+    def is_cached_file(self) -> bool:
+        return self.cached_path is not None
+
+    @classmethod
+    def from_cached_file(cls, path: Path, size: int) -> "ResolvedAudio":
+        return cls(
+            upstream_url=None,
+            headers={},
+            content_type="audio/mp4",
+            cached_path=path,
+            content_length=size,
+            cache_status="disk",
+        )
 
 
 class AudioResolving(Protocol):

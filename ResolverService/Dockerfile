@@ -14,7 +14,9 @@ WORKDIR /service
 COPY requirements.txt ./requirements.txt
 RUN python -m pip install --requirement requirements.txt
 
-RUN useradd --create-home --uid 10001 resolver
+RUN useradd --create-home --uid 10001 resolver \
+    && mkdir -p /var/cache/diegomusic \
+    && chown resolver:resolver /var/cache/diegomusic
 COPY --chown=resolver:resolver app ./app
 USER resolver
 

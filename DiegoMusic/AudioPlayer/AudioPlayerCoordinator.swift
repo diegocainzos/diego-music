@@ -26,7 +26,11 @@ final class AudioPlayerCoordinator: ObservableObject {
     private let queue: PlaybackQueue
     private let resolver: any AudioStreamResolving
     private var resolveTask: Task<Void, Never>?
+    private var recoveryTask: Task<Void, Never>?
+    private var prefetchTask: Task<Void, Never>?
+    private var queueObservation: AnyCancellable?
     private var loadGeneration = 0
+    private var automaticRetryAvailable = true
     private var periodicTimeObserver: Any?
     private var timeControlObservation: NSKeyValueObservation?
     private var itemStatusObservation: NSKeyValueObservation?
@@ -39,11 +43,15 @@ final class AudioPlayerCoordinator: ObservableObject {
         self.queue = queue
         self.resolver = resolver
         observePlayer()
+        observeQueueForPrefetch()
         configurePlatformPlayback()
     }
 
     deinit {
         resolveTask?.cancel()
+        recoveryTask?.cancel()
+        prefetchTask?.cancel()
+        queueObservation?.cancel()
         if let periodicTimeObserver {
             player.removeTimeObserver(periodicTimeObserver)
         }
@@ -67,7 +75,7 @@ final class AudioPlayerCoordinator: ObservableObject {
 
     func select(_ item: MediaItem) {
         queue.play(item)
-        load(item, autoplay: true)
+        load(item, autoplay: true, resetRetryBudget: true)
     }
 
     func togglePlayback() {
@@ -79,7 +87,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         }
 
         if player.currentItem == nil {
-            if let item = queue.current { load(item, autoplay: true) }
+            if let item = queue.current { load(item, autoplay: true, resetRetryBudget: true) }
             return
         }
         guard activatePlatformAudioSession() else { return }
@@ -89,12 +97,12 @@ final class AudioPlayerCoordinator: ObservableObject {
 
     func retry() {
         guard let item = queue.current else { return }
-        load(item, autoplay: true)
+        load(item, autoplay: true, resetRetryBudget: true)
     }
 
     func next() {
         guard let item = queue.advance() else { return }
-        load(item, autoplay: true)
+        load(item, autoplay: true, resetRetryBudget: true)
     }
 
     func previous() {
@@ -102,7 +110,7 @@ final class AudioPlayerCoordinator: ObservableObject {
             seek(toSeconds: 0)
             return
         }
-        load(item, autoplay: true)
+        load(item, autoplay: true, resetRetryBudget: true)
     }
 
     func removeFromQueue(id: MediaItem.ID) {
@@ -110,7 +118,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         queue.remove(id: id)
         guard removedCurrentItem else { return }
         if let replacement = queue.current {
-            load(replacement, autoplay: true)
+            load(replacement, autoplay: true, resetRetryBudget: true)
         } else {
             stop()
         }
@@ -143,6 +151,8 @@ final class AudioPlayerCoordinator: ObservableObject {
 
     private func stop() {
         resolveTask?.cancel()
+        recoveryTask?.cancel()
+        prefetchTask?.cancel()
         loadGeneration += 1
         player.pause()
         player.replaceCurrentItem(with: nil)
@@ -155,8 +165,16 @@ final class AudioPlayerCoordinator: ObservableObject {
         updateNowPlayingInfo()
     }
 
-    private func load(_ item: MediaItem, autoplay: Bool) {
+    private func load(
+        _ item: MediaItem,
+        autoplay: Bool,
+        resetRetryBudget: Bool
+    ) {
         resolveTask?.cancel()
+        if resetRetryBudget {
+            recoveryTask?.cancel()
+            automaticRetryAvailable = true
+        }
         loadGeneration += 1
         let generation = loadGeneration
         player.pause()
@@ -176,9 +194,10 @@ final class AudioPlayerCoordinator: ObservableObject {
                 guard generation == loadGeneration else { return }
 
                 let playerItem = AVPlayerItem(url: descriptor.streamURL)
-                installStatusObservation(for: playerItem)
+                installStatusObservation(for: playerItem, mediaItem: item)
                 player.replaceCurrentItem(with: playerItem)
                 playbackState = .buffering
+                schedulePrefetch()
                 if autoplay, activatePlatformAudioSession() { player.play() }
             } catch is CancellationError {
                 return
@@ -189,6 +208,63 @@ final class AudioPlayerCoordinator: ObservableObject {
                     ?? "No se pudo preparar esta canción."
                 updateNowPlayingInfo(item: item)
             }
+        }
+    }
+
+    private func observeQueueForPrefetch() {
+        queueObservation = queue.$items
+            .combineLatest(queue.$currentIndex)
+            .dropFirst()
+            .sink { [weak self] _, _ in
+                self?.schedulePrefetch()
+            }
+    }
+
+    private func schedulePrefetch() {
+        prefetchTask?.cancel()
+        guard player.currentItem != nil,
+              let index = queue.currentIndex,
+              queue.items.indices.contains(index + 1)
+        else { return }
+
+        let nextVideoID = queue.items[index + 1].id
+        prefetchTask = Task { [resolver] in
+            do {
+                try await Task.sleep(nanoseconds: 150_000_000)
+                try Task.checkCancellation()
+                _ = try await resolver.resolve(videoID: nextVideoID)
+            } catch {
+                // La precarga es especulativa y nunca interrumpe la pista actual.
+            }
+        }
+    }
+
+    private func handlePlaybackFailure(for item: MediaItem) {
+        guard automaticRetryAvailable else {
+            playbackState = .failed
+            errorMessage = "AVPlayer no pudo abrir la pista entregada por el VPS."
+            updateNowPlayingInfo()
+            return
+        }
+
+        automaticRetryAvailable = false
+        let failedGeneration = loadGeneration
+        playbackState = .resolving
+        errorMessage = nil
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        itemStatusObservation = nil
+
+        recoveryTask?.cancel()
+        recoveryTask = Task { [weak self] in
+            guard let self else { return }
+            await resolver.invalidate(videoID: item.id)
+            try? Task.checkCancellation()
+            guard !Task.isCancelled,
+                  failedGeneration == loadGeneration,
+                  queue.current?.id == item.id
+            else { return }
+            load(item, autoplay: true, resetRetryBudget: false)
         }
     }
 
@@ -224,7 +300,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         notificationObservers.append(endObserver)
     }
 
-    private func installStatusObservation(for item: AVPlayerItem) {
+    private func installStatusObservation(for item: AVPlayerItem, mediaItem: MediaItem) {
         itemStatusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self, weak item] observed, _ in
             Task { @MainActor [weak self, weak item, observed] in
                 guard let self, let item, item === self.player.currentItem else { return }
@@ -237,9 +313,7 @@ final class AudioPlayerCoordinator: ObservableObject {
                     self.errorMessage = nil
                     self.updateNowPlayingInfo()
                 case .failed:
-                    self.playbackState = .failed
-                    self.errorMessage = "AVPlayer no pudo abrir la pista entregada por el VPS."
-                    self.updateNowPlayingInfo()
+                    self.handlePlaybackFailure(for: mediaItem)
                 case .unknown:
                     break
                 @unknown default:

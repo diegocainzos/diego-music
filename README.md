@@ -75,6 +75,8 @@ docker compose --file compose.yml up --detach --build
 
 El servicio interno no publica el puerto 8080. Solo Caddy expone 80/443 y los access logs permanecen desactivados por defecto.
 
+El resolutor reutiliza resoluciones vigentes, conserva hasta 5 GiB de M4A en un volumen LRU y sirve repeticiones desde disco. La primera reproducción calienta la caché en background; `docker compose down` conserva el volumen.
+
 ## Reproducción nativa
 
 - Dock compacto sin vídeo y ampliación sin reiniciar la pista.
@@ -83,6 +85,8 @@ El servicio interno no publica el puerto 8080. Solo Caddy expone 80/443 y los ac
 - Background audio, pantalla bloqueada y comandos play/pause/anterior/siguiente/seek.
 - `MPNowPlayingInfoCenter` con título, canal, duración, posición y velocidad.
 - Errores sanitizados: la interfaz nunca muestra credenciales ni URLs firmadas.
+- Caché de descriptores en memoria y un reintento automático tras reinicios del resolutor.
+- Precarga silenciosa de la siguiente pista de la cola.
 
 ## Pruebas
 

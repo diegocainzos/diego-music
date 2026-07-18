@@ -11,6 +11,7 @@ from .resolver import ResolvedAudio
 @dataclass(frozen=True, slots=True)
 class AudioSession:
     token: str
+    video_id: str
     audio: ResolvedAudio
     expires_at: datetime
 
@@ -33,7 +34,7 @@ class SessionStore:
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self._sessions: dict[str, AudioSession] = {}
 
-    def create(self, audio: ResolvedAudio) -> AudioSession:
+    def create(self, video_id: str, audio: ResolvedAudio) -> AudioSession:
         now = self.clock()
         expires_at = now + timedelta(seconds=self.ttl_seconds)
         if audio.upstream_expires_at is not None:
@@ -43,7 +44,7 @@ class SessionStore:
             raise SessionExpiredError("El origen ya está expirado.")
 
         token = secrets.token_urlsafe(32)
-        session = AudioSession(token=token, audio=audio, expires_at=expires_at)
+        session = AudioSession(token=token, video_id=video_id, audio=audio, expires_at=expires_at)
         self._sessions[token] = session
         self._remove_expired(excluding=token)
         return session

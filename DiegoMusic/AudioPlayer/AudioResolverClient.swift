@@ -8,6 +8,11 @@ struct AudioStreamDescriptor: Equatable, Sendable {
 
 protocol AudioStreamResolving: Sendable {
     func resolve(videoID: String) async throws -> AudioStreamDescriptor
+    func invalidate(videoID: String) async
+}
+
+extension AudioStreamResolving {
+    func invalidate(videoID: String) async {}
 }
 
 enum AudioResolverServiceError: LocalizedError, Equatable, Sendable {
@@ -36,27 +41,85 @@ enum AudioResolverServiceError: LocalizedError, Equatable, Sendable {
     }
 }
 
-struct AudioResolverClient: AudioStreamResolving {
+actor AudioResolverClient: AudioStreamResolving {
     let configuration: AudioResolverConfiguration
     let transport: any HTTPTransport
 
+    private let expirationSafetyMargin: TimeInterval
+    private let clock: @Sendable () -> Date
+    private var descriptors: [String: AudioStreamDescriptor] = [:]
+    private var inFlight: [String: PendingResolution] = [:]
+
     init(
         configuration: AudioResolverConfiguration,
-        transport: any HTTPTransport = URLSessionTransport()
+        transport: any HTTPTransport = URLSessionTransport(),
+        expirationSafetyMargin: TimeInterval = 90,
+        clock: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.configuration = configuration
         self.transport = transport
+        self.expirationSafetyMargin = expirationSafetyMargin
+        self.clock = clock
     }
 
     func resolve(videoID: String) async throws -> AudioStreamDescriptor {
-        guard videoID.count == 11,
-              videoID.unicodeScalars.allSatisfy({
-                  CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-").contains($0)
-              })
-        else {
-            throw AudioResolverServiceError.invalidVideoID
+        try Self.validate(videoID: videoID)
+        let now = clock()
+        if let cached = descriptors[videoID],
+           cached.expiresAt.timeIntervalSince(now) > expirationSafetyMargin {
+            return cached
+        }
+        descriptors.removeValue(forKey: videoID)
+
+        if let pending = inFlight[videoID] {
+            return try await pending.task.value
         }
 
+        let identifier = UUID()
+        let configuration = configuration
+        let transport = transport
+        let task = Task<AudioStreamDescriptor, Error> {
+            try await Self.requestDescriptor(
+                videoID: videoID,
+                configuration: configuration,
+                transport: transport,
+                now: now
+            )
+        }
+        inFlight[videoID] = PendingResolution(id: identifier, task: task)
+
+        do {
+            let descriptor = try await task.value
+            if inFlight[videoID]?.id == identifier {
+                inFlight.removeValue(forKey: videoID)
+                if descriptor.expiresAt.timeIntervalSince(clock()) > expirationSafetyMargin {
+                    descriptors[videoID] = descriptor
+                }
+            }
+            return descriptor
+        } catch {
+            if inFlight[videoID]?.id == identifier {
+                inFlight.removeValue(forKey: videoID)
+            }
+            throw error
+        }
+    }
+
+    func invalidate(videoID: String) async {
+        descriptors.removeValue(forKey: videoID)
+        inFlight.removeValue(forKey: videoID)?.task.cancel()
+    }
+
+    var cacheEntryCount: Int {
+        descriptors.count
+    }
+
+    private static func requestDescriptor(
+        videoID: String,
+        configuration: AudioResolverConfiguration,
+        transport: any HTTPTransport,
+        now: Date
+    ) async throws -> AudioStreamDescriptor {
         let endpoint = configuration.baseURL
             .appendingPathComponent("v1")
             .appendingPathComponent("audio")
@@ -71,13 +134,15 @@ struct AudioResolverClient: AudioStreamResolving {
         let response: HTTPURLResponse
         do {
             (data, response) = try await transport.data(for: request)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw AudioResolverServiceError.unavailable
         }
 
         switch response.statusCode {
         case 200:
-            return try decodeDescriptor(from: data)
+            return try decodeDescriptor(from: data, now: now)
         case 401:
             throw AudioResolverServiceError.unauthorized
         case 422:
@@ -91,7 +156,17 @@ struct AudioResolverClient: AudioStreamResolving {
         }
     }
 
-    private func decodeDescriptor(from data: Data) throws -> AudioStreamDescriptor {
+    private static func validate(videoID: String) throws {
+        guard videoID.count == 11,
+              videoID.unicodeScalars.allSatisfy({
+                  CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-").contains($0)
+              })
+        else {
+            throw AudioResolverServiceError.invalidVideoID
+        }
+    }
+
+    private static func decodeDescriptor(from data: Data, now: Date) throws -> AudioStreamDescriptor {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -114,7 +189,7 @@ struct AudioResolverClient: AudioStreamResolving {
         }
         guard payload.streamURL.scheme?.lowercased() == "https",
               payload.streamURL.host != nil,
-              payload.expiresAt > Date(),
+              payload.expiresAt > now,
               payload.contentType.lowercased().hasPrefix("audio/")
         else {
             throw AudioResolverServiceError.invalidResponse
@@ -126,7 +201,7 @@ struct AudioResolverClient: AudioStreamResolving {
         )
     }
 
-    private func safeServerMessage(from data: Data) -> String? {
+    private static func safeServerMessage(from data: Data) -> String? {
         guard let payload = try? JSONDecoder().decode(ServerErrorPayload.self, from: data) else { return nil }
         let message = payload.detail.trimmingCharacters(in: .whitespacesAndNewlines)
         let lowered = message.lowercased()
@@ -141,10 +216,17 @@ struct AudioResolverClient: AudioStreamResolving {
     }
 }
 
+private struct PendingResolution {
+    let id: UUID
+    let task: Task<AudioStreamDescriptor, Error>
+}
+
 struct UnavailableAudioResolver: AudioStreamResolving {
     func resolve(videoID: String) async throws -> AudioStreamDescriptor {
         throw AudioResolverServiceError.notConfigured
     }
+
+    func invalidate(videoID: String) async {}
 }
 
 private struct ResolvePayload: Encodable {

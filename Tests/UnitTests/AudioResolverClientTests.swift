@@ -21,6 +21,72 @@ final class AudioResolverClientTests: XCTestCase {
         XCTAssertEqual(descriptor.contentType, "audio/mp4")
     }
 
+    func testDescriptorCacheAvoidsSecondRequest() async throws {
+        let recorder = RequestRecorder()
+        let body = #"{"streamURL":"https://audio.example.test/v1/audio/stream/opaque","expiresAt":"2099-01-01T00:00:00Z","contentType":"audio/mp4","cacheStatus":"miss"}"#
+        let client = try makeClient(statusCode: 200, body: body, recorder: recorder)
+
+        _ = try await client.resolve(videoID: "M7lc1UVf-VE")
+        _ = try await client.resolve(videoID: "M7lc1UVf-VE")
+
+        let requestCount = await recorder.requestCount()
+        let cacheCount = await client.cacheEntryCount
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertEqual(cacheCount, 1)
+    }
+
+    func testNearExpiryDescriptorIsNotCached() async throws {
+        let recorder = RequestRecorder()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expiration = ISO8601DateFormatter().string(from: now.addingTimeInterval(60))
+        let body = #"{"streamURL":"https://audio.example.test/v1/audio/stream/short","expiresAt":"\#(expiration)","contentType":"audio/mp4"}"#
+        let client = try makeClient(
+            statusCode: 200,
+            body: body,
+            recorder: recorder,
+            expirationSafetyMargin: 90,
+            clock: { now }
+        )
+
+        _ = try await client.resolve(videoID: "M7lc1UVf-VE")
+        _ = try await client.resolve(videoID: "M7lc1UVf-VE")
+
+        let requestCount = await recorder.requestCount()
+        XCTAssertEqual(requestCount, 2)
+    }
+
+    func testInvalidationForcesNewRequest() async throws {
+        let recorder = RequestRecorder()
+        let body = #"{"streamURL":"https://audio.example.test/v1/audio/stream/opaque","expiresAt":"2099-01-01T00:00:00Z","contentType":"audio/mp4"}"#
+        let client = try makeClient(statusCode: 200, body: body, recorder: recorder)
+
+        _ = try await client.resolve(videoID: "M7lc1UVf-VE")
+        await client.invalidate(videoID: "M7lc1UVf-VE")
+        _ = try await client.resolve(videoID: "M7lc1UVf-VE")
+
+        let requestCount = await recorder.requestCount()
+        XCTAssertEqual(requestCount, 2)
+    }
+
+    func testConcurrentResolvesShareRequest() async throws {
+        let recorder = RequestRecorder()
+        let body = #"{"streamURL":"https://audio.example.test/v1/audio/stream/opaque","expiresAt":"2099-01-01T00:00:00Z","contentType":"audio/mp4"}"#
+        let client = try makeClient(
+            statusCode: 200,
+            body: body,
+            recorder: recorder,
+            delayNanoseconds: 30_000_000
+        )
+
+        async let first = client.resolve(videoID: "M7lc1UVf-VE")
+        async let second = client.resolve(videoID: "M7lc1UVf-VE")
+        async let third = client.resolve(videoID: "M7lc1UVf-VE")
+        _ = try await [first, second, third]
+
+        let requestCount = await recorder.requestCount()
+        XCTAssertEqual(requestCount, 1)
+    }
+
     func testInvalidIDStopsBeforeNetwork() async throws {
         let recorder = RequestRecorder()
         let client = try makeClient(statusCode: 200, body: "{}", recorder: recorder)
@@ -84,7 +150,10 @@ final class AudioResolverClientTests: XCTestCase {
     private func makeClient(
         statusCode: Int,
         body: String,
-        recorder: RequestRecorder
+        recorder: RequestRecorder,
+        expirationSafetyMargin: TimeInterval = 90,
+        clock: @escaping @Sendable () -> Date = { Date() },
+        delayNanoseconds: UInt64 = 0
     ) throws -> AudioResolverClient {
         let configuration = try AudioResolverConfiguration(
             baseURL: XCTUnwrap(URL(string: "https://audio.example.test")),
@@ -95,21 +164,28 @@ final class AudioResolverClientTests: XCTestCase {
             transport: RecordingHTTPTransport(
                 statusCode: statusCode,
                 data: Data(body.utf8),
-                recorder: recorder
-            )
+                recorder: recorder,
+                delayNanoseconds: delayNanoseconds
+            ),
+            expirationSafetyMargin: expirationSafetyMargin,
+            clock: clock
         )
     }
 }
 
 private actor RequestRecorder {
-    private var request: URLRequest?
+    private var requests: [URLRequest] = []
 
     func record(_ request: URLRequest) {
-        self.request = request
+        requests.append(request)
     }
 
     func lastRequest() -> URLRequest? {
-        request
+        requests.last
+    }
+
+    func requestCount() -> Int {
+        requests.count
     }
 }
 
@@ -117,9 +193,13 @@ private struct RecordingHTTPTransport: HTTPTransport {
     let statusCode: Int
     let data: Data
     let recorder: RequestRecorder
+    let delayNanoseconds: UInt64
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         await recorder.record(request)
+        if delayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: delayNanoseconds)
+        }
         let response = HTTPURLResponse(
             url: request.url!,
             statusCode: statusCode,

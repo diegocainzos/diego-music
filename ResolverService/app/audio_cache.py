@@ -1,0 +1,229 @@
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+import re
+import secrets
+from typing import Final
+
+import anyio
+import httpx
+
+from .resolver import ResolvedAudio
+
+
+_VIDEO_ID: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]{11}$")
+_CONTENT_RANGE: Final[re.Pattern[str]] = re.compile(r"^bytes\s+\d+-\d+/(\d+)$")
+_DOWNLOAD_CHUNK_BYTES: Final[int] = 4_194_304
+
+
+class PersistentAudioCache:
+    """Caché M4A persistente, acotada y segura para un único worker."""
+
+    def __init__(
+        self,
+        directory: Path | None,
+        max_bytes: int,
+        max_file_bytes: int,
+    ) -> None:
+        self.directory = directory
+        self.max_bytes = max_bytes
+        self.max_file_bytes = max_file_bytes
+        self._downloads: dict[str, asyncio.Task[None]] = {}
+        self._maintenance_lock = asyncio.Lock()
+
+    @property
+    def enabled(self) -> bool:
+        return self.directory is not None and self.max_bytes > 0
+
+    async def initialize(self) -> None:
+        if not self.enabled or self.directory is None:
+            return
+        await asyncio.to_thread(self.directory.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(self._remove_partial_files)
+        await self._evict_if_needed()
+
+    async def close(self) -> None:
+        tasks = list(self._downloads.values())
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._downloads.clear()
+
+    async def get(self, video_id: str) -> ResolvedAudio | None:
+        path = self._path(video_id)
+        if path is None:
+            return None
+        try:
+            stat = await asyncio.to_thread(path.stat)
+        except OSError:
+            return None
+        if not path.is_file() or stat.st_size <= 0:
+            await asyncio.to_thread(path.unlink, missing_ok=True)
+            return None
+        await asyncio.to_thread(path.touch)
+        return ResolvedAudio.from_cached_file(path=path, size=stat.st_size)
+
+    def schedule(
+        self,
+        video_id: str,
+        audio: ResolvedAudio,
+        client: httpx.AsyncClient,
+    ) -> None:
+        if not self.enabled or audio.upstream_url is None or video_id in self._downloads:
+            return
+        path = self._path(video_id)
+        if path is None or path.exists():
+            return
+
+        task = asyncio.create_task(self._download(video_id, audio, client))
+        self._downloads[video_id] = task
+        task.add_done_callback(lambda completed, key=video_id: self._finish_download(key, completed))
+
+    async def wait_for_download(self, video_id: str) -> None:
+        task = self._downloads.get(video_id)
+        if task is not None:
+            await asyncio.shield(task)
+
+    async def total_bytes(self) -> int:
+        if not self.enabled or self.directory is None:
+            return 0
+        return await asyncio.to_thread(
+            lambda: sum(path.stat().st_size for path in self.directory.glob("*.m4a") if path.is_file())
+        )
+
+    async def _download(
+        self,
+        video_id: str,
+        audio: ResolvedAudio,
+        client: httpx.AsyncClient,
+    ) -> None:
+        assert self.directory is not None
+        assert audio.upstream_url is not None
+        destination = self.directory / f"{video_id}.m4a"
+        temporary = self.directory / f".{video_id}.{secrets.token_hex(8)}.part"
+        effective_file_limit = min(self.max_file_bytes, self.max_bytes)
+        headers = {
+            name: value
+            for name, value in audio.headers.items()
+            if name.lower() != "accept-encoding"
+        }
+
+        try:
+            content_length = await self._content_length(
+                client=client,
+                url=audio.upstream_url,
+                headers=headers,
+            )
+            if content_length is None or not 0 < content_length <= effective_file_limit:
+                return
+
+            written = 0
+            async with await anyio.open_file(temporary, "wb") as target:
+                while written < content_length:
+                    end = min(written + _DOWNLOAD_CHUNK_BYTES, content_length) - 1
+                    range_headers = {**headers, "Range": f"bytes={written}-{end}"}
+                    async with client.stream("GET", audio.upstream_url, headers=range_headers) as response:
+                        if response.status_code != 206:
+                            return
+                        expected = end - written + 1
+                        range_written = 0
+                        async for chunk in response.aiter_raw():
+                            if not chunk:
+                                continue
+                            range_written += len(chunk)
+                            if range_written > expected:
+                                return
+                            await target.write(chunk)
+                        if range_written != expected:
+                            return
+                        written += range_written
+                await target.flush()
+
+            if written != content_length:
+                return
+            await asyncio.to_thread(temporary.replace, destination)
+            await asyncio.to_thread(destination.touch)
+            await self._evict_if_needed()
+        except asyncio.CancelledError:
+            raise
+        except (OSError, httpx.HTTPError):
+            return
+        finally:
+            await asyncio.to_thread(temporary.unlink, missing_ok=True)
+
+    async def _content_length(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        headers: dict[str, str],
+    ) -> int | None:
+        try:
+            response = await client.head(url, headers=headers)
+            if response.status_code == 200:
+                declared = response.headers.get("content-length")
+                if declared is not None:
+                    return int(declared)
+        except (ValueError, httpx.HTTPError):
+            pass
+
+        probe_headers = {**headers, "Range": "bytes=0-0"}
+        try:
+            async with client.stream("GET", url, headers=probe_headers) as response:
+                if response.status_code != 206:
+                    return None
+                match = _CONTENT_RANGE.fullmatch(response.headers.get("content-range", ""))
+                return int(match.group(1)) if match else None
+        except (ValueError, httpx.HTTPError):
+            return None
+
+    async def _evict_if_needed(self) -> None:
+        if not self.enabled or self.directory is None:
+            return
+        async with self._maintenance_lock:
+            await asyncio.to_thread(self._evict_sync)
+
+    def _evict_sync(self) -> None:
+        assert self.directory is not None
+        entries: list[tuple[int, int, Path]] = []
+        for path in self.directory.glob("*.m4a"):
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            entries.append((stat.st_mtime_ns, stat.st_size, path))
+
+        total = sum(size for _, size, _ in entries)
+        for _, size, path in sorted(entries):
+            if total <= self.max_bytes:
+                break
+            try:
+                path.unlink()
+            except OSError:
+                continue
+            total -= size
+
+    def _remove_partial_files(self) -> None:
+        assert self.directory is not None
+        for path in self.directory.glob(".*.part"):
+            try:
+                path.unlink()
+            except OSError:
+                pass
+
+    def _path(self, video_id: str) -> Path | None:
+        if not self.enabled or self.directory is None:
+            return None
+        if _VIDEO_ID.fullmatch(video_id) is None:
+            raise ValueError("videoId no válido para caché")
+        return self.directory / f"{video_id}.m4a"
+
+    def _finish_download(self, video_id: str, task: asyncio.Task[None]) -> None:
+        current = self._downloads.get(video_id)
+        if current is task:
+            self._downloads.pop(video_id, None)
+        try:
+            task.exception()
+        except (asyncio.CancelledError, asyncio.InvalidStateError):
+            pass

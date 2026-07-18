@@ -1,6 +1,6 @@
 # DiegoMusic Private Audio Resolver
 
-Servicio privado que recibe un `videoId`, selecciona una representación M4A/AAC mediante `yt-dlp` y entrega una URL opaca con proxy HTTP Range. No almacena audio permanentemente ni devuelve la URL upstream al cliente.
+Servicio privado que recibe un `videoId`, selecciona una representación M4A/AAC mediante `yt-dlp` y entrega una URL opaca con proxy HTTP Range. Nunca devuelve la URL upstream al cliente y puede conservar M4A en un volumen privado, acotado y configurable.
 
 ## Requisitos del VPS
 
@@ -31,6 +31,33 @@ curl --fail "https://$RESOLVER_DOMAIN/health"
 ```
 
 El puerto 8080 solo se expone dentro de la red Compose. Caddy no habilita access logs por defecto para evitar registrar tokens temporales incluidos en rutas de stream.
+
+## Cómo funciona la caché
+
+El servicio combina dos capas:
+
+1. **Resolución en memoria:** reutiliza por `videoId` la URL/cabeceras temporales y evita ejecutar `yt-dlp` de nuevo durante hasta tres horas.
+2. **M4A persistente:** tras el primer resolve descarga la pista completa en background. Reproducciones posteriores se sirven desde el volumen `audio_cache`, incluso después de reiniciar contenedores.
+
+La primera reproducción no espera la descarga: comienza mediante proxy upstream mientras la caché se calienta. Esto puede duplicar temporalmente el tráfico de esa primera escucha. Las siguientes usan el archivo local y HTTP Range.
+
+Valores predeterminados:
+
+```dotenv
+RESOLUTION_CACHE_MAX_ENTRIES=500
+RESOLUTION_CACHE_TTL_SECONDS=10800
+RESOLUTION_CACHE_SAFETY_MARGIN_SECONDS=300
+AUDIO_CACHE_MAX_BYTES=5368709120
+AUDIO_CACHE_MAX_FILE_BYTES=268435456
+```
+
+El límite global es 5 GiB. Al superarlo se eliminan primero las pistas menos usadas. Para desactivar almacenamiento persistente sin desactivar la caché de resolución:
+
+```dotenv
+AUDIO_CACHE_MAX_BYTES=0
+```
+
+En local el volumen vive en Docker Desktop; en un VPS vive en su almacenamiento Docker. `docker compose down` lo conserva y `docker compose down --volumes` lo elimina.
 
 ## Configurar DiegoMusic
 
@@ -76,7 +103,23 @@ Para actualizar específicamente `yt-dlp`, cambia su versión en `requirements.t
 4. Actualiza `AUDIO_RESOLVER_API_TOKEN` en el `.env` local de DiegoMusic y regenera el proyecto.
 5. Reinstala la app en el iPhone.
 
-Las sesiones existentes desaparecen al reiniciar; la app resolverá de nuevo la pista.
+Las sesiones opacas existentes desaparecen al reiniciar; DiegoMusic invalida el descriptor y reintenta una vez. Los M4A del volumen permanecen disponibles.
+
+### Inspeccionar o limpiar la caché
+
+```bash
+docker compose --file compose.yml exec resolver \
+  du -sh /var/cache/diegomusic
+
+docker compose --file compose.yml exec resolver \
+  sh -c 'rm -f /var/cache/diegomusic/*.m4a /var/cache/diegomusic/.*.part'
+```
+
+Tras cambiar límites en `.env`, recrea el servicio:
+
+```bash
+docker compose --file compose.yml up --detach --force-recreate resolver
+```
 
 ## Pruebas locales
 
@@ -96,3 +139,4 @@ Las pruebas sustituyen `yt-dlp` y Googlevideo por dobles locales; no contactan Y
 - No habilites access logs sin redactar `/v1/audio/stream/*`.
 - Si necesitas cookies, móntalas como secreto de solo lectura y nunca dentro de la imagen o repositorio.
 - No expongas directamente el puerto interno 8080.
+- Protege el volumen `audio_cache`; contiene archivos M4A completos y no debe publicarse ni montarse en otros servicios.

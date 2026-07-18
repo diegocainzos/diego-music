@@ -6,12 +6,14 @@ from typing import AsyncIterator
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.background import BackgroundTask
 
+from .audio_cache import PersistentAudioCache
 from .config import Settings
 from .models import HealthResponse, ResolveRequest, ResolveResponse
+from .resolution_cache import CachingAudioResolver
 from .resolver import AudioResolutionError, AudioResolving, YTDLPResolver
 from .sessions import SessionExpiredError, SessionNotFoundError, SessionStore
 
@@ -34,10 +36,22 @@ def create_app(
     resolver: AudioResolving | None = None,
     store: SessionStore | None = None,
     upstream_client: httpx.AsyncClient | None = None,
+    audio_cache: PersistentAudioCache | None = None,
 ) -> FastAPI:
     service_settings = settings or Settings.from_environment()
-    service_resolver = resolver or YTDLPResolver(service_settings)
+    base_resolver = resolver or YTDLPResolver(service_settings)
+    service_resolver = CachingAudioResolver(
+        resolver=base_resolver,
+        max_entries=service_settings.resolution_cache_max_entries,
+        ttl_seconds=service_settings.resolution_cache_ttl_seconds,
+        safety_margin_seconds=service_settings.resolution_cache_safety_margin_seconds,
+    )
     session_store = store or SessionStore(service_settings.session_ttl_seconds)
+    persistent_cache = audio_cache or PersistentAudioCache(
+        directory=service_settings.audio_cache_directory,
+        max_bytes=service_settings.audio_cache_max_bytes,
+        max_file_bytes=service_settings.audio_cache_max_file_bytes,
+    )
     owns_upstream_client = upstream_client is None
 
     @asynccontextmanager
@@ -46,7 +60,9 @@ def create_app(
             timeout=httpx.Timeout(service_settings.upstream_timeout_seconds),
             follow_redirects=True,
         )
+        await persistent_cache.initialize()
         yield
+        await persistent_cache.close()
         if owns_upstream_client:
             await application.state.upstream_client.aclose()
 
@@ -84,10 +100,17 @@ def create_app(
         response_model=ResolveResponse,
         dependencies=[Depends(require_api_token)],
     )
-    async def resolve_audio(payload: ResolveRequest) -> ResolveResponse:
+    async def resolve_audio(payload: ResolveRequest, request: Request) -> ResolveResponse:
         try:
-            audio = await service_resolver.resolve(payload.video_id)
-            session = session_store.create(audio)
+            audio = await persistent_cache.get(payload.video_id)
+            if audio is None:
+                audio = await service_resolver.resolve(payload.video_id)
+                persistent_cache.schedule(
+                    payload.video_id,
+                    audio,
+                    request.app.state.upstream_client,
+                )
+            session = session_store.create(payload.video_id, audio)
         except AudioResolutionError as error:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error.public_message) from error
         except SessionExpiredError as error:
@@ -97,6 +120,7 @@ def create_app(
             streamURL=f"{service_settings.public_base_url}/v1/audio/stream/{session.token}",
             expiresAt=session.expires_at,
             contentType=session.audio.content_type,
+            cacheStatus=session.audio.cache_status,
         )
 
     async def proxy_audio(request: Request, token: str, head_only: bool) -> Response:
@@ -107,7 +131,19 @@ def create_app(
         except SessionNotFoundError as error:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La sesión de audio no existe.") from error
 
-        headers = dict(session.audio.headers)
+        audio = await persistent_cache.get(session.video_id) or session.audio
+        if audio.cached_path is not None:
+            if not audio.cached_path.is_file():
+                raise HTTPException(status_code=status.HTTP_410_GONE, detail="El archivo cacheado ya no está disponible.")
+            return FileResponse(
+                audio.cached_path,
+                media_type=audio.content_type,
+            )
+
+        if audio.upstream_url is None:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="La fuente de audio no es válida.")
+
+        headers = dict(audio.headers)
         for name in _FORWARDED_REQUEST_HEADERS:
             if value := request.headers.get(name):
                 headers[name] = value
@@ -115,7 +151,7 @@ def create_app(
         client: httpx.AsyncClient = request.app.state.upstream_client
         upstream_request = client.build_request(
             "HEAD" if head_only else "GET",
-            session.audio.upstream_url,
+            audio.upstream_url,
             headers=headers,
         )
         try:
@@ -128,7 +164,7 @@ def create_app(
             for name, value in upstream.headers.items()
             if name.lower() in _FORWARDED_RESPONSE_HEADERS
         }
-        response_headers.setdefault("content-type", session.audio.content_type)
+        response_headers.setdefault("content-type", audio.content_type)
 
         if upstream.status_code not in (200, 206, 416):
             await upstream.aclose()

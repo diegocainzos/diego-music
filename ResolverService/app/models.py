@@ -21,6 +21,7 @@ class ResolveResponse(BaseModel):
     stream_url: str = Field(alias="streamURL")
     expires_at: datetime = Field(alias="expiresAt")
     content_type: str = Field(alias="contentType")
+    cache_status: str = Field(alias="cacheStatus")
 
 
 class HealthResponse(BaseModel):

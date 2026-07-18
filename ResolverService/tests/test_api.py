@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import httpx
 from fastapi.testclient import TestClient
 
+from app.audio_cache import PersistentAudioCache
 from app.config import Settings
 from app.main import create_app
 from app.resolver import AudioResolutionError, ResolvedAudio
@@ -97,6 +99,25 @@ def test_resolve_returns_only_opaque_stream_information() -> None:
     assert resolver.calls == ["M7lc1UVf-VE"]
 
 
+def test_repeated_resolve_uses_resolution_cache() -> None:
+    resolver = FakeResolver(audio())
+    with TestClient(create_app(settings(), resolver=resolver)) as client:
+        first = client.post(
+            "/v1/audio/resolve",
+            json={"videoId": "M7lc1UVf-VE"},
+            headers=authorization(),
+        )
+        second = client.post(
+            "/v1/audio/resolve",
+            json={"videoId": "M7lc1UVf-VE"},
+            headers=authorization(),
+        )
+
+    assert first.json()["cacheStatus"] == "miss"
+    assert second.json()["cacheStatus"] == "resolution"
+    assert resolver.calls == ["M7lc1UVf-VE"]
+
+
 def test_resolution_error_is_sanitized() -> None:
     resolver = FakeResolver(AudioResolutionError("Este contenido no ofrece audio compatible."))
     with TestClient(create_app(settings(), resolver=resolver)) as client:
@@ -172,6 +193,64 @@ def test_head_returns_metadata_without_body() -> None:
     assert response.status_code == 200
     assert response.content == b""
     assert response.headers["content-length"] == "10"
+
+
+def test_existing_session_switches_to_disk_when_background_cache_finishes(tmp_path: Path) -> None:
+    resolver = FakeResolver(audio())
+    cache = PersistentAudioCache(tmp_path, max_bytes=100, max_file_bytes=50)
+    upstream_client = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(403))
+    )
+
+    with TestClient(
+        create_app(
+            settings(),
+            resolver=resolver,
+            audio_cache=cache,
+            upstream_client=upstream_client,
+        )
+    ) as client:
+        resolved = client.post(
+            "/v1/audio/resolve",
+            json={"videoId": "M7lc1UVf-VE"},
+            headers=authorization(),
+        ).json()
+        (tmp_path / "M7lc1UVf-VE.m4a").write_bytes(b"0123456789")
+        path = resolved["streamURL"].removeprefix("https://audio.example.test")
+        ranged = client.get(path, headers={"Range": "bytes=4-7"})
+
+    assert resolved["cacheStatus"] == "miss"
+    assert ranged.status_code == 206
+    assert ranged.content == b"4567"
+    assert resolver.calls == ["M7lc1UVf-VE"]
+
+
+def test_cached_file_bypasses_resolver_and_supports_range(tmp_path: Path) -> None:
+    cached_file = tmp_path / "M7lc1UVf-VE.m4a"
+    cached_file.write_bytes(b"0123456789")
+    resolver = FakeResolver(audio())
+    cache = PersistentAudioCache(tmp_path, max_bytes=100, max_file_bytes=50)
+
+    with TestClient(create_app(settings(), resolver=resolver, audio_cache=cache)) as client:
+        resolved = client.post(
+            "/v1/audio/resolve",
+            json={"videoId": "M7lc1UVf-VE"},
+            headers=authorization(),
+        ).json()
+        path = resolved["streamURL"].removeprefix("https://audio.example.test")
+        ranged = client.get(path, headers={"Range": "bytes=2-5"})
+        inspected = client.head(path)
+        invalid = client.get(path, headers={"Range": "bytes=99-100"})
+
+    assert resolved["cacheStatus"] == "disk"
+    assert resolver.calls == []
+    assert ranged.status_code == 206
+    assert ranged.content == b"2345"
+    assert ranged.headers["content-range"] == "bytes 2-5/10"
+    assert inspected.status_code == 200
+    assert inspected.headers["content-length"] == "10"
+    assert invalid.status_code == 416
+    assert invalid.headers["content-range"] == "bytes */10"
 
 
 def test_expired_session_returns_gone() -> None:
