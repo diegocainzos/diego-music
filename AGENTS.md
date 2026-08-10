@@ -30,7 +30,7 @@ La arquitectura nativa VPS + AVPlayer vive actualmente en `main`. No reintroduci
    - tokens opacos de `/v1/audio/stream/*`;
    - rutas internas de archivos cacheados.
 7. Los mensajes de error para el cliente deben estar sanitizados y nunca incorporar excepciones crudas de `yt-dlp`, HTTP o filesystem.
-8. No habilitar access logs de Caddy sin redactar las rutas de stream.
+8. No habilitar access logs de Traefik sin redactar las rutas de stream.
 
 Si un secreto aparece accidentalmente en una salida o artefacto, detener el trabajo, eliminar el artefacto, rotar la credencial afectada y documentar el incidente sin repetir el valor.
 
@@ -53,7 +53,7 @@ Si un secreto aparece accidentalmente en una salida o artefacto, detener el trab
 - La URL y cabeceras upstream solo viven dentro del servicio.
 - Las respuestas públicas contienen únicamente una capacidad opaca y metadatos no sensibles.
 - Conservar semántica correcta para `GET`, `HEAD`, HTTP Range, `206` y `416`.
-- FastAPI no debe publicar directamente el puerto 8080; Caddy es la única entrada pública.
+- FastAPI no debe publicar directamente el puerto 8080; Traefik es la única entrada pública.
 - Mantener `read_only`, `no-new-privileges`, tmpfs limitado y HTTPS.
 
 ### Cachés
@@ -89,7 +89,7 @@ Si un secreto aparece accidentalmente en una salida o artefacto, detener el trab
 6. Ejecutar las validaciones relevantes.
 7. Revisar `git diff --check` y `git status` antes de declarar el trabajo terminado.
 8. No hacer commit, merge, push, rebase ni eliminar ramas salvo petición del usuario.
-9. No existe remoto configurado actualmente; nunca asumir que un commit fue publicado.
+9. Existe remoto `origin` (github.com/diegocainzos/diego-music); nunca asumir que un commit fue publicado sin verificar.
 
 ## Validación obligatoria
 
@@ -136,7 +136,7 @@ Las capacidades de pantalla bloqueada, auriculares, interrupciones y controles r
 - Python: type hints, I/O asíncrono, límites explícitos y excepciones públicas sanitizadas.
 - Pruebas: no contactar YouTube ni Googlevideo; usar dobles locales y datos ficticios.
 - No añadir analytics, tracking, telemetría o logs sensibles.
-- No sustituir Core Data, AVPlayer, FastAPI, Caddy o `yt-dlp` sin justificarlo en OpenSpec.
+- No sustituir Core Data, AVPlayer, FastAPI, Traefik o `yt-dlp` sin justificarlo en OpenSpec.
 - Mantener la interfaz experimental, tranquila y lúdica dentro del sistema Bauhaus Hi‑Fi existente.
 
 ## Operación Docker

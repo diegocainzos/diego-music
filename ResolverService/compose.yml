@@ -18,6 +18,15 @@ services:
       RESOLUTION_CACHE_SAFETY_MARGIN_SECONDS: "${RESOLUTION_CACHE_SAFETY_MARGIN_SECONDS:-300}"
     expose:
       - "8080"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.diegomusic.rule=Host(`${RESOLVER_DOMAIN:-music.diegocainzos.com}`)
+      - traefik.http.routers.diegomusic.entrypoints=websecure
+      - traefik.http.routers.diegomusic.tls.certresolver=letsencrypt
+      - traefik.http.services.diegomusic.loadbalancer.server.port=8080
+    networks:
+      - proxy
     healthcheck:
       test:
         - CMD
@@ -36,26 +45,9 @@ services:
     volumes:
       - audio_cache:/var/cache/diegomusic
 
-  caddy:
-    image: caddy:2.10.2-alpine
-    restart: unless-stopped
-    depends_on:
-      resolver:
-        condition: service_healthy
-    environment:
-      RESOLVER_DOMAIN: "${RESOLVER_DOMAIN:?Define RESOLVER_DOMAIN en ResolverService/.env}"
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    security_opt:
-      - no-new-privileges:true
+networks:
+  proxy:
+    external: true
 
 volumes:
   audio_cache:
-  caddy_data:
-  caddy_config:

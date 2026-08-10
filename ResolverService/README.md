@@ -20,7 +20,7 @@ printf '%s\n' "$TOKEN"
 
 Guarda el token en un gestor de contraseñas y escribe el mismo valor como `DIEGOMUSIC_API_TOKEN` en `ResolverService/.env`. No lo pegues en issues, commits, capturas ni logs. Configura también `RESOLVER_DOMAIN`.
 
-La URL pública se deriva como `https://$RESOLVER_DOMAIN`. Caddy solicita y renueva automáticamente el certificado TLS.
+La URL pública se deriva como `https://$RESOLVER_DOMAIN`. Traefik (proxy central del VPS) solicita y renueva automáticamente el certificado TLS y enruta el tráfico hacia el contenedor `resolver`.
 
 ## Arranque
 
@@ -30,7 +30,7 @@ docker compose --file compose.yml up --detach --build
 curl --fail "https://$RESOLVER_DOMAIN/health"
 ```
 
-El puerto 8080 solo se expone dentro de la red Compose. Caddy no habilita access logs por defecto para evitar registrar tokens temporales incluidos en rutas de stream.
+Requisito: la red externa `proxy` de Traefik debe existir (`docker network create proxy`) y el contenedor `resolver` se une a ella mediante las etiquetas Traefik definidas en `compose.yml`. El puerto 8080 solo se expone internamente; Traefik es la única entrada pública.
 
 ## Cómo funciona la caché
 
@@ -134,9 +134,9 @@ Las pruebas sustituyen `yt-dlp` y Googlevideo por dobles locales; no contactan Y
 ## Seguridad operativa
 
 - No conviertas este servicio en un proxy público.
-- Mantén Docker, Caddy y `yt-dlp` actualizados.
+- Mantén Docker, Traefik y `yt-dlp` actualizados.
 - Aplica límites de tráfico en el firewall o proveedor del VPS.
 - No habilites access logs sin redactar `/v1/audio/stream/*`.
 - Si necesitas cookies, móntalas como secreto de solo lectura y nunca dentro de la imagen o repositorio.
-- No expongas directamente el puerto interno 8080.
+- No expongas directamente el puerto interno 8080; Traefik es la única entrada.
 - Protege el volumen `audio_cache`; contiene archivos M4A completos y no debe publicarse ni montarse en otros servicios.

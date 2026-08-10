@@ -13,7 +13,7 @@ DiegoMusic no es una aplicación oficial ni está afiliada con YouTube o Google.
 - Integración con Centro de control, pantalla bloqueada y auriculares.
 - Biblioteca local con favoritos, playlists e historial opcional mediante Core Data.
 - Resolutor privado FastAPI + `yt-dlp`, protegido por Bearer token.
-- HTTPS automático mediante Caddy.
+- HTTPS automático mediante Traefik (proxy central del VPS).
 - Caché multicapa para acelerar repeticiones y precargar la siguiente pista.
 
 ## Plataformas y requisitos
@@ -123,13 +123,13 @@ docker compose --file compose.yml up --detach --build
 docker compose --file compose.yml ps
 ```
 
-Caddy expone únicamente 80/443. FastAPI permanece dentro de la red Docker en el puerto 8080. Comprueba el servicio:
+Traefik (proxy central del VPS) expone únicamente 80/443 y enruta el tráfico hacia FastAPI, que permanece en el puerto 8080 interno dentro de la red Docker `proxy`. Comprueba el servicio:
 
 ```bash
 curl --fail https://audio.example.com/health
 ```
 
-Para un VPS real, configura antes el registro DNS del dominio hacia la IP pública. Caddy solicitará y renovará el certificado TLS automáticamente. Consulta [`ResolverService/README.md`](ResolverService/README.md) para despliegue, rotación de token, actualizaciones y operación de la caché.
+Para un VPS real, configura antes el registro DNS del dominio hacia la IP pública. Traefik solicitará y renovará el certificado TLS automáticamente. El contenedor `resolver` debe unirse a la red externa `proxy` (etiquetas Traefik en `compose.yml`). Consulta [`ResolverService/README.md`](ResolverService/README.md) para despliegue, rotación de token, actualizaciones y operación de la caché.
 
 ### Aplicación
 
@@ -212,7 +212,7 @@ docker compose --file compose.yml build --pull --no-cache resolver
 docker compose --file compose.yml up --detach
 ```
 
-`docker compose down` conserva los volúmenes. No uses `down --volumes` salvo que quieras eliminar también la caché M4A y los datos de Caddy.
+`docker compose down` conserva los volúmenes. No uses `down --volumes` salvo que quieras eliminar también la caché M4A.
 
 ## Seguridad
 
@@ -220,7 +220,7 @@ docker compose --file compose.yml up --detach
 - No registrar URLs de YouTube Data API completas: contienen la clave como query parameter.
 - No registrar Bearer tokens, tokens opacos de stream, cookies, PO tokens ni URLs multimedia firmadas.
 - No exponer directamente el puerto 8080 ni convertir el resolutor en un proxy de URLs arbitrarias.
-- Mantener desactivados los access logs de Caddy o redactar `/v1/audio/stream/*` antes de habilitarlos.
+- Mantener desactivados los access logs de Traefik o redactar `/v1/audio/stream/*` antes de habilitarlos.
 - Proteger el volumen `audio_cache`: contiene archivos de audio completos.
 - Restringir la clave de Google Cloud a YouTube Data API v3 y aplicar límites de cuota.
 
