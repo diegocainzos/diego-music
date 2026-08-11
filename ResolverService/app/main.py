@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import hmac
+import sys
+from pathlib import Path
 from typing import AsyncIterator
 
 import httpx
@@ -18,6 +20,19 @@ from .resolution_cache import CachingAudioResolver
 from .resolver import AudioResolutionError, AudioResolving, YTDLPResolver
 from .sessions import SessionExpiredError, SessionNotFoundError, SessionStore
 
+# Importar el módulo backend principal
+repo_root = Path(__file__).resolve().parent.parent.parent
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
+import backend_app.config as backend_config
+import backend_app.database as backend_database
+import backend_app.seed as backend_seed
+import backend_app.routers.auth as backend_auth
+import backend_app.routers.users as backend_users
+import backend_app.routers.telemetry as backend_telemetry
+import backend_app.routers.catalog as backend_catalog
+import backend_app.routers.playlists as backend_playlists
 
 _FORWARDED_REQUEST_HEADERS = {"range", "if-range"}
 _FORWARDED_RESPONSE_HEADERS = {
@@ -67,17 +82,26 @@ def create_app(
             follow_redirects=True,
         )
         await persistent_cache.initialize()
+        
+        # Inicializar base de datos SQLite del backend y datos semilla
+        backend_database.Base.metadata.create_all(bind=backend_database.engine)
+        db = backend_database.SessionLocal()
+        try:
+            backend_seed.seed_database(db)
+        finally:
+            db.close()
+            
         yield
         await persistent_cache.close()
         if owns_upstream_client:
             await application.state.upstream_client.aclose()
 
     app = FastAPI(
-        title="DiegoMusic Private Audio Resolver",
+        title="DiegoMusic Private Audio Resolver & Backend API",
         version="1.0.0",
-        docs_url=None,
-        redoc_url=None,
-        openapi_url=None,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
         lifespan=lifespan,
     )
     bearer = HTTPBearer(auto_error=False)
@@ -245,5 +269,12 @@ def create_app(
     @app.head("/v1/audio/stream/{token}")
     async def inspect_audio(request: Request, token: str) -> Response:
         return await proxy_audio(request, token, head_only=True)
+
+    # Routers del Backend de Autenticación, Catálogo, Usuarios, Telemetría y Playlists
+    app.include_router(backend_auth.router, prefix=backend_config.settings.API_V1_STR)
+    app.include_router(backend_users.router, prefix=backend_config.settings.API_V1_STR)
+    app.include_router(backend_telemetry.router, prefix=backend_config.settings.API_V1_STR)
+    app.include_router(backend_catalog.router, prefix=backend_config.settings.API_V1_STR)
+    app.include_router(backend_playlists.router, prefix=backend_config.settings.API_V1_STR)
 
     return app

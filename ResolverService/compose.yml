@@ -3,8 +3,8 @@ name: diegomusic-resolver
 services:
   resolver:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: ResolverService/Dockerfile
     restart: unless-stopped
     env_file:
       - .env
@@ -16,6 +16,7 @@ services:
       RESOLUTION_CACHE_MAX_ENTRIES: "${RESOLUTION_CACHE_MAX_ENTRIES:-500}"
       RESOLUTION_CACHE_TTL_SECONDS: "${RESOLUTION_CACHE_TTL_SECONDS:-10800}"
       RESOLUTION_CACHE_SAFETY_MARGIN_SECONDS: "${RESOLUTION_CACHE_SAFETY_MARGIN_SECONDS:-300}"
+      DATABASE_URL: "${DATABASE_URL:-sqlite:////service/data/diegomusic.db}"
     expose:
       - "8080"
     labels:
@@ -44,6 +45,7 @@ services:
       - /tmp:size=128m,mode=1777
     volumes:
       - audio_cache:/var/cache/diegomusic
+      - db_data:/service/data
 
 networks:
   proxy:
@@ -51,3 +53,4 @@ networks:
 
 volumes:
   audio_cache:
+  db_data:
