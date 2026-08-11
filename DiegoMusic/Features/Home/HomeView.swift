@@ -15,13 +15,41 @@ struct HomeView: View {
 
     private var isCompact: Bool { sizeClass == .compact }
 
-    private var greeting: String {
+    private var greetingTime: String {
         let hour = Calendar.current.component(.hour, from: Date())
         switch hour {
         case 6..<12: return "Buenos días"
         case 12..<20: return "Buenas tardes"
         default: return "Buenas noches"
         }
+    }
+
+    private var userName: String? {
+        if case let .authenticated(user) = environment.authState {
+            if let fullName = user.fullName, !fullName.isEmpty {
+                return fullName
+            }
+            return user.email.components(separatedBy: "@").first
+        }
+        return nil
+    }
+
+    private var fullGreeting: String {
+        if let name = userName, let firstName = name.components(separatedBy: " ").first, !firstName.isEmpty {
+            return "\(greetingTime), \(firstName)"
+        }
+        return greetingTime
+    }
+
+    private var userInitials: String {
+        guard let name = userName, !name.isEmpty else { return "DM" }
+        let parts = name.split(separator: " ")
+        if parts.count >= 2, let f = parts[0].first, let l = parts[1].first {
+            return "\(f)\(l)".uppercased()
+        } else if let f = name.first {
+            return "\(f)".uppercased()
+        }
+        return "DM"
     }
 
     init(onStartSearch: @escaping () -> Void) {
@@ -36,30 +64,40 @@ struct HomeView: View {
                     // Header de Sección Principal ("Escuchar / Listen Now")
                     HStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(greeting.uppercased())
+                            Text("ESCUCHAR")
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(DiegoTheme.accent)
-                                .tracking(1.2)
-                            Text("Escuchar")
-                                .font(.system(size: 32, weight: .bold, design: .default))
+                                .tracking(1.4)
+                            Text(fullGreeting)
+                                .font(.system(size: isCompact ? 28 : 34, weight: .bold, design: .default))
                                 .foregroundStyle(DiegoTheme.textPrimary)
+                                .lineLimit(1)
                         }
                         Spacer()
                         Button(action: onStartSearch) {
-                            Image(systemName: "person.crop.circle.fill")
-                                .font(.system(size: 32))
-                                .foregroundStyle(DiegoTheme.accent)
+                            ZStack {
+                                Circle()
+                                    .fill(LinearGradient(colors: [DiegoTheme.accent, DiegoTheme.accent.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                    .frame(width: 40, height: 40)
+                                    .shadow(color: DiegoTheme.accent.opacity(0.3), radius: 6, x: 0, y: 3)
+                                Text(userInitials)
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
                         }
-                        .accessibilityLabel("Buscar música")
+                        .accessibilityLabel("Perfil de usuario y búsqueda")
                     }
 
                     // 1. Hero Carousel (Destacados Banners)
                     heroCarousel
 
-                    // 2. Historial Reciente (si está disponible)
+                    // 2. Sección "Hecho Para Ti" (Mixes Personalizados)
+                    madeForYouSection
+
+                    // 3. Historial Reciente (Escuchado Recientemente)
                     recentlyPlayedSection
 
-                    // 3. Sección Descubrimiento (Top Artistas + Recomendaciones)
+                    // 4. Sección Descubrimiento (Top Artistas + Recomendaciones)
                     discoverySection
                 }
                 .padding(.top, isCompact ? 16 : 24)
@@ -184,49 +222,147 @@ struct HomeView: View {
         .buttonStyle(TilePressButtonStyle())
     }
 
-    // MARK: - Escuchado Recientemente
+    // MARK: - Escuchado Recientemente (Fila horizontal de portadas cuadradas)
 
     @ViewBuilder
     private var recentlyPlayedSection: some View {
-        if let recentItem = environment.playbackSettings.restoreState?.item {
+        let historyItems = environment.library.history.map(\.mediaItem)
+        let recentItems: [MediaItem] = historyItems.isEmpty ? (environment.playbackSettings.restoreState?.item.map { [$0] } ?? []) : Array(historyItems.prefix(10))
+
+        if !recentItems.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Escuchado recientemente")
-                    .font(.title2.bold())
-                    .foregroundStyle(DiegoTheme.textPrimary)
-
-                Button {
-                    environment.play(recentItem)
-                } label: {
-                    HStack(spacing: 14) {
-                        TrackArtwork(url: recentItem.thumbnailURL)
-                            .frame(width: 60, height: 60)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(recentItem.title)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(DiegoTheme.textPrimary)
-                                .lineLimit(1)
-
-                            Text(recentItem.channelTitle)
-                                .font(.caption)
-                                .foregroundStyle(DiegoTheme.textSecondary)
-                                .lineLimit(1)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "play.circle.fill")
-                            .font(.title)
-                            .foregroundStyle(DiegoTheme.accent)
-                    }
-                    .padding(12)
-                    .background(DiegoTheme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                HStack {
+                    Text("Escuchado recientemente")
+                        .font(.title2.bold())
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                    Spacer()
                 }
-                .buttonStyle(TilePressButtonStyle())
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(recentItems) { item in
+                            Button {
+                                environment.play(item)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    TrackArtwork(url: item.thumbnailURL)
+                                        .frame(width: 130, height: 130)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                        .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.title)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(DiegoTheme.textPrimary)
+                                            .lineLimit(1)
+                                        Text(item.channelTitle)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(DiegoTheme.textSecondary)
+                                            .lineLimit(1)
+                                    }
+                                    .frame(width: 130, alignment: .leading)
+                                }
+                            }
+                            .buttonStyle(TilePressButtonStyle())
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
             }
         }
+    }
+
+    // MARK: - Hecho Para Ti (Mixes Personalizados Estilo Apple Music)
+
+    private var madeForYouSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Hecho para ti")
+                .font(.title2.bold())
+                .foregroundStyle(DiegoTheme.textPrimary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    mixCard(
+                        title: "Mix de Descubrimiento",
+                        subtitle: "Nuevas canciones seleccionadas según tu actividad",
+                        gradientColors: [Color.pink.opacity(0.9), Color.purple.opacity(0.9)],
+                        iconName: "sparkles"
+                    )
+
+                    mixCard(
+                        title: "Mix de Favoritos",
+                        subtitle: "Tus temas más reproducidos y guardados",
+                        gradientColors: [Color.blue.opacity(0.85), Color.indigo.opacity(0.9)],
+                        iconName: "heart.fill"
+                    )
+
+                    mixCard(
+                        title: "Mix Urbana",
+                        subtitle: "Ritmos latinos, reggaetón y hip-hop en tendencia",
+                        gradientColors: [Color.orange.opacity(0.9), DiegoTheme.accent.opacity(0.9)],
+                        iconName: "flame.fill"
+                    )
+
+                    mixCard(
+                        title: "Mix Chill & Relax",
+                        subtitle: "Sonidos suaves para desconectar",
+                        gradientColors: [Color.teal.opacity(0.85), Color.cyan.opacity(0.9)],
+                        iconName: "waveform"
+                    )
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    private func mixCard(
+        title: String,
+        subtitle: String,
+        gradientColors: [Color],
+        iconName: String
+    ) -> some View {
+        Button(action: onStartSearch) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: iconName)
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Image(systemName: "play.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+
+                Spacer()
+
+                Text(title)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            .padding(16)
+            .frame(width: 170, height: 170)
+            .background(
+                LinearGradient(
+                    colors: gradientColors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(.white.opacity(0.15), lineWidth: 1)
+            )
+            .shadow(color: gradientColors.first?.opacity(0.3) ?? .black.opacity(0.2), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(TilePressButtonStyle())
     }
 
     // MARK: - Sección Descubrimiento

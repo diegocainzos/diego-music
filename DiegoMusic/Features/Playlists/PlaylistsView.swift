@@ -195,6 +195,7 @@ struct PlaylistsView: View {
         guard !name.isEmpty else { return }
         do {
             _ = try library.createPlaylist(named: name)
+            TelemetryLogger.shared.recordEvent(type: "playlist_create", data: ["name": name])
             newName = ""
             errorMessage = nil
         } catch {
@@ -203,17 +204,29 @@ struct PlaylistsView: View {
     }
 
     private func remove(_ entry: PlaylistEntry, from playlist: LocalPlaylist) {
-        do { try library.remove(entry, from: playlist); errorMessage = nil }
+        do {
+            try library.remove(entry, from: playlist)
+            TelemetryLogger.shared.recordEvent(type: "playlist_remove_track", data: ["playlist_name": playlist.name, "track_title": entry.title])
+            errorMessage = nil
+        }
         catch { errorMessage = "No se pudo eliminar el elemento." }
     }
 
     private func move(_ entry: PlaylistEntry, in playlist: LocalPlaylist, by offset: Int) {
-        do { try library.move(entry, in: playlist, by: offset); errorMessage = nil }
+        do {
+            try library.move(entry, in: playlist, by: offset)
+            TelemetryLogger.shared.recordEvent(type: "playlist_reorder", data: ["playlist_name": playlist.name])
+            errorMessage = nil
+        }
         catch { errorMessage = "No se pudo reordenar la playlist." }
     }
 
     private func delete(_ playlist: LocalPlaylist) {
-        do { try library.delete(playlist); errorMessage = nil }
+        do {
+            try library.delete(playlist)
+            TelemetryLogger.shared.recordEvent(type: "playlist_delete", data: ["playlist_name": playlist.name])
+            errorMessage = nil
+        }
         catch { errorMessage = "No se pudo eliminar la playlist." }
     }
 }

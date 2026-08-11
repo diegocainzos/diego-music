@@ -46,6 +46,7 @@ final class AppEnvironment: ObservableObject {
         let manager = tokenManager ?? KeychainTokenManager()
         self.tokenManager = manager
         self.authClient = authClient ?? AuthClient(baseURL: baseURL, transport: transport)
+        TelemetryLogger.shared.configure(baseURL: baseURL, tokenManager: manager)
 
         self.library = library
         self.queue = queue
@@ -77,6 +78,7 @@ final class AppEnvironment: ObservableObject {
         if playbackSettings.historyEnabled {
             try? library.addHistory(item)
         }
+        TelemetryLogger.shared.recordEvent(type: "track_play", data: ["title": item.title, "artist": item.channelTitle, "video_id": item.id])
     }
 
     /// Reemplaza la cola activa por la lista completa dada y comienza la reproducción en `index`.
@@ -113,6 +115,7 @@ final class AppEnvironment: ObservableObject {
             try tokenManager.saveToken(response.accessToken)
             let user = try await authClient.fetchMe(token: response.accessToken)
             authState = .authenticated(user)
+            TelemetryLogger.shared.recordEvent(type: "login", data: ["email": email])
         } catch {
             authState = .unauthenticated
             throw error
@@ -126,6 +129,7 @@ final class AppEnvironment: ObservableObject {
             try tokenManager.saveToken(response.accessToken)
             let user = try await authClient.fetchMe(token: response.accessToken)
             authState = .authenticated(user)
+            TelemetryLogger.shared.recordEvent(type: "register", data: ["email": email, "full_name": fullName ?? ""])
         } catch {
             authState = .unauthenticated
             throw error
@@ -133,6 +137,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     func logout() {
+        TelemetryLogger.shared.recordEvent(type: "logout", data: nil)
         tokenManager.deleteToken()
         authState = .unauthenticated
     }
