@@ -97,11 +97,14 @@ struct HomeView: View {
                     // 3. Sección "Escuchado Recientemente" (user_play_history)
                     recentlyPlayedSection
 
-                    // 4. Sección "Hecho Para Ti y Registro de Actividad" (user_activity_logs / Telemetría)
-                    madeForYouSection
+                    // 4. Sección "Canciones más escuchadas" (Scroll Horizontal)
+                    topMostListenedSongsSection
 
-                    // 5. Sección Descubrimiento (Catálogo / Top Artistas)
-                    discoverySection
+                    // 5. Sección "Top Artistas más escuchados" (Scroll Horizontal)
+                    topMostListenedArtistsSection
+
+                    // 6. Sección "Hecho Para Ti y Registro de Actividad" (Mixes)
+                    madeForYouSection
                 }
                 .padding(.top, isCompact ? 16 : 24)
                 .padding(.bottom, 32)
@@ -336,7 +339,121 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - 4. Hecho Para Ti y Registro de Actividad (user_activity_logs)
+    // MARK: - 4. Canciones Más Escuchadas (Scroll Horizontal)
+
+    @ViewBuilder
+    private var topMostListenedSongsSection: some View {
+        let topSongs = topMostListenedSongs
+        if !topSongs.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("Canciones más escuchadas", systemImage: "flame.fill")
+                        .font(.title2.bold())
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                    Spacer()
+                }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(topSongs) { songItem in
+                            Button {
+                                environment.play(songItem.mediaItem)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ZStack(alignment: .topLeading) {
+                                        TrackArtwork(url: songItem.mediaItem.thumbnailURL)
+                                            .frame(width: 140, height: 140)
+                                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                            .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "play.fill")
+                                                .font(.caption2)
+                                            Text("\(songItem.playCount)")
+                                                .font(.caption2.bold())
+                                        }
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(.black.opacity(0.75))
+                                        .clipShape(Capsule())
+                                        .padding(6)
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(songItem.mediaItem.title)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(DiegoTheme.textPrimary)
+                                            .lineLimit(1)
+                                        Text(songItem.mediaItem.channelTitle)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(DiegoTheme.textSecondary)
+                                            .lineLimit(1)
+                                    }
+                                    .frame(width: 140, alignment: .leading)
+                                }
+                            }
+                            .buttonStyle(TilePressButtonStyle())
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+
+    // MARK: - 5. Top Artistas Más Escuchados (Scroll Horizontal)
+
+    @ViewBuilder
+    private var topMostListenedArtistsSection: some View {
+        let topArtists = topMostListenedArtists
+        if !topArtists.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("Top artistas más escuchados", systemImage: "star.fill")
+                        .font(.title2.bold())
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                    Spacer()
+                }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 18) {
+                        ForEach(topArtists) { artistItem in
+                            Button(action: onStartSearch) {
+                                VStack(spacing: 8) {
+                                    ZStack {
+                                        TrackArtwork(url: artistItem.thumbnailURL)
+                                            .frame(width: 110, height: 110)
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(DiegoTheme.accent.opacity(0.3), lineWidth: 2))
+                                            .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+                                    }
+
+                                    VStack(spacing: 2) {
+                                        Text(artistItem.name)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .lineLimit(1)
+                                            .multilineTextAlignment(.center)
+                                            .foregroundStyle(DiegoTheme.textPrimary)
+
+                                        Text("\(artistItem.playCount) escuches")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(DiegoTheme.textSecondary)
+                                    }
+                                    .frame(width: 110)
+                                }
+                            }
+                            .buttonStyle(TilePressButtonStyle())
+                            .accessibilityLabel("Artista \(artistItem.name)")
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+
+    // MARK: - 6. Hecho Para Ti y Registro de Actividad
 
     private var madeForYouSection: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -432,134 +549,61 @@ struct HomeView: View {
         .buttonStyle(TilePressButtonStyle())
     }
 
-    // MARK: - 5. Sección Descubrimiento
+    // MARK: - Data Helpers
 
-    private var discoverySection: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            switch model.state {
-            case .idle, .loading:
-                HStack(spacing: 12) {
-                    ProgressView().controlSize(.small).tint(DiegoTheme.accent)
-                    Text("Cargando catálogo…").font(.callout).foregroundStyle(DiegoTheme.textSecondary)
-                }
-                .padding(.vertical, 20)
-            case let .loaded(feed):
-                if !feed.artistas.isEmpty {
-                    artistSection(feed.artistas)
-                }
-                if !feed.novedades.isEmpty {
-                    novedadesGridSection(feed.novedades)
-                } else {
-                    emptyText
-                }
-            case .empty:
-                emptyText
-            case let .failed(message):
-                HStack(spacing: 10) {
-                    Label(message, systemImage: "exclamationmark.triangle")
-                        .font(.callout)
-                        .foregroundStyle(DiegoTheme.textSecondary)
-                    Button("Reintentar") { model.load() }
-                        .buttonStyle(PrimaryButtonStyle())
-                }
-            }
-        }
+    private struct TopArtistItem: Identifiable {
+        var id: String { name }
+        let name: String
+        let playCount: Int
+        let thumbnailURL: URL?
     }
 
-    // MARK: - Top Artistas
-
-    private func artistSection(_ artistas: [ArtistReference]) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Top Artistas")
-                    .font(.title2.bold())
-                    .foregroundStyle(DiegoTheme.textPrimary)
-                Spacer()
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 18) {
-                    ForEach(artistas) { artist in
-                        Button {
-                            withAnimation(reduceMotion ? nil : .default) {
-                                path.append(.artist(id: artist.id, title: artist.title))
-                            }
-                        } label: {
-                            VStack(spacing: 8) {
-                                TrackArtwork(url: artist.thumbnailURL)
-                                    .frame(width: 110, height: 110)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(DiegoTheme.textPrimary.opacity(0.08), lineWidth: 1))
-                                    .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
-
-                                Text(artist.title)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .lineLimit(1)
-                                    .multilineTextAlignment(.center)
-                                    .frame(width: 110)
-                                    .foregroundStyle(DiegoTheme.textPrimary)
-                            }
-                        }
-                        .buttonStyle(TilePressButtonStyle())
-                        .accessibilityLabel("Artista \(artist.title)")
-                    }
-                }
-            }
-        }
+    private struct TopSongItem: Identifiable {
+        var id: String { mediaItem.id }
+        let mediaItem: MediaItem
+        let playCount: Int
     }
 
-    // MARK: - Recomendaciones Grid
-
-    private func novedadesGridSection(_ items: [MediaItem]) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Recomendaciones")
-                    .font(.title2.bold())
-                    .foregroundStyle(DiegoTheme.textPrimary)
-                Spacer()
-            }
-
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 160), spacing: 16)],
-                spacing: 20
-            ) {
-                ForEach(items) { item in
-                    Button {
-                        withAnimation(reduceMotion ? nil : .default) {
-                            environment.play(item)
-                        }
-                    } label: {
-                        VStack(alignment: .leading, spacing: 8) {
-                            TrackArtwork(url: item.thumbnailURL)
-                                .frame(width: 160, height: 160)
-                                .frame(maxWidth: .infinity)
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                .shadow(color: .black.opacity(0.1), radius: 5, y: 2)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.title)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(DiegoTheme.textPrimary)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
-
-                                Text(item.channelTitle)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(DiegoTheme.textSecondary)
-                                    .lineLimit(1)
-                            }
-                        }
-                    }
-                    .buttonStyle(TilePressButtonStyle())
-                }
+    private var topMostListenedSongs: [TopSongItem] {
+        let history = environment.library.history
+        guard !history.isEmpty else { return [] }
+        var counts: [String: (item: MediaItem, count: Int)] = [:]
+        for record in history {
+            let item = record.mediaItem
+            if let existing = counts[item.id] {
+                counts[item.id] = (item, existing.count + 1)
+            } else {
+                counts[item.id] = (item, 1)
             }
         }
+        return counts.values
+            .map { TopSongItem(mediaItem: $0.item, playCount: $0.count) }
+            .sorted { $0.playCount > $1.playCount }
     }
 
-    private var emptyText: some View {
-        Text("Aún no hay novedades disponibles.")
-            .font(.callout)
-            .foregroundStyle(DiegoTheme.textSecondary)
+    private var topMostListenedArtists: [TopArtistItem] {
+        let history = environment.library.history
+        let favorites = environment.library.favorites
+        var artistCounts: [String: (count: Int, thumbnail: URL?)] = [:]
+
+        for record in history {
+            let name = record.channelTitle
+            guard !name.isEmpty else { continue }
+            let existing = artistCounts[name]?.count ?? 0
+            let thumb = artistCounts[name]?.thumbnail ?? record.mediaItem.thumbnailURL
+            artistCounts[name] = (existing + 1, thumb)
+        }
+
+        for fav in favorites {
+            let name = fav.channelTitle
+            guard !name.isEmpty else { continue }
+            let existing = artistCounts[name]?.count ?? 0
+            let thumb = artistCounts[name]?.thumbnail ?? fav.mediaItem.thumbnailURL
+            artistCounts[name] = (existing + 2, thumb)
+        }
+
+        return artistCounts.map { TopArtistItem(name: $0.key, playCount: $0.value.count, thumbnailURL: $0.value.thumbnail) }
+            .sorted { $0.playCount > $1.playCount }
     }
 }
 
