@@ -64,12 +64,20 @@ final class CarPlaySceneDelegate: NSObject, CPTemplateApplicationSceneDelegate {
     private func rebuildInterfaceIfReady() {
         guard let player, let queue, let interfaceController else { return }
 
-        // Ahora suena: CarPlay es una plantilla del sistema que refleja
-        // MPNowPlayingInfoCenter/MPRemoteCommandCenter ya configurados por el
-        // coordinador; aquí solo se activa el botón "Cola" y se sincroniza.
+        // 1. Pestaña Favoritos (Lista vertical simple)
+        let favoritesTemplate = buildFavoritesTemplate()
+
+        // 2. Pestaña Recientes (Lista vertical simple)
+        let recentsTemplate = buildRecentsTemplate()
+
+        // 3. Pestaña Ahora Suena (Plantilla nativa de reproductor)
         let nowPlaying = CPNowPlayingTemplate.shared
         nowPlaying.isUpNextButtonEnabled = true
         nowPlaying.upNextTitle = "Cola"
+        if #available(iOS 14.0, *) {
+            nowPlaying.tabTitle = "Ahora suena"
+            nowPlaying.tabImage = UIImage(systemName: "play.circle.fill")
+        }
 
         let configurator = CarPlayNowPlayingConfigurator(player: player, queue: queue)
         configurator.onUpNext = { [weak self] in
@@ -79,7 +87,61 @@ final class CarPlaySceneDelegate: NSObject, CPTemplateApplicationSceneDelegate {
         CPNowPlayingTemplate.shared.add(configurator)
         self.configurator = configurator
 
-        interfaceController.setRootTemplate(nowPlaying, animated: false)
+        // Construir la barra de pestañas principal
+        let tabBar = CPTabBarTemplate(templates: [favoritesTemplate, recentsTemplate, nowPlaying])
+        interfaceController.setRootTemplate(tabBar, animated: false)
+    }
+
+    /// Construye la plantilla de lista vertical para Favoritos.
+    private func buildFavoritesTemplate() -> CPListTemplate {
+        let favorites = AppEnvironment.shared?.library.favorites ?? []
+        let items: [CPListItem] = favorites.map { track in
+            let listItem = CPListItem(
+                text: track.title,
+                detailText: track.channelTitle,
+                image: nil,
+                showsDisclosureIndicator: false
+            )
+            listItem.handler = { _, completion in
+                AppEnvironment.shared?.play(track.mediaItem)
+                completion()
+            }
+            return listItem
+        }
+
+        let section = CPListSection(items: items)
+        let template = CPListTemplate(title: "Favoritos", sections: [section])
+        if #available(iOS 14.0, *) {
+            template.tabTitle = "Favoritos"
+            template.tabImage = UIImage(systemName: "heart.fill")
+        }
+        return template
+    }
+
+    /// Construye la plantilla de lista vertical para Recientes.
+    private func buildRecentsTemplate() -> CPListTemplate {
+        let history = AppEnvironment.shared?.library.history ?? []
+        let items: [CPListItem] = history.map { track in
+            let listItem = CPListItem(
+                text: track.title,
+                detailText: track.channelTitle,
+                image: nil,
+                showsDisclosureIndicator: false
+            )
+            listItem.handler = { _, completion in
+                AppEnvironment.shared?.play(track.mediaItem)
+                completion()
+            }
+            return listItem
+        }
+
+        let section = CPListSection(items: items)
+        let template = CPListTemplate(title: "Recientes", sections: [section])
+        if #available(iOS 14.0, *) {
+            template.tabTitle = "Recientes"
+            template.tabImage = UIImage(systemName: "clock.fill")
+        }
+        return template
     }
 
     /// Vista de cola (browsing mínimo): elementos de la cola con la pista actual

@@ -1,22 +1,33 @@
 ## ADDED Requirements
 
-### Requirement: Compatibilidad con CarPlay
-DiegoMusic SHALL ser compatible con CarPlay, ofreciendo una escena CarPlay con Now Playing, vista de cola, controles de reproducción (play/pause/siguiente/anterior) y navegación básica, alimentada por el `AudioPlayerCoordinator` y `PlaybackQueue` existentes como única fuente de verdad.
+### Requirement: Compatibilidad con CarPlay y estructura de pestañas simples
+DiegoMusic SHALL ser compatible con CarPlay, ofreciendo una escena nativa estructurada en una barra de pestañas simple (`CPTabBarTemplate`) que incluye las vistas de Favoritos, Recientes y Ahora Suena / Cola, alimentada por `AudioPlayerCoordinator`, `PlaybackQueue` y `LibraryStore` como única fuente de verdad.
 
 #### Scenario: Conexión a CarPlay
 - **WHEN** el dispositivo compatible se conecta a un automóvil compatible con CarPlay
-- **THEN** DiegoMusic aparece como app de audio con CarPlay y muestra la interfaz Now Playing con la pista actual
+- **THEN** DiegoMusic abre la escena CarPlay con una interfaz por pestañas simples ("Favoritos", "Recientes", "Ahora suena")
 
 #### Scenario: Control desde CarPlay
 - **WHEN** el usuario pulsa play/pause, siguiente o anterior en CarPlay
 - **THEN** la acción enruta a `AudioPlayerCoordinator` y el único `AVPlayer` cambia de estado sin duplicar estado de reproducción
 
+### Requirement: Navegación simple mediante listas verticales de Favoritos y Recientes
+La escena CarPlay SHALL ofrecer pestañas simples con listas verticales (`CPListTemplate`) para la navegación rápida por Favoritos y Recientes.
+
+#### Scenario: Selección de canción en Favoritos o Recientes
+- **WHEN** el usuario toca una canción en la lista de Favoritos o Recientes en CarPlay
+- **THEN** la canción se envía al reproductor compartido (`AudioPlayerCoordinator` / `AppEnvironment.shared?.play`), iniciando la reproducción inmediatamente y sin menús de acciones complejos
+
+#### Scenario: Lista vertical sin sobrecarga visual
+- **WHEN** se visualizan las pestañas de Favoritos o Recientes
+- **THEN** cada elemento se presenta en un `CPListItem` simple (título y artista), optimizado para una interacción segura al conducir
+
 ### Requirement: Now Playing y cola en CarPlay
-La escena CarPlay SHALL mostrar la pista actual (Now Playing) y una vista de la cola de reproducción, sincronizadas con el estado observable del coordinador y la cola.
+La escena CarPlay SHALL integrar la plantilla nativa Now Playing (`CPNowPlayingTemplate`) y permitir acceder a la vista de la cola de reproducción (`CPListTemplate`).
 
 #### Scenario: Pista activa
 - **WHEN** hay una pista actual en la cola
-- **THEN** CarPlay muestra sus metadatos y su carátula y permite reproducir/pausar y saltar de pista
+- **THEN** CarPlay muestra sus metadatos y su carátula en la plantilla nativa Now Playing y permite reproducir/pausar y saltar de pista
 
 #### Scenario: Vista de cola
 - **WHEN** el usuario navega a la cola en CarPlay
