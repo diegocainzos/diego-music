@@ -6,7 +6,10 @@ DiegoMusic no es una aplicación oficial ni está afiliada con YouTube o Google.
 
 ## Características
 
-- Búsqueda y metadatos mediante la API oficial de YouTube.
+- **Letras sincronizadas en vivo (Live Lyrics)**: Integración con la API pública de LRCLIB (`lrclib.net`), resaltado de línea activa en tiempo real, autoscroll, toque para buscar (tap-to-seek), fondo con difuminado de carátula y diseño responsivo en orientación vertical.
+- **Búsqueda optimizada y gestión de cuota**: Búsqueda bajo demanda en lugar de búsqueda en vivo al escribir, pool actorizado con rotación automática de claves de la API de YouTube en errores 403 (cuota) / 429, y deduplicación con caché local (`SearchCache`).
+- **Servicios alternativos y caché en VPS**: Endpoints alternativos en el servidor (`/v1/search` y `/v1/artist/{artist_id}`) impulsados por `yt-dlp` y una caché LRU de artistas (`ArtistCache`) para continuar funcionando cuando la cuota de la API oficial se agote.
+- **Vista de artista mejorada y navegación nativa**: Perfil completo de artista con verificado, éxitos populares numerados, discografía y artistas similares. Navegación fluida con botón de retorno (`chevron.left`) y acceso desde el reproductor minimizado/expandido.
 - Reproductor compacto y ampliado con una estética Bauhaus digital y Hi‑Fi.
 - Un único `AVPlayer` con play, pausa, seek, cola y avance automático.
 - Reproducción en segundo plano y con la pantalla bloqueada en iOS.
@@ -25,7 +28,7 @@ DiegoMusic no es una aplicación oficial ni está afiliada con YouTube o Google.
 | Desarrollo | Xcode 15 o posterior para SDK iOS 17 |
 | Resolver | Docker Engine con Docker Compose v2 |
 | VPS | Dominio público, puertos 80/443 y almacenamiento persistente |
-| Catálogo | Clave de YouTube Data API v3 |
+| Catálogo | Clave(s) de YouTube Data API v3 (admite lista separada por comas) |
 
 El bundle ID es `com.diegocainzos.DiegoMusic`. El destino mínimo es macOS 14.8.5; el proyecto usa Core Data de forma deliberada.
 
@@ -33,7 +36,9 @@ El bundle ID es `com.diegocainzos.DiegoMusic`. El destino mínimo es macOS 14.8.
 
 ```text
                            CATÁLOGO
-DiegoMusic ── YouTube Data API v3 ──> búsqueda y metadatos
+DiegoMusic ── YouTube Data API v3 (con KeyPool) ──> búsqueda y metadatos
+   │
+   └── Fallback a VPS (/v1/search, /v1/artist) ──> cuando la cuota se agota
 
                          REPRODUCCIÓN
 videoId ──> ResolverService ──> yt-dlp ──> fuente temporal
@@ -52,10 +57,11 @@ Directorios principales:
 ```text
 DiegoMusic/App             Arranque, entorno y navegación
 DiegoMusic/Core            Dominio, red, Core Data y preferencias
-DiegoMusic/YouTube         YouTube Data API, DTOs y mapeo
+DiegoMusic/YouTube         YouTube Data API, KeyPool, SearchCache, DTOs y mapeo
+DiegoMusic/Lyrics          Cliente LRCLIB, parser LRC y vista de letras Live Lyrics
 DiegoMusic/AudioPlayer     AVPlayer, resolver, Now Playing y controles remotos
 DiegoMusic/Design          Sistema visual Bauhaus Hi‑Fi
-ResolverService/app        FastAPI, yt-dlp, sesiones y cachés
+ResolverService/app        FastAPI, yt-dlp, sesiones, caché de audio y ArtistCache
 ResolverService/tests      Pruebas del resolutor
 Tests/UnitTests            Pruebas Swift
 openspec/changes           Decisiones, especificaciones y tareas
@@ -63,10 +69,12 @@ openspec/changes           Decisiones, especificaciones y tareas
 
 ## Caché multicapa
 
-1. **Descriptores en DiegoMusic**: un actor Swift reutiliza sesiones vigentes, aplica margen de expiración y deduplica solicitudes simultáneas.
-2. **Resoluciones en el VPS**: caché LRU `videoId → ResolvedAudio`, con 500 entradas y TTL máximo de 3 horas por defecto.
-3. **Audio M4A persistente**: la primera reproducción descarga el archivo en segundo plano mediante rangos de 4 MiB, escritura atómica y expulsión LRU.
-4. **Cola**: DiegoMusic precarga silenciosamente la siguiente pista y reintenta una vez si una sesión desaparece.
+1. **Búsquedas locales (`SearchCache`)**: actor Swift en memoria con TTL de 24 horas y normalización de textos para deduplicar búsquedas identicas sin consumir cuota de la API de YouTube.
+2. **Descriptores en DiegoMusic**: un actor Swift reutiliza sesiones vigentes, aplica margen de expiración y deduplica solicitudes simultáneas de streaming.
+3. **Resoluciones en el VPS**: caché LRU `videoId → ResolvedAudio`, con 500 entradas y TTL máximo de 3 horas por defecto.
+4. **Artistas en el VPS (`ArtistCache`)**: caché LRU en el servidor FastAPI (`ARTIST_CACHE_MAX_ENTRIES=1000`, `ARTIST_CACHE_TTL_SECONDS=86400`) para servir perfiles y éxitos populares desde el resolutor.
+5. **Audio M4A persistente**: la primera reproducción descarga el archivo en segundo plano mediante rangos de 4 MiB, escritura atómica y expulsión LRU.
+6. **Cola de reproducción**: DiegoMusic precarga silenciosamente la siguiente pista y reintenta una vez si una sesión desaparece.
 
 Un token emitido durante el calentamiento cambia automáticamente a disco cuando el M4A está listo. El volumen Docker conserva hasta 5 GiB por defecto, con un máximo de 256 MiB por pista, y sobrevive a recreaciones de los contenedores.
 
@@ -79,7 +87,7 @@ Hay dos archivos locales diferentes y ambos están ignorados por Git:
 Crea `./.env` en la raíz:
 
 ```dotenv
-YOUTUBE_DATA_KEY=REEMPLAZAR_LOCALMENTE
+YOUTUBE_DATA_KEY=CLAVE_1,CLAVE_2
 AUDIO_RESOLVER_BASE_URL=https://audio.example.com
 AUDIO_RESOLVER_API_TOKEN=REEMPLAZAR_CON_TOKEN_ALEATORIO
 ```

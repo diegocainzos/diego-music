@@ -58,7 +58,9 @@ Si un secreto aparece accidentalmente en una salida o artefacto, detener el trab
 
 ### Cachés
 
+- La caché de búsqueda (`SearchCache`) es un actor Swift en memoria con TTL de 24h y normalización de texto para deduplicar búsquedas.
 - La caché de resolución es temporal, LRU, limitada y nunca puede superar la expiración upstream menos su margen de seguridad.
+- La caché de artistas en el servidor (`ArtistCache`) mantiene perfiles y éxitos en memoria LRU en FastAPI (`ARTIST_CACHE_MAX_ENTRIES=1000`, `ARTIST_CACHE_TTL_SECONDS=86400`).
 - Las solicitudes simultáneas para un mismo `videoId` deben usar single-flight.
 - La caché M4A persistente solo puede escribir en el volumen `audio_cache`.
 - Las descargas deben usar archivos temporales, validación de tamaño y renombrado atómico.
