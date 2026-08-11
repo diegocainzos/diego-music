@@ -11,7 +11,7 @@ if [[ -x "$BINARY" ]] && [[ "$($BINARY --version 2>/dev/null || true)" == *"$VER
   exit 0
 fi
 
-TEMP_DIR="$(mktemp -d -t diegomusic-xcodegen)"
+TEMP_DIR="$(mktemp -d -t diegomusic-xcodegen.XXXXXX)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 ARCHIVE="$TEMP_DIR/xcodegen.zip"
 

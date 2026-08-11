@@ -431,6 +431,18 @@ struct PlayerDock: View {
 
                         Divider()
 
+                        if !environment.library.playlists.isEmpty {
+                            Menu {
+                                ForEach(environment.library.playlists) { playlist in
+                                    Button(playlist.name) {
+                                        try? environment.library.add(current, to: playlist)
+                                    }
+                                }
+                            } label: {
+                                Label("Añadir a playlist", systemImage: "text.badge.plus")
+                            }
+                        }
+
                         Button {
                             let albumID = current.title
                             try? environment.library.toggleSaveAlbum(

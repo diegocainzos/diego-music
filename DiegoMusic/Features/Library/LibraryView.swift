@@ -25,6 +25,8 @@ enum LibrarySection: String, CaseIterable, Identifiable {
 struct LibraryView: View {
     @ObservedObject var library: LibraryStore
     let onPlay: (MediaItem) -> Void
+    var onPlayQueue: (([MediaItem], Int) -> Void)? = nil
+    var youtubeService: (any YouTubeDataServicing)? = nil
     var downloadManager: OfflineDownloadManager? = nil
     var resolver: (any AudioStreamResolving)? = nil
     var isOffline: Bool = false
@@ -97,6 +99,7 @@ struct LibraryView: View {
                 library: library,
                 query: query,
                 onPlay: onPlay,
+                onPlayQueue: onPlayQueue,
                 downloadManager: downloadManager,
                 resolver: resolver,
                 isOffline: isOffline
@@ -106,8 +109,14 @@ struct LibraryView: View {
         case .artists:
             ArtistsView(library: library, query: query, onPlay: onPlay)
         case .lists:
-            ListaView(library: library, query: query, onPlay: onPlay)
-                .responsiveHorizontalPadding()
+            ListaView(
+                library: library,
+                query: query,
+                onPlay: onPlay,
+                onPlayQueue: onPlayQueue,
+                youtubeService: youtubeService
+            )
+            .responsiveHorizontalPadding()
         case .downloads:
             if let dm = downloadManager {
                 DownloadedView(downloadManager: dm, onPlay: onPlay, query: query)

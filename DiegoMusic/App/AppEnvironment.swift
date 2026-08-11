@@ -60,4 +60,14 @@ final class AppEnvironment: ObservableObject {
             try? library.addHistory(item)
         }
     }
+
+    /// Reemplaza la cola activa por la lista completa dada y comienza la reproducción en `index`.
+    func playQueue(_ items: [MediaItem], startingAt index: Int = 0) {
+        guard !items.isEmpty else { return }
+        let validIndex = items.indices.contains(index) ? index : 0
+        queue.replaceQueue(items: items, startIndex: validIndex)
+        if let current = queue.current {
+            player.select(current)
+        }
+    }
 }

@@ -81,6 +81,17 @@ final class PlaybackQueue: ObservableObject {
         rebuildAfterMutation()
     }
 
+    /// Reemplaza toda la cola de reproducción por una nueva lista y se posiciona en `startIndex`.
+    func replaceQueue(items: [MediaItem], startIndex: Int = 0) {
+        self.items = items
+        if items.indices.contains(startIndex) {
+            self.currentIndex = startIndex
+        } else {
+            self.currentIndex = items.isEmpty ? nil : 0
+        }
+        rebuildAfterMutation()
+    }
+
     func enqueue(_ item: MediaItem) {
         guard !items.contains(where: { $0.id == item.id }) else { return }
         items.append(item)

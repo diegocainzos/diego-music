@@ -124,17 +124,25 @@ struct RootView: View {
             LibraryView(
                 library: environment.library,
                 onPlay: environment.play,
+                onPlayQueue: environment.playQueue,
+                youtubeService: environment.youtubeService,
                 downloadManager: environment.downloadManager,
                 resolver: environment.player.resolverClient,
                 isOffline: !environment.networkMonitor.isConnected
             )
         case .playlists:
-            PlaylistsView(library: environment.library, onPlay: environment.play)
+            PlaylistsView(
+                library: environment.library,
+                onPlay: environment.play,
+                onPlayQueue: environment.playQueue,
+                youtubeService: environment.youtubeService
+            )
         case .songs:
             SongsView(
                 library: environment.library,
                 query: "",
                 onPlay: environment.play,
+                onPlayQueue: environment.playQueue,
                 downloadManager: environment.downloadManager,
                 resolver: environment.player.resolverClient,
                 isOffline: !environment.networkMonitor.isConnected
