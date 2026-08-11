@@ -111,6 +111,49 @@ extension Color {
     }
 }
 
+// MARK: - Componente Logotipo Oficial Apple Music
+
+/// Componente de logotipo oficial estilo Apple Music:
+/// Fondo degradado rojo-rosa (`#FC3C44` -> `#FF2D55`) con icono de nota musical en blanco y texto "Music" en bold.
+struct AppleMusicLogoView: View {
+    var size: CGFloat = 28
+    var showText: Bool = true
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 252 / 255.0, green: 60 / 255.0, blue: 68 / 255.0), // #FC3C44
+                                Color(red: 255 / 255.0, green: 45 / 255.0, blue: 85 / 255.0)  // #FF2D55
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: size, height: size)
+                    .shadow(color: Color(red: 252 / 255.0, green: 60 / 255.0, blue: 68 / 255.0).opacity(0.35), radius: 4, y: 2)
+
+                Image(systemName: "music.note")
+                    .font(.system(size: size * 0.55, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+
+            if showText {
+                HStack(spacing: 2) {
+                    Image(systemName: "apple.logo")
+                        .font(.system(size: size * 0.65, weight: .semibold))
+                    Text("Music")
+                        .font(.system(size: size * 0.7, weight: .bold, design: .default))
+                }
+                .foregroundStyle(DiegoTheme.textPrimary)
+            }
+        }
+    }
+}
+
 // MARK: - Tarjeta estilo Apple Music Glassmorphic
 
 struct AppleMusicCardModifier: ViewModifier {

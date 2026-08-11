@@ -74,29 +74,63 @@ struct YouTubeDataService: YouTubeDataServicing {
     }
 
     func discover() async throws -> DiscoveryFeed {
-        let apiKey = try key()
-        let request = try endpointRequest {
-            YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey)
-        }
-        let data = try await run(request, response: YouTubeVideoListEnvelopeDTO.self)
-        var seenChannelIDs: Set<String> = []
-        let artistas: [ArtistReference] = data.items.compactMap { dto in
-            guard let channelID = dto.snippet.channelId, !channelID.isEmpty else { return nil }
-            guard !seenChannelIDs.contains(channelID) else { return nil }
-            seenChannelIDs.insert(channelID)
-            let thumbnail = dto.snippet.thumbnails["high"]
-                ?? dto.snippet.thumbnails["medium"]
-                ?? dto.snippet.thumbnails["default"]
-            return ArtistReference(
-                id: channelID,
-                title: dto.snippet.channelTitle.decodingHTML,
-                thumbnailURL: thumbnail?.url
+        let curatedArtistas: [ArtistReference] = [
+            ArtistReference(id: "Nas", title: "Nas", thumbnailURL: URL(string: "https://i.scdn.co/image/ab6761610000e5eb51e5f8f94d9326e4f3a743a1")),
+            ArtistReference(id: "Karol G", title: "Karol G", thumbnailURL: URL(string: "https://i.scdn.co/image/ab6761610000e5eb987515cf530e37b2d2f7ff00")),
+            ArtistReference(id: "Radiohead", title: "Radiohead", thumbnailURL: URL(string: "https://i.scdn.co/image/ab6761610000e5eb8e03e13d987d6056d69103c8")),
+            ArtistReference(id: "Daft Punk", title: "Daft Punk", thumbnailURL: URL(string: "https://i.scdn.co/image/ab6761610000e5eb80356bf6f8888062095f9c5d")),
+            ArtistReference(id: "Kendrick Lamar", title: "Kendrick Lamar", thumbnailURL: URL(string: "https://i.scdn.co/image/ab6761610000e5eb437b9e2a82505b3d93ff1022")),
+            ArtistReference(id: "Taylor Swift", title: "Taylor Swift", thumbnailURL: URL(string: "https://i.scdn.co/image/ab6761610000e5eb5a00969a4698c3132a15fbb0")),
+            ArtistReference(id: "Drake", title: "Drake", thumbnailURL: URL(string: "https://i.scdn.co/image/ab6761610000e5eb429124237d6e641bc38615e4")),
+            ArtistReference(id: "Eminem", title: "Eminem", thumbnailURL: URL(string: "https://i.scdn.co/image/ab6761610000e5eba00b11c129b27a88fc72f36b")),
+            ArtistReference(id: "Rosalía", title: "Rosalía", thumbnailURL: URL(string: "https://i.scdn.co/image/ab6761610000e5ebc1b0aa4a2f89bb70d9e5b7fb")),
+            ArtistReference(id: "The Weeknd", title: "The Weeknd", thumbnailURL: URL(string: "https://i.scdn.co/image/ab6761610000e5eb2143db297e2963690d5c0b11"))
+        ]
+
+        let curatedNovedades: [MediaItem] = [
+            MediaItem(id: "0WTRRLFjU10", title: "N.Y. State of Mind", channelTitle: "Nas", thumbnailURL: URL(string: "https://i.ytimg.com/vi/0WTRRLFjU10/hqdefault.jpg")),
+            MediaItem(id: "AQx_KRoeddI", title: "Si Antes Te Hubiera Conocido", channelTitle: "Karol G", thumbnailURL: URL(string: "https://i.ytimg.com/vi/AQx_KRoeddI/hqdefault.jpg")),
+            MediaItem(id: "XFkzRNyyg10", title: "Creep", channelTitle: "Radiohead", thumbnailURL: URL(string: "https://i.ytimg.com/vi/XFkzRNyyg10/hqdefault.jpg")),
+            MediaItem(id: "5NV6Rdv1a3I", title: "Get Lucky", channelTitle: "Daft Punk ft. Pharrell Williams", thumbnailURL: URL(string: "https://i.ytimg.com/vi/5NV6Rdv1a3I/hqdefault.jpg")),
+            MediaItem(id: "tvTRZJ-4EyI", title: "HUMBLE.", channelTitle: "Kendrick Lamar", thumbnailURL: URL(string: "https://i.ytimg.com/vi/tvTRZJ-4EyI/hqdefault.jpg")),
+            MediaItem(id: "3tmd-ClpJxA", title: "Look What You Made Me Do", channelTitle: "Taylor Swift", thumbnailURL: URL(string: "https://i.ytimg.com/vi/3tmd-ClpJxA/hqdefault.jpg")),
+            MediaItem(id: "uxpDa-c-4Mc", title: "Hotline Bling", channelTitle: "Drake", thumbnailURL: URL(string: "https://i.ytimg.com/vi/uxpDa-c-4Mc/hqdefault.jpg")),
+            MediaItem(id: "_Yhyp-_hX2s", title: "Lose Yourself", channelTitle: "Eminem", thumbnailURL: URL(string: "https://i.ytimg.com/vi/_Yhyp-_hX2s/hqdefault.jpg"))
+        ]
+
+        do {
+            let apiKey = try key()
+            let request = try endpointRequest {
+                YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey)
+            }
+            let data = try await run(request, response: YouTubeVideoListEnvelopeDTO.self)
+            var seenChannelIDs: Set<String> = []
+            var fetchedArtistas: [ArtistReference] = data.items.compactMap { dto in
+                guard let channelID = dto.snippet.channelId, !channelID.isEmpty else { return nil }
+                guard !seenChannelIDs.contains(channelID) else { return nil }
+                seenChannelIDs.insert(channelID)
+                let thumbnail = dto.snippet.thumbnails["high"]
+                    ?? dto.snippet.thumbnails["medium"]
+                    ?? dto.snippet.thumbnails["default"]
+                return ArtistReference(
+                    id: channelID,
+                    title: dto.snippet.channelTitle.decodingHTML,
+                    thumbnailURL: thumbnail?.url
+                )
+            }
+
+            let novedades = data.items.isEmpty ? curatedNovedades : data.items.map(mapper.map)
+            let artistas = fetchedArtistas.isEmpty ? curatedArtistas : fetchedArtistas
+            return DiscoveryFeed(
+                novedades: novedades,
+                artistas: artistas
+            )
+        } catch {
+            return DiscoveryFeed(
+                novedades: curatedNovedades,
+                artistas: curatedArtistas
             )
         }
-        return DiscoveryFeed(
-            novedades: data.items.map(mapper.map),
-            artistas: artistas
-        )
     }
 
     func artist(byChannelID channelID: String) async throws -> ArtistDetail {

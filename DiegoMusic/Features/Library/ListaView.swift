@@ -10,6 +10,7 @@ struct ListaView: View {
     @State private var newName = ""
     @State private var expandedPlaylists: Set<UUID> = []
     @State private var renamingPlaylist: LocalPlaylist?
+    @State private var isShowingCreateSheet = false
     @State private var draftName = ""
     @State private var errorMessage: String?
 
@@ -42,6 +43,11 @@ struct ListaView: View {
         .sheet(item: $renamingPlaylist) { playlist in
             renameSheet(playlist)
         }
+        .sheet(isPresented: $isShowingCreateSheet) {
+            CreatePlaylistSheet(library: library) { created in
+                expandedPlaylists.insert(created.id)
+            }
+        }
     }
 
     private var createRow: some View {
@@ -60,6 +66,14 @@ struct ListaView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Crear playlist")
+
+            Button {
+                isShowingCreateSheet = true
+            } label: {
+                Label("Nueva Playlist", systemImage: "plus.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(PrimaryButtonStyle())
         }
     }
 

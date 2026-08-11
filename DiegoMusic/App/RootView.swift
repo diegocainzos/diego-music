@@ -140,21 +140,9 @@ struct SidebarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             // Header Logo
-            HStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(DiegoTheme.accent)
-                        .frame(width: 30, height: 30)
-                    Image(systemName: "music.note")
-                        .font(.callout.bold())
-                        .foregroundStyle(.white)
-                }
-                Text("Music")
-                    .font(.title3.bold())
-                    .foregroundStyle(DiegoTheme.textPrimary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
+            AppleMusicLogoView(size: 30, showText: true)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
 
             // Search Bar in Sidebar
             HStack(spacing: 8) {

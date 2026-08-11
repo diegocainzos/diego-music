@@ -51,6 +51,7 @@ struct ArtistView: View {
 
     @State private var activeDetailSheet: DetailSheetItem?
     @State private var toastMessage: String?
+    @State private var isFollowing = false
 
     init(artistID: String, artistTitle: String, service: any YouTubeDataServicing, onPlay: @escaping (MediaItem) -> Void) {
         self.artistID = artistID
@@ -90,7 +91,8 @@ struct ArtistView: View {
                 case let .loaded(detail):
                     heroHeader(detail)
                     topTracksSection(detail.topTracks)
-                    relatedSection(detail.related)
+                    discographySection(detail.related)
+                    similarArtistsSection(detail.related)
                 }
             }
             .responsiveHorizontalPadding()
@@ -161,7 +163,7 @@ struct ArtistView: View {
         if isCompact {
             VStack(spacing: 16) {
                 TrackArtwork(url: detail.artist.thumbnailURL)
-                    .frame(width: 150, height: 150)
+                    .frame(width: 140, height: 140)
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.35), radius: 16, x: 0, y: 8)
                     .accessibilityHidden(true)
@@ -172,10 +174,16 @@ struct ArtistView: View {
                         .tracking(1.5)
                         .foregroundStyle(DiegoTheme.textSecondary)
 
-                    Text(title)
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(DiegoTheme.textPrimary)
-                        .multilineTextAlignment(.center)
+                    HStack(spacing: 6) {
+                        Text(title)
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(DiegoTheme.textPrimary)
+                            .multilineTextAlignment(.center)
+
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.title3)
+                            .foregroundStyle(.blue)
+                    }
 
                     if let bio = detail.artist.bio, !bio.isEmpty {
                         Text(bio)
@@ -187,13 +195,13 @@ struct ArtistView: View {
                     }
                 }
 
-                actionButtons(detail.topTracks)
+                actionButtons(detail.topTracks, artistTitle: title)
             }
             .frame(maxWidth: .infinity)
         } else {
             HStack(alignment: .center, spacing: 28) {
                 TrackArtwork(url: detail.artist.thumbnailURL)
-                    .frame(width: 180, height: 180)
+                    .frame(width: 160, height: 160)
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.35), radius: 20, x: 0, y: 10)
                     .accessibilityHidden(true)
@@ -204,9 +212,15 @@ struct ArtistView: View {
                         .tracking(1.5)
                         .foregroundStyle(DiegoTheme.textSecondary)
 
-                    Text(title)
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundStyle(DiegoTheme.textPrimary)
+                    HStack(spacing: 8) {
+                        Text(title)
+                            .font(.system(size: 36, weight: .bold))
+                            .foregroundStyle(DiegoTheme.textPrimary)
+
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.title2)
+                            .foregroundStyle(.blue)
+                    }
 
                     if let bio = detail.artist.bio, !bio.isEmpty {
                         Text(bio)
@@ -217,16 +231,16 @@ struct ArtistView: View {
 
                     Spacer().frame(height: 4)
 
-                    actionButtons(detail.topTracks)
+                    actionButtons(detail.topTracks, artistTitle: title)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
 
-    // MARK: - Botones de Acción Hero
+    // MARK: - Botones de Acción Hero (Reproducir, Aleatorio, Seguir)
 
-    private func actionButtons(_ topTracks: [MediaItem]) -> some View {
+    private func actionButtons(_ topTracks: [MediaItem], artistTitle: String) -> some View {
         HStack(spacing: 12) {
             Button {
                 if let first = topTracks.first {
@@ -268,14 +282,35 @@ struct ArtistView: View {
                 }
             }
             .buttonStyle(.plain)
+
+            Button {
+                isFollowing.toggle()
+                showToast(isFollowing ? "Siguiendo a \(artistTitle)" : "Dejaste de seguir a \(artistTitle)")
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: isFollowing ? "checkmark" : "plus")
+                        .font(.subheadline.weight(.bold))
+                    Text(isFollowing ? "Siguiendo" : "Seguir")
+                        .font(.subheadline.weight(.bold))
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(isFollowing ? DiegoTheme.accent.opacity(0.15) : DiegoTheme.surface)
+                .foregroundStyle(isFollowing ? DiegoTheme.accent : DiegoTheme.textPrimary)
+                .clipShape(Capsule())
+                .overlay {
+                    Capsule().stroke(isFollowing ? DiegoTheme.accent : DiegoTheme.textSecondary.opacity(0.3), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
         }
     }
 
-    // MARK: - Sección Top Tracks
+    // MARK: - Sección Top Tracks (Numeradas 1, 2, 3...)
 
     private func topTracksSection(_ items: [MediaItem]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Canciones populares")
+            Text("Éxitos populares")
                 .font(.title2.bold())
                 .foregroundStyle(DiegoTheme.textPrimary)
 
@@ -313,27 +348,27 @@ struct ArtistView: View {
         }
     }
 
-    // MARK: - Sección Artistas Similares / Relacionados
+    // MARK: - Sección Discografía y Álbumes
 
-    private func relatedSection(_ items: [MediaItem]) -> some View {
+    private func discographySection(_ items: [MediaItem]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Lanzamientos y relacionados")
+            Text("Discografía y Álbumes")
                 .font(.title2.bold())
                 .foregroundStyle(DiegoTheme.textPrimary)
 
             if items.isEmpty {
-                Text("No hay lanzamientos relacionados.")
+                Text("No hay lanzamientos disponibles.")
                     .font(.callout)
                     .foregroundStyle(DiegoTheme.textSecondary)
             } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 16)], spacing: 16) {
-                    ForEach(items.prefix(8)) { item in
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 16)], spacing: 16) {
+                    ForEach(items.prefix(6)) { item in
                         Button {
-                            onPlay(item)
+                            activeDetailSheet = DetailSheetItem(id: item.title, title: item.title, kind: .album)
                         } label: {
                             VStack(alignment: .leading, spacing: 8) {
                                 TrackArtwork(url: item.thumbnailURL)
-                                    .frame(height: 150)
+                                    .frame(height: 160)
                                     .frame(maxWidth: .infinity)
                                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                     .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
@@ -344,7 +379,7 @@ struct ArtistView: View {
                                         .foregroundStyle(DiegoTheme.textPrimary)
                                         .lineLimit(2)
 
-                                    Text(item.channelTitle)
+                                    Text("Álbum")
                                         .font(.caption)
                                         .foregroundStyle(DiegoTheme.textSecondary)
                                         .lineLimit(1)
@@ -353,6 +388,47 @@ struct ArtistView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                }
+            }
+        }
+    }
+
+    // MARK: - Sección Artistas Similares (Avatares Circulares)
+
+    private func similarArtistsSection(_ items: [MediaItem]) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Artistas similares")
+                .font(.title2.bold())
+                .foregroundStyle(DiegoTheme.textPrimary)
+
+            if items.isEmpty {
+                Text("No hay artistas similares recomendados.")
+                    .font(.callout)
+                    .foregroundStyle(DiegoTheme.textSecondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(items.suffix(6)) { item in
+                            Button {
+                                activeDetailSheet = DetailSheetItem(id: item.channelTitle, title: item.channelTitle, kind: .artist)
+                            } label: {
+                                VStack(spacing: 8) {
+                                    TrackArtwork(url: item.thumbnailURL)
+                                        .frame(width: 110, height: 110)
+                                        .clipShape(Circle())
+                                        .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+
+                                    Text(item.channelTitle)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(DiegoTheme.textPrimary)
+                                        .lineLimit(1)
+                                        .frame(width: 110)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
                 }
             }
         }
@@ -394,7 +470,7 @@ private struct ArtistTrackRow: View {
                         .frame(width: 24, alignment: .center)
 
                     TrackArtwork(url: item.thumbnailURL)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 48, height: 48)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 2) {

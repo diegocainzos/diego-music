@@ -1,15 +1,77 @@
 import SwiftUI
 
+struct CreatePlaylistSheet: View {
+    @ObservedObject var library: LibraryStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String = ""
+    @State private var descriptionText: String = ""
+    @State private var errorMessage: String?
+    let onCreate: ((LocalPlaylist) -> Void)?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Detalles de la Playlist") {
+                    TextField("Nombre de la playlist", text: $name)
+                    TextField("Descripción (opcional)", text: $descriptionText)
+                }
+
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(DiegoTheme.red)
+                    }
+                }
+            }
+            .navigationTitle("Nueva Playlist")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancelar") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Crear") { savePlaylist() }
+                        .font(.body.weight(.bold))
+                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+
+    private func savePlaylist() {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        do {
+            let newPlaylist = try library.createPlaylist(named: trimmed)
+            onCreate?(newPlaylist)
+            dismiss()
+        } catch {
+            errorMessage = "No se pudo crear la playlist."
+        }
+    }
+}
+
 struct PlaylistsView: View {
     @ObservedObject var library: LibraryStore
     @State private var newName = ""
     @State private var expandedPlaylists: Set<UUID> = []
     @State private var errorMessage: String?
+    @State private var isShowingCreateSheet = false
     let onPlay: (MediaItem) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            SectionHeader(eyebrow: "Secuencias locales", title: "Playlists", color: DiegoTheme.accent)
+            HStack {
+                SectionHeader(eyebrow: "Secuencias locales", title: "Playlists", color: DiegoTheme.accent)
+                Spacer()
+                Button {
+                    isShowingCreateSheet = true
+                } label: {
+                    Label("Crear Playlist", systemImage: "plus.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(PrimaryButtonStyle())
+            }
 
             HStack {
                 TextField("Nombre de la nueva playlist", text: $newName)
@@ -88,6 +150,11 @@ struct PlaylistsView: View {
             }
         }
         .padding(28)
+        .sheet(isPresented: $isShowingCreateSheet) {
+            CreatePlaylistSheet(library: library) { created in
+                expandedPlaylists.insert(created.id)
+            }
+        }
     }
 
     private func expandedBinding(for id: UUID) -> Binding<Bool> {

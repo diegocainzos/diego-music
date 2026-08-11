@@ -17,7 +17,6 @@ struct DiegoMusicApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(environment)
-                .preferredColorScheme(.light)
         }
         #if os(macOS)
         .defaultSize(width: 1180, height: 760)
