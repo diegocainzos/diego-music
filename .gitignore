@@ -23,6 +23,9 @@ xcuserdata/
 __pycache__/
 *.pyc
 .pytest_cache/
+*.db
+*.db-wal
+*.db-shm
 .DS_Store
 
 # Informes locales
