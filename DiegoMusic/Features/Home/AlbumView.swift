@@ -270,6 +270,16 @@ struct AlbumView: View {
                 }
             }
             .buttonStyle(.plain)
+
+            // Botón "Descargar todo" offline
+            if !album.tracks.isEmpty,
+               let resolverClient = environment.player.resolverClient {
+                DownloadAllButton(
+                    items: album.tracks,
+                    downloadManager: environment.downloadManager,
+                    resolver: resolverClient
+                )
+            }
         }
     }
 

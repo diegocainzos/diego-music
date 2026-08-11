@@ -120,3 +120,50 @@ final class PreferenceRecord: NSManagedObject {
     @NSManaged var key: String
     @NSManaged var value: String
 }
+
+// MARK: - Descarga Offline
+
+/// Registro Core Data de una pista descargada localmente.
+@objc(DownloadedTrackRecord)
+final class DownloadedTrackRecord: NSManagedObject {
+    @NSManaged var videoID: String
+    @NSManaged var title: String
+    @NSManaged var channelTitle: String
+    @NSManaged var thumbnailURLString: String?
+    /// Ruta relativa al directorio de descargas de la app.
+    @NSManaged var localFilePath: String
+    @NSManaged var fileSizeBytes: Int64
+    @NSManaged var downloadedAt: Date
+    @NSManaged var contentType: String
+}
+
+/// Modelo de valor para exponer pistas descargadas en la UI.
+struct DownloadedTrack: Identifiable, Equatable {
+    let videoID: String
+    let title: String
+    let channelTitle: String
+    let thumbnailURLString: String?
+    let localFilePath: String
+    let fileSizeBytes: Int64
+    let downloadedAt: Date
+    let contentType: String
+
+    var id: String { videoID }
+
+    /// Tamaño formateado para la UI (ej. "3.2 MB").
+    var formattedSize: String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: fileSizeBytes)
+    }
+
+    var mediaItem: MediaItem {
+        MediaItem(
+            id: videoID,
+            title: title,
+            channelTitle: channelTitle,
+            thumbnailURL: thumbnailURLString.flatMap(URL.init(string:))
+        )
+    }
+}

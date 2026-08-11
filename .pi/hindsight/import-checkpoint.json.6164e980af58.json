@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "runId": "pi-import:pi-coding:019f765f-437a-7c64-b9e5-5cce8c9040c3:current-only:curated:replace:/Users/diego/.pi/agent/sessions/--Users-diego-Projects-10_active-youtube-music--/2026-07-18T17-56-22-522Z_019f765f-437a-7c64-b9e5-5cce8c9040c3.jsonl",
+  "sourceFile": "/Users/diego/.pi/agent/sessions/--Users-diego-Projects-10_active-youtube-music--/2026-07-18T17-56-22-522Z_019f765f-437a-7c64-b9e5-5cce8c9040c3.jsonl",
+  "bankId": "pi-coding",
+  "sessionId": "019f765f-437a-7c64-b9e5-5cce8c9040c3",
+  "cwd": "/Users/diego/Projects/10_active/youtube-music",
+  "includeBranches": "current-only",
+  "importMode": "curated",
+  "toolResults": "errors-only",
+  "importQualityProfile": "compatible",
+  "updateMode": "replace",
+  "startedAt": "2026-08-11T14:09:25.985Z",
+  "updatedAt": "2026-08-11T14:09:27.257Z",
+  "documents": {
+    "pi-import:019f765f-437a-7c64-b9e5-5cce8c9040c3:leaf:7c96f3d1:turns-12-bytes-80000:curated-turns-v1:chunk-0-0-11": {
+      "documentId": "pi-import:019f765f-437a-7c64-b9e5-5cce8c9040c3:leaf:7c96f3d1:turns-12-bytes-80000:curated-turns-v1:chunk-0-0-11",
+      "leafId": "7c96f3d1",
+      "contentHash": "f178d313a2d70ce67a8abcba556d6a55161e589a6b0f24cb1fc02748d062858b",
+      "messageCount": 12,
+      "importMode": "curated",
+      "toolResults": "errors-only",
+      "projectionVersion": "curated-turns-v1",
+      "importProfile": "turns-12-bytes-80000",
+      "chunkIndex": 0,
+      "messageRange": {
+        "start": 0,
+        "end": 11
+      },
+      "status": "completed",
+      "updatedAt": "2026-08-11T14:09:26.447Z"
+    },
+    "pi-import:019f765f-437a-7c64-b9e5-5cce8c9040c3:leaf:7c96f3d1:turns-12-bytes-80000:curated-turns-v1:chunk-1-12-17": {
+      "documentId": "pi-import:019f765f-437a-7c64-b9e5-5cce8c9040c3:leaf:7c96f3d1:turns-12-bytes-80000:curated-turns-v1:chunk-1-12-17",
+      "leafId": "7c96f3d1",
+      "contentHash": "720128bfcc8b26fcdd1773270ee6d1bafadddcdf73e4f31b4302f39af0639439",
+      "messageCount": 6,
+      "importMode": "curated",
+      "toolResults": "errors-only",
+      "projectionVersion": "curated-turns-v1",
+      "importProfile": "turns-12-bytes-80000",
+      "chunkIndex": 1,
+      "messageRange": {
+        "start": 12,
+        "end": 17
+      },
+      "status": "completed",
+      "updatedAt": "2026-08-11T14:09:26.694Z"
+    },
+    "pi-import:019f765f-437a-7c64-b9e5-5cce8c9040c3:leaf:7c96f3d1:turns-12-bytes-80000:curated-turns-v1:chunk-2-18-27": {
+      "documentId": "pi-import:019f765f-437a-7c64-b9e5-5cce8c9040c3:leaf:7c96f3d1:turns-12-bytes-80000:curated-turns-v1:chunk-2-18-27",
+      "leafId": "7c96f3d1",
+      "contentHash": "b6a1c6c96b67f049c651bb4330ac403c73f7744585ccb672668e1b27dc8112a7",
+      "messageCount": 10,
+      "importMode": "curated",
+      "toolResults": "errors-only",
+      "projectionVersion": "curated-turns-v1",
+      "importProfile": "turns-12-bytes-80000",
+      "chunkIndex": 2,
+      "messageRange": {
+        "start": 18,
+        "end": 27
+      },
+      "status": "completed",
+      "updatedAt": "2026-08-11T14:09:26.942Z"
+    },
+    "pi-import:019f765f-437a-7c64-b9e5-5cce8c9040c3:leaf:7c96f3d1:turns-12-bytes-80000:curated-turns-v1:chunk-3-28-37": {
+      "documentId": "pi-import:019f765f-437a-7c64-b9e5-5cce8c9040c3:leaf:7c96f3d1:turns-12-bytes-80000:curated-turns-v1:chunk-3-28-37",
+      "leafId": "7c96f3d1",
+      "contentHash": "c5c7d3757b3d477d90e2c1fcc54d9e0bd8062390009048125363f050f3eeca47",
+      "messageCount": 10,
+      "importMode": "curated",
+      "toolResults": "errors-only",
+      "projectionVersion": "curated-turns-v1",
+      "importProfile": "turns-12-bytes-80000",
+      "chunkIndex": 3,
+      "messageRange": {
+        "start": 28,
+        "end": 37
+      },
+      "status": "completed",
+      "updatedAt": "2026-08-11T14:09:27.257Z"
+    }
+  }
+}

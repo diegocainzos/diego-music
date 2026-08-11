@@ -32,9 +32,14 @@ final class AudioPlayerCoordinator: ObservableObject {
 
     private let player = AVPlayer()
     private let queue: PlaybackQueue
-    private let resolver: any AudioStreamResolving
+    let resolver: any AudioStreamResolving
     private let youtubeService: (any YouTubeDataServicing)?
     private let relatedProvider: (any RelatedTrackProviding)?
+    /// Gestor de descargas offline: si existe URL local, la usa directamente.
+    var offlineManager: OfflineDownloadManager?
+
+    /// Acceso directo al resolver para uso externo (ej. DownloadAllButton en vistas).
+    var resolverClient: (any AudioStreamResolving)? { resolver }
     private var resolveTask: Task<Void, Never>?
     private var recoveryTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
@@ -300,6 +305,19 @@ final class AudioPlayerCoordinator: ObservableObject {
         resolveTask = Task { [weak self] in
             guard let self else { return }
             do {
+                // OFFLINE: comprobar si existe copia local antes de resolver en red
+                if let localURL = offlineManager?.localURL(for: item.id) {
+                    try Task.checkCancellation()
+                    guard generation == loadGeneration else { return }
+                    let playerItem = AVPlayerItem(url: localURL)
+                    installStatusObservation(for: playerItem, mediaItem: item)
+                    player.replaceCurrentItem(with: playerItem)
+                    playbackState = .buffering
+                    schedulePrefetch()
+                    if autoplay, activatePlatformAudioSession() { player.play() }
+                    return
+                }
+
                 let descriptor = try await resolver.resolve(videoID: item.id)
                 try Task.checkCancellation()
                 guard generation == loadGeneration else { return }

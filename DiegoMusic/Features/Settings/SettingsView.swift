@@ -4,8 +4,10 @@ struct SettingsView: View {
     @ObservedObject var playbackSettings: PlaybackSettings
     let library: LibraryStore
     let resolverConfigured: Bool
+    @ObservedObject var downloadManager: OfflineDownloadManager
 
     @State private var historyMessage: String?
+    @State private var showClearDownloadsConfirm = false
 
     var body: some View {
         ScrollView {
@@ -79,6 +81,36 @@ struct SettingsView: View {
                     Text("No es una aplicación oficial ni está afiliada con YouTube o Google. El audio no se conserva permanentemente.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                .minimalCard()
+
+                // MARK: - Almacenamiento Offline
+                VStack(alignment: .leading, spacing: 14) {
+                    Label("Almacenamiento offline", systemImage: "arrow.down.circle.fill")
+                        .font(.title2.bold())
+
+                    settingLine("Canciones descargadas", value: "\(downloadManager.downloadedTracks.count)")
+                    settingLine("Espacio ocupado", value: downloadManager.formattedTotalUsage)
+
+                    Button(role: .destructive) {
+                        showClearDownloadsConfirm = true
+                    } label: {
+                        Label("Liberar todo el espacio", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .confirmationDialog(
+                        "Liberar todo el espacio",
+                        isPresented: $showClearDownloadsConfirm,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Eliminar todas las descargas", role: .destructive) {
+                            try? downloadManager.removeAllDownloads()
+                        }
+                        Button("Cancelar", role: .cancel) {}
+                    } message: {
+                        Text("Se borrarán \(downloadManager.downloadedTracks.count) canciones del dispositivo.")
+                    }
                 }
                 .minimalCard()
             }

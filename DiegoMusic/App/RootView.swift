@@ -60,6 +60,10 @@ struct RootView: View {
                     alignment: .bottom
                 )
 
+                // Banner de Sin Conexión
+                OfflineBanner(monitor: environment.networkMonitor)
+                    .animation(.easeInOut(duration: 0.3), value: environment.networkMonitor.isConnected)
+
                 ZStack {
                     DiegoTheme.background.ignoresSafeArea()
                     destinationView(navState.current)
@@ -72,6 +76,10 @@ struct RootView: View {
 
     private var phoneTabView: some View {
         VStack(spacing: 0) {
+            // Banner de Sin Conexión (parte superior en iPhone)
+            OfflineBanner(monitor: environment.networkMonitor)
+                .animation(.easeInOut(duration: 0.3), value: environment.networkMonitor.isConnected)
+
             ZStack {
                 DiegoTheme.background.ignoresSafeArea()
                 destinationView(navState.current)
@@ -112,11 +120,24 @@ struct RootView: View {
                 onFavorite: { try? environment.library.toggleFavorite($0) }
             )
         case .library:
-            LibraryView(library: environment.library, onPlay: environment.play)
+            LibraryView(
+                library: environment.library,
+                onPlay: environment.play,
+                downloadManager: environment.downloadManager,
+                resolver: environment.player.resolverClient,
+                isOffline: !environment.networkMonitor.isConnected
+            )
         case .playlists:
             PlaylistsView(library: environment.library, onPlay: environment.play)
         case .songs:
-            SongsView(library: environment.library, query: "", onPlay: environment.play)
+            SongsView(
+                library: environment.library,
+                query: "",
+                onPlay: environment.play,
+                downloadManager: environment.downloadManager,
+                resolver: environment.player.resolverClient,
+                isOffline: !environment.networkMonitor.isConnected
+            )
         case .albums:
             AlbumsView(library: environment.library, query: "", onPlay: environment.play)
         case .artists:
@@ -125,7 +146,8 @@ struct RootView: View {
             SettingsView(
                 playbackSettings: environment.playbackSettings,
                 library: environment.library,
-                resolverConfigured: environment.resolverConfigured
+                resolverConfigured: environment.resolverConfigured,
+                downloadManager: environment.downloadManager
             )
         }
     }

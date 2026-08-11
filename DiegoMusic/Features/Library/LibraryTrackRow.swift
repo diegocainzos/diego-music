@@ -1,13 +1,24 @@
 import SwiftUI
 
 /// Fila reutilizable de una canción local: carátula, título, artista,
-/// corazón (guardar/quitar) y reproducción. Mantiene 44pt de área táctil
-/// y etiquetas accesibles.
+/// corazón (guardar/quitar), descarga offline y reproducción.
 struct LibraryTrackRow: View {
     let track: SavedTrack
     let isFavorite: Bool
     let onPlay: () -> Void
     let onFavorite: () -> Void
+    var downloadManager: OfflineDownloadManager? = nil
+    var resolver: (any AudioStreamResolving)? = nil
+    // Estado de red para atenuar filas no disponibles offline
+    var isOffline: Bool = false
+
+    private var isDownloaded: Bool {
+        downloadManager?.isDownloaded(videoID: track.videoID) ?? false
+    }
+
+    private var isUnavailableOffline: Bool {
+        isOffline && !isDownloaded
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -32,6 +43,7 @@ struct LibraryTrackRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(isUnavailableOffline)
             .accessibilityLabel("Reproducir \(track.title)")
 
             Button(action: onFavorite) {
@@ -43,7 +55,20 @@ struct LibraryTrackRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel(isFavorite ? "Quitar de la biblioteca" : "Guardar en la biblioteca")
             .accessibilityValue(isFavorite ? "Guardada" : "Sin guardar")
+
+            // Botón de descarga offline
+            if let dm = downloadManager, let res = resolver {
+                DownloadButton(item: track.mediaItem, downloadManager: dm, resolver: res)
+            }
         }
         .padding(.vertical, 4)
+        .opacity(isUnavailableOffline ? 0.4 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isUnavailableOffline)
+        .overlay(alignment: .center) {
+            if isUnavailableOffline {
+                // Mensaje emergente al tocar (solo visual; el hit-test está desactivado)
+                EmptyView()
+            }
+        }
     }
 }

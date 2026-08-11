@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "runId": "pi-import:pi-coding:019f760d-c2db-7375-b79d-62f7fcd7088b:current-only:curated:replace:/Users/diego/.pi/agent/sessions/--Users-diego-Projects-10_active-youtube-music--/2026-07-18T16-27-21-179Z_019f760d-c2db-7375-b79d-62f7fcd7088b.jsonl",
+  "sourceFile": "/Users/diego/.pi/agent/sessions/--Users-diego-Projects-10_active-youtube-music--/2026-07-18T16-27-21-179Z_019f760d-c2db-7375-b79d-62f7fcd7088b.jsonl",
+  "bankId": "pi-coding",
+  "sessionId": "019f760d-c2db-7375-b79d-62f7fcd7088b",
+  "cwd": "/Users/diego/Projects/10_active/youtube-music",
+  "includeBranches": "current-only",
+  "importMode": "curated",
+  "toolResults": "errors-only",
+  "importQualityProfile": "compatible",
+  "updateMode": "replace",
+  "startedAt": "2026-08-11T14:09:24.308Z",
+  "updatedAt": "2026-08-11T14:09:24.838Z",
+  "documents": {
+    "pi-import:019f760d-c2db-7375-b79d-62f7fcd7088b:leaf:2ec10c1c:turns-12-bytes-80000:curated-turns-v1:chunk-0-0-24": {
+      "documentId": "pi-import:019f760d-c2db-7375-b79d-62f7fcd7088b:leaf:2ec10c1c:turns-12-bytes-80000:curated-turns-v1:chunk-0-0-24",
+      "leafId": "2ec10c1c",
+      "contentHash": "e8a29fbbe54c5792d0d41ea5ab29015a9690ef76cf2ac390440d703772e946ad",
+      "messageCount": 25,
+      "importMode": "curated",
+      "toolResults": "errors-only",
+      "projectionVersion": "curated-turns-v1",
+      "importProfile": "turns-12-bytes-80000",
+      "chunkIndex": 0,
+      "messageRange": {
+        "start": 0,
+        "end": 24
+      },
+      "status": "completed",
+      "updatedAt": "2026-08-11T14:09:24.643Z"
+    },
+    "pi-import:019f760d-c2db-7375-b79d-62f7fcd7088b:leaf:2ec10c1c:turns-12-bytes-80000:curated-turns-v1:chunk-1-25-44": {
+      "documentId": "pi-import:019f760d-c2db-7375-b79d-62f7fcd7088b:leaf:2ec10c1c:turns-12-bytes-80000:curated-turns-v1:chunk-1-25-44",
+      "leafId": "2ec10c1c",
+      "contentHash": "5dad1287b2c2378c4f75031bf1df62c4e523f9cf074ccd9233e663b46e5420b9",
+      "messageCount": 20,
+      "importMode": "curated",
+      "toolResults": "errors-only",
+      "projectionVersion": "curated-turns-v1",
+      "importProfile": "turns-12-bytes-80000",
+      "chunkIndex": 1,
+      "messageRange": {
+        "start": 25,
+        "end": 44
+      },
+      "status": "completed",
+      "updatedAt": "2026-08-11T14:09:24.838Z"
+    }
+  }
+}
