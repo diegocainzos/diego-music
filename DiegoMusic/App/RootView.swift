@@ -40,11 +40,35 @@ enum AppDestination: String, CaseIterable, Identifiable {
     }
 }
 
+/// Raíz de la app con navegación adaptativa por `horizontalSizeClass`:
+/// - Compacto (iPhone): `TabView` con barra de pestañas inferior nativa.
+/// - Regular (iPad/macOS): `NavigationSplitView` con el listado lateral.
+/// En ambas ramas se comparte el `PlayerDock` como `safeAreaInset` inferior.
 struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var selection: AppDestination? = .home
 
     var body: some View {
+        Group {
+            if sizeClass == .compact {
+                phoneTabView
+            } else {
+                splitView
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            PlayerDock(
+                player: environment.player,
+                queue: environment.queue
+            )
+        }
+        .tint(DiegoTheme.accent)
+    }
+
+    // MARK: - Rama iPad/macOS (NavigationSplitView)
+
+    private var splitView: some View {
         NavigationSplitView {
             List(AppDestination.allCases, selection: $selection) { destination in
                 HStack(spacing: 10) {
@@ -64,13 +88,54 @@ struct RootView: View {
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            PlayerDock(
-                player: environment.player,
-                queue: environment.queue
-            )
+    }
+
+    // MARK: - Rama iPhone (TabView)
+
+    private var phoneTabView: some View {
+        TabView(selection: $selection) {
+            themed { HomeView { selection = .search } }
+                .tabItem { Label(AppDestination.home.title, systemImage: AppDestination.home.symbol) }
+                .tag(AppDestination.home as AppDestination?)
+
+            themed {
+                SearchView(
+                    service: environment.youtubeService,
+                    library: environment.library,
+                    onPlay: environment.play,
+                    onFavorite: { try? environment.library.toggleFavorite($0) }
+                )
+            }
+            .tabItem { Label(AppDestination.search.title, systemImage: AppDestination.search.symbol) }
+            .tag(AppDestination.search as AppDestination?)
+
+            themed { LibraryView(library: environment.library, onPlay: environment.play) }
+                .tabItem { Label(AppDestination.library.title, systemImage: AppDestination.library.symbol) }
+                .tag(AppDestination.library as AppDestination?)
+
+            themed { PlaylistsView(library: environment.library, onPlay: environment.play) }
+                .tabItem { Label(AppDestination.playlists.title, systemImage: AppDestination.playlists.symbol) }
+                .tag(AppDestination.playlists as AppDestination?)
+
+            themed {
+                SettingsView(
+                    playbackSettings: environment.playbackSettings,
+                    library: environment.library,
+                    resolverConfigured: environment.resolverConfigured
+                )
+            }
+            .tabItem { Label(AppDestination.settings.title, systemImage: AppDestination.settings.symbol) }
+            .tag(AppDestination.settings as AppDestination?)
         }
-        .tint(DiegoTheme.accent)
+    }
+
+    /// Envuelve el contenido de una pestaña en el fondo de la app para mantener
+    /// la estética uniforme (fondo claro) dentro de la `TabView`.
+    private func themed<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ZStack {
+            DiegoTheme.background.ignoresSafeArea()
+            content()
+        }
     }
 
     @ViewBuilder

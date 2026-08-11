@@ -38,6 +38,29 @@ extension View {
     }
 }
 
+// MARK: - Margen horizontal adaptativo
+
+/// Aplica un margen horizontal que se adapta al `horizontalSizeClass`:
+/// 16pt en pantallas compactas (iPhone) y 28pt en regulares (iPad/macOS).
+struct ResponsiveHorizontalMarginModifier: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    func body(content: Content) -> some View {
+        switch sizeClass {
+        case .compact:
+            content.padding(.horizontal, 16)
+        default:
+            content.padding(.horizontal, 28)
+        }
+    }
+}
+
+extension View {
+    func responsiveHorizontalPadding() -> some View {
+        modifier(ResponsiveHorizontalMarginModifier())
+    }
+}
+
 // MARK: - Botón primario
 
 struct PrimaryButtonStyle: ButtonStyle {

@@ -34,7 +34,9 @@ struct HomeView: View {
 
                     discoverySection
                 }
-                .padding(28)
+                .padding(.top, 28)
+                .padding(.bottom, 28)
+                .responsiveHorizontalPadding()
                 .frame(maxWidth: 1100)
                 .frame(maxWidth: .infinity)
             }
