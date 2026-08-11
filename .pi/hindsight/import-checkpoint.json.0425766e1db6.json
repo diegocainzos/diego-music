@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "runId": "pi-import:pi-coding:019ff09a-2481-7fc7-ab5b-247eff244e00:current-only:curated:replace:/Users/diego/.pi/agent/sessions/--Users-diego-Projects-10_active-youtube-music--/2026-08-11T11-34-21-569Z_019ff09a-2481-7fc7-ab5b-247eff244e00.jsonl",
+  "sourceFile": "/Users/diego/.pi/agent/sessions/--Users-diego-Projects-10_active-youtube-music--/2026-08-11T11-34-21-569Z_019ff09a-2481-7fc7-ab5b-247eff244e00.jsonl",
+  "bankId": "pi-coding",
+  "sessionId": "019ff09a-2481-7fc7-ab5b-247eff244e00",
+  "cwd": "/Users/diego/Projects/10_active/youtube-music",
+  "includeBranches": "current-only",
+  "importMode": "curated",
+  "toolResults": "errors-only",
+  "importQualityProfile": "compatible",
+  "updateMode": "replace",
+  "startedAt": "2026-08-11T14:09:39.891Z",
+  "updatedAt": "2026-08-11T14:09:40.186Z",
+  "documents": {
+    "pi-import:019ff09a-2481-7fc7-ab5b-247eff244e00:leaf:dca255a1:turns-12-bytes-80000:curated-turns-v1:chunk-0-0-14": {
+      "documentId": "pi-import:019ff09a-2481-7fc7-ab5b-247eff244e00:leaf:dca255a1:turns-12-bytes-80000:curated-turns-v1:chunk-0-0-14",
+      "leafId": "dca255a1",
+      "contentHash": "5191376aee4eba6ead01fd5cb8b50b432b5650be980ebcfedd5b991f5e5cab62",
+      "messageCount": 15,
+      "importMode": "curated",
+      "toolResults": "errors-only",
+      "projectionVersion": "curated-turns-v1",
+      "importProfile": "turns-12-bytes-80000",
+      "chunkIndex": 0,
+      "messageRange": {
+        "start": 0,
+        "end": 14
+      },
+      "status": "completed",
+      "updatedAt": "2026-08-11T14:09:40.186Z"
+    }
+  }
+}
