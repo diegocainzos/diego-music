@@ -15,6 +15,7 @@
 		1E288212940E68FB27D81C33 /* AlbumsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FE57CBF0D3EE918C5629D1B /* AlbumsView.swift */; };
 		1EE66FB17A9410293C5BAA26 /* YouTubeDataServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54DEFDB1DE5E4093054EB1E7 /* YouTubeDataServiceTests.swift */; };
 		1F93FC56B54E3682BEAF6843 /* SongsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629D8FBE5059163E4D30E8EA /* SongsView.swift */; };
+		233E9CF5E4CBFB98E51CFB1D /* ImportYouTubePlaylistSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06080C7AB650DEDEADA44D84 /* ImportYouTubePlaylistSheet.swift */; };
 		24326489F77EF25965B4F827 /* LyricsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D716FDDA75977C70E05F94BF /* LyricsModels.swift */; };
 		2A303C7F8112A53EB5C1B6F2 /* ArtworkCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0993E40A73827BA8545DBF8C /* ArtworkCache.swift */; };
 		2F5AC0C498853AF394DDF57A /* LibraryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8520854CDB28840D481BC1D /* LibraryStoreTests.swift */; };
@@ -86,6 +87,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		06080C7AB650DEDEADA44D84 /* ImportYouTubePlaylistSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportYouTubePlaylistSheet.swift; sourceTree = "<group>"; };
 		090C5ADC3245B7DE1B38935A /* PlaybackQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackQueueTests.swift; sourceTree = "<group>"; };
 		0976345E0EAFD37E5D7FA028 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		0993E40A73827BA8545DBF8C /* ArtworkCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkCache.swift; sourceTree = "<group>"; };
@@ -403,6 +405,7 @@
 		F1F0523E35EA8A9A32018201 /* Playlists */ = {
 			isa = PBXGroup;
 			children = (
+				06080C7AB650DEDEADA44D84 /* ImportYouTubePlaylistSheet.swift */,
 				BE44763CBB2A8B00B1EA0587 /* PlaylistsView.swift */,
 			);
 			path = Playlists;
@@ -558,6 +561,7 @@
 				D5BE1D4CF19CFE38F195BDAE /* HTTPTransport.swift in Sources */,
 				47510C2F1438B6752D5CC68D /* HomeView.swift in Sources */,
 				CCAB397154603A49D077D1FB /* HomeViewModel.swift in Sources */,
+				233E9CF5E4CBFB98E51CFB1D /* ImportYouTubePlaylistSheet.swift in Sources */,
 				B4550670107A8D20603642FF /* LRCLibProvider.swift in Sources */,
 				1ADE522DBCF94E539C00AF09 /* LibraryModels.swift in Sources */,
 				3F12A33EEFFBADC28106D28D /* LibraryStore.swift in Sources */,
