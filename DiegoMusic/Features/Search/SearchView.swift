@@ -54,13 +54,13 @@ struct SearchView: View {
                             .textFieldStyle(.plain)
                             .font(.body.weight(.medium))
                             .autocorrectionDisabled()
-                            .onChange(of: model.query) { model.queryDidChange() }
+                            .submitLabel(.search)
                             .onSubmit { model.search() }
 
                         if !model.query.isEmpty {
                             Button {
                                 model.query = ""
-                                model.queryDidChange()
+                                model.clearSearch()
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundStyle(DiegoTheme.textSecondary)

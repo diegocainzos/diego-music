@@ -11,7 +11,6 @@ final class SearchViewModel: ObservableObject {
     private let service: any YouTubeDataServicing
     private let history: SearchHistory
     private var searchTask: Task<Void, Never>?
-    private var debounceTask: Task<Void, Never>?
     private var rawItems: [MediaItem] = []
 
     init(service: any YouTubeDataServicing, libraryStore: LibraryStore) {
@@ -22,7 +21,6 @@ final class SearchViewModel: ObservableObject {
 
     deinit {
         searchTask?.cancel()
-        debounceTask?.cancel()
     }
 
     /// Indica si YouTube devolvió resultados sin filtrar; permite distinguir
@@ -36,34 +34,18 @@ final class SearchViewModel: ObservableObject {
         applyScope()
     }
 
-    /// Llamado por la vista al cambiar la consulta; aplica un pequeño debounce
-    /// y cancela la tarea anterior.
-    func queryDidChange() {
-        debounceTask?.cancel()
-        let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else {
-            searchTask?.cancel()
-            rawItems = []
-            state = .idle
-            return
-        }
-        state = .loading
-        let taskQuery = normalized
-        debounceTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 300_000_000)
-            guard !Task.isCancelled else { return }
-            self?.runSearch(taskQuery)
-        }
+    /// Limpia la búsqueda activa devolviendo la vista al estado inicial.
+    func clearSearch() {
+        searchTask?.cancel()
+        rawItems = []
+        state = .idle
     }
 
-    /// Búsqueda inmediata (botón Buscar / submit / selección desde historial).
+    /// Búsqueda explícita (botón Buscar / submit / selección desde historial).
     func search() {
-        debounceTask?.cancel()
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else {
-            searchTask?.cancel()
-            rawItems = []
-            state = .empty
+            clearSearch()
             return
         }
         runSearch(normalized)

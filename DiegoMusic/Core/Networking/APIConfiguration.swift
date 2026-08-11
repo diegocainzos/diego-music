@@ -12,7 +12,25 @@ enum APIConfigurationError: LocalizedError, Equatable {
 }
 
 struct APIConfiguration: Sendable {
-    let youtubeDataKey: String
+    /// Lista de claves de API disponibles para rotación en caso de agotamiento de cuota.
+    let youtubeDataKeys: [String]
+
+    /// Clave principal (la primera de la lista).
+    var primaryKey: String {
+        youtubeDataKeys.first ?? ""
+    }
+
+    init(youtubeDataKeys: [String]) {
+        self.youtubeDataKeys = youtubeDataKeys.filter { !$0.isEmpty }
+    }
+
+    init(youtubeDataKey: String) {
+        let keys = youtubeDataKey
+            .components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        self.youtubeDataKeys = keys
+    }
 
     static func live(bundle: Bundle = .main) throws -> APIConfiguration {
         guard

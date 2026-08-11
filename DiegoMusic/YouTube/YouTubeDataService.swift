@@ -1,5 +1,30 @@
 import Foundation
 
+/// Actor thread-safe para gestionar la clave de API activa y rotar automáticamente
+/// cuando una clave agote su cuota (error 403 quota / error 429).
+actor KeyPool {
+    private var keys: [String]
+    private var currentIndex: Int = 0
+
+    init(keys: [String]) {
+        self.keys = keys
+    }
+
+    var hasKeys: Bool { !keys.isEmpty }
+    var keyCount: Int { keys.count }
+
+    func currentKey() -> String? {
+        guard !keys.isEmpty else { return nil }
+        return keys[currentIndex]
+    }
+
+    func rotateToNextKey() -> String? {
+        guard keys.count > 1 else { return nil }
+        currentIndex = (currentIndex + 1) % keys.count
+        return keys[currentIndex]
+    }
+}
+
 enum YouTubeServiceError: LocalizedError, Equatable {
     case missingConfiguration
     case invalidRequest
@@ -19,7 +44,7 @@ enum YouTubeServiceError: LocalizedError, Equatable {
         case .unauthorized:
             return "YouTube rechazó la configuración de acceso. Revisa las restricciones de la clave."
         case .quotaExceeded:
-            return "La cuota diaria de YouTube Data API se ha agotado."
+            return "La cuota diaria de YouTube Data API se ha agotado en todas las claves configuradas."
         case .server:
             return "YouTube no está disponible temporalmente."
         case .invalidResponse:
@@ -53,6 +78,7 @@ struct YouTubeDataService: YouTubeDataServicing {
     private let configuration: APIConfiguration?
     private let transport: any HTTPTransport
     private let mapper: YouTubeMapper
+    private let keyPool: KeyPool
 
     init(
         configuration: APIConfiguration?,
@@ -62,14 +88,18 @@ struct YouTubeDataService: YouTubeDataServicing {
         self.configuration = configuration
         self.transport = transport
         self.mapper = mapper
+        self.keyPool = KeyPool(keys: configuration?.youtubeDataKeys ?? [])
     }
 
     func search(query: String, pageToken: String? = nil) async throws -> SearchPage {
-        let apiKey = try key()
-        let request = try endpointRequest {
-            YouTubeEndpoint(query: query, apiKey: apiKey, pageToken: pageToken)
-        }
-        let data = try await run(request, response: YouTubeSearchResponseDTO.self)
+        let data = try await executeWithRotation(
+            buildRequest: { apiKey in
+                try endpointRequest {
+                    YouTubeEndpoint(query: query, apiKey: apiKey, pageToken: pageToken)
+                }
+            },
+            responseType: YouTubeSearchResponseDTO.self
+        )
         return mapper.map(data)
     }
 
@@ -99,13 +129,17 @@ struct YouTubeDataService: YouTubeDataServicing {
         ]
 
         do {
-            let apiKey = try key()
-            let request = try endpointRequest {
-                YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey)
-            }
-            let data = try await run(request, response: YouTubeVideoListEnvelopeDTO.self)
+            let data = try await executeWithRotation(
+                buildRequest: { apiKey in
+                    try endpointRequest {
+                        YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey)
+                    }
+                },
+                responseType: YouTubeVideoListEnvelopeDTO.self
+            )
+
             var seenChannelIDs: Set<String> = []
-            var fetchedArtistas: [ArtistReference] = data.items.compactMap { dto in
+            let fetchedArtistas: [ArtistReference] = data.items.compactMap { (dto: YouTubeVideoListResponseDTO) -> ArtistReference? in
                 guard let channelID = dto.snippet.channelId, !channelID.isEmpty else { return nil }
                 guard !seenChannelIDs.contains(channelID) else { return nil }
                 seenChannelIDs.insert(channelID)
@@ -114,7 +148,7 @@ struct YouTubeDataService: YouTubeDataServicing {
                     ?? dto.snippet.thumbnails["default"]
                 return ArtistReference(
                     id: channelID,
-                    title: dto.snippet.channelTitle.decodingHTML,
+                    title: dto.snippet.channelTitle.decodingHTMLEntities,
                     thumbnailURL: thumbnail?.url
                 )
             }
@@ -135,17 +169,25 @@ struct YouTubeDataService: YouTubeDataServicing {
 
     func artist(byChannelID channelID: String) async throws -> ArtistDetail {
         guard !channelID.isEmpty else { throw YouTubeServiceError.invalidRequest }
-        let apiKey = try key()
 
         if channelID.hasPrefix("UC") {
-            if let profileRequest = try? endpointRequest({ YouTubeEndpoint(kind: .channels(ids: [channelID]), apiKey: apiKey) }),
-               let profileData = try? await run(profileRequest, response: YouTubeChannelListResponseDTO.self),
-               let artist = profileData.items.first.map(mapper.map) {
-                let topRequest = try endpointRequest { YouTubeEndpoint(query: artist.title, apiKey: apiKey, maxResults: 20) }
-                let relatedRequest = try endpointRequest { YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey, maxResults: 12) }
-                let (topData, relatedData) = try await (
-                    run(topRequest, response: YouTubeSearchResponseDTO.self),
-                    run(relatedRequest, response: YouTubeVideoListEnvelopeDTO.self)
+            if let profileData = try? await executeWithRotation(
+                buildRequest: { apiKey in
+                    try endpointRequest { YouTubeEndpoint(kind: .channels(ids: [channelID]), apiKey: apiKey) }
+                },
+                responseType: YouTubeChannelListResponseDTO.self
+            ), let artist = profileData.items.first.map(mapper.map) {
+                let topData = try await executeWithRotation(
+                    buildRequest: { apiKey in
+                        try endpointRequest { YouTubeEndpoint(query: artist.title, apiKey: apiKey, maxResults: 20) }
+                    },
+                    responseType: YouTubeSearchResponseDTO.self
+                )
+                let relatedData = try await executeWithRotation(
+                    buildRequest: { apiKey in
+                        try endpointRequest { YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey, maxResults: 12) }
+                    },
+                    responseType: YouTubeVideoListEnvelopeDTO.self
                 )
                 return ArtistDetail(
                     artist: artist,
@@ -156,11 +198,17 @@ struct YouTubeDataService: YouTubeDataServicing {
         }
 
         let artistName = channelID
-        let topRequest = try endpointRequest { YouTubeEndpoint(query: "\(artistName) tracks", apiKey: apiKey, maxResults: 20) }
-        let relatedRequest = try endpointRequest { YouTubeEndpoint(query: "\(artistName) radio", apiKey: apiKey, maxResults: 12) }
-        let (topData, relatedData) = try await (
-            run(topRequest, response: YouTubeSearchResponseDTO.self),
-            run(relatedRequest, response: YouTubeSearchResponseDTO.self)
+        let topData = try await executeWithRotation(
+            buildRequest: { apiKey in
+                try endpointRequest { YouTubeEndpoint(query: "\(artistName) tracks", apiKey: apiKey, maxResults: 20) }
+            },
+            responseType: YouTubeSearchResponseDTO.self
+        )
+        let relatedData = try await executeWithRotation(
+            buildRequest: { apiKey in
+                try endpointRequest { YouTubeEndpoint(query: "\(artistName) radio", apiKey: apiKey, maxResults: 12) }
+            },
+            responseType: YouTubeSearchResponseDTO.self
         )
 
         let topTracks = topData.items.compactMap(mapper.map)
@@ -180,11 +228,14 @@ struct YouTubeDataService: YouTubeDataServicing {
 
     func album(byPlaylistID playlistID: String) async throws -> Album {
         guard !playlistID.isEmpty else { throw YouTubeServiceError.invalidRequest }
-        let apiKey = try key()
 
         if playlistID.hasPrefix("PL") || playlistID.hasPrefix("OL") {
-            if let request = try? endpointRequest({ YouTubeEndpoint(kind: .playlistItems(playlistID: playlistID, pageToken: nil), apiKey: apiKey) }),
-               let data = try? await run(request, response: YouTubePlaylistItemsResponseDTO.self) {
+            if let data = try? await executeWithRotation(
+                buildRequest: { apiKey in
+                    try endpointRequest { YouTubeEndpoint(kind: .playlistItems(playlistID: playlistID, pageToken: nil), apiKey: apiKey) }
+                },
+                responseType: YouTubePlaylistItemsResponseDTO.self
+            ) {
                 let tracks = data.items.compactMap(mapper.map)
                 let first = data.items.first?.snippet
                 return Album(
@@ -197,10 +248,12 @@ struct YouTubeDataService: YouTubeDataServicing {
             }
         }
 
-        let searchRequest = try endpointRequest {
-            YouTubeEndpoint(query: "\(playlistID) album", apiKey: apiKey, maxResults: 20)
-        }
-        let data = try await run(searchRequest, response: YouTubeSearchResponseDTO.self)
+        let data = try await executeWithRotation(
+            buildRequest: { apiKey in
+                try endpointRequest { YouTubeEndpoint(query: "\(playlistID) album", apiKey: apiKey, maxResults: 20) }
+            },
+            responseType: YouTubeSearchResponseDTO.self
+        )
         let tracks = data.items.compactMap(mapper.map)
         return Album(
             id: playlistID,
@@ -212,22 +265,24 @@ struct YouTubeDataService: YouTubeDataServicing {
     }
 
     func fetchRelatedRadio(for item: MediaItem) async throws -> [MediaItem] {
-        let apiKey = try key()
         let artistName = item.channelTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !artistName.isEmpty else { return [] }
 
         let artistQuery = "\(artistName) music"
-        let artistRequest = try endpointRequest {
-            YouTubeEndpoint(query: artistQuery, apiKey: apiKey, maxResults: 10)
-        }
-
         let relatedQuery = "\(artistName) radio"
-        let relatedRequest = try endpointRequest {
-            YouTubeEndpoint(query: relatedQuery, apiKey: apiKey, maxResults: 10)
-        }
 
-        async let artistTask = try? run(artistRequest, response: YouTubeSearchResponseDTO.self)
-        async let relatedTask = try? run(relatedRequest, response: YouTubeSearchResponseDTO.self)
+        async let artistTask = try? executeWithRotation(
+            buildRequest: { apiKey in
+                try endpointRequest { YouTubeEndpoint(query: artistQuery, apiKey: apiKey, maxResults: 10) }
+            },
+            responseType: YouTubeSearchResponseDTO.self
+        )
+        async let relatedTask = try? executeWithRotation(
+            buildRequest: { apiKey in
+                try endpointRequest { YouTubeEndpoint(query: relatedQuery, apiKey: apiKey, maxResults: 10) }
+            },
+            responseType: YouTubeSearchResponseDTO.self
+        )
 
         let (artistData, relatedData) = await (artistTask, relatedTask)
 
@@ -259,9 +314,34 @@ struct YouTubeDataService: YouTubeDataServicing {
 
     // MARK: - Helpers
 
-    private func key() throws -> String {
-        guard let configuration else { throw YouTubeServiceError.missingConfiguration }
-        return configuration.youtubeDataKey
+    private func executeWithRotation<Response: Decodable>(
+        buildRequest: (String) throws -> URLRequest,
+        responseType: Response.Type
+    ) async throws -> Response {
+        guard await keyPool.hasKeys else { throw YouTubeServiceError.missingConfiguration }
+
+        let totalKeys = await keyPool.keyCount
+        var attempts = 0
+
+        while attempts < totalKeys {
+            attempts += 1
+            guard let apiKey = await keyPool.currentKey() else {
+                throw YouTubeServiceError.missingConfiguration
+            }
+
+            let request = try buildRequest(apiKey)
+            do {
+                return try await run(request, response: responseType)
+            } catch YouTubeServiceError.quotaExceeded {
+                if totalKeys > 1 {
+                    _ = await keyPool.rotateToNextKey()
+                    continue
+                } else {
+                    throw YouTubeServiceError.quotaExceeded
+                }
+            }
+        }
+        throw YouTubeServiceError.quotaExceeded
     }
 
     private func endpointRequest(_ build: () throws -> YouTubeEndpoint) throws -> URLRequest {
@@ -294,6 +374,8 @@ struct YouTubeDataService: YouTubeDataServicing {
         case 403:
             if isQuotaError(data) { throw YouTubeServiceError.quotaExceeded }
             throw YouTubeServiceError.unauthorized
+        case 429:
+            throw YouTubeServiceError.quotaExceeded
         case 500...599:
             throw YouTubeServiceError.server(status: response.statusCode)
         default:
@@ -302,23 +384,15 @@ struct YouTubeDataService: YouTubeDataServicing {
     }
 
     private func isQuotaError(_ data: Data) -> Bool {
-        guard let envelope = try? JSONDecoder().decode(YouTubeAPIErrorEnvelopeDTO.self, from: data) else {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let errorDict = json["error"] as? [String: Any],
+              let errors = errorDict["errors"] as? [[String: Any]] else {
             return false
         }
-        let reasons = envelope.error.errors?.compactMap(\.reason) ?? []
-        return reasons.contains { reason in
-            reason == "quotaExceeded" || reason == "dailyLimitExceeded" || reason == "rateLimitExceeded"
+        return errors.contains { dict in
+            let domain = dict["domain"] as? String
+            let reason = dict["reason"] as? String
+            return domain == "youtube.quota" || reason == "quotaExceeded" || reason == "dailyLimitExceeded"
         }
-    }
-}
-
-private extension String {
-    var decodingHTML: String {
-        guard let data = data(using: .utf8) else { return self }
-        return (try? NSAttributedString(
-            data: data,
-            options: [.documentType: NSAttributedString.DocumentType.html, .characterEncoding: String.Encoding.utf8.rawValue],
-            documentAttributes: nil
-        ).string) ?? self
     }
 }

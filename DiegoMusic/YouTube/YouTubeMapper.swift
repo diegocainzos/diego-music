@@ -73,7 +73,7 @@ struct YouTubeMapper {
     }
 }
 
-private extension String {
+extension String {
     var decodingHTMLEntities: String {
         guard let data = data(using: .utf8) else { return self }
         return (try? NSAttributedString(

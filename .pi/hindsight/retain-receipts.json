@@ -2,10 +2,10 @@
   "version": 1,
   "receipts": [
     {
-      "createdAt": "2026-08-11T14:44:35.791Z",
+      "createdAt": "2026-08-11T15:14:14.648Z",
       "bankId": "pi-coding",
       "documentId": "pi-session:171625fc204b6e91",
-      "queueJobId": "ac7d3100-ca1a-4e22-a3fc-5a15873e2246",
+      "queueJobId": "70365716-4aa8-435e-8de6-fbdf609eb39f",
       "updateMode": "append",
       "source": "queue",
       "context": "Pi coding session for repo \"youtube-music\", session 2026-08-11T14-36-58-908Z_019ff141-569c-7d3c-b804-30e55a08e30b.jsonl",
@@ -21,10 +21,10 @@
       }
     },
     {
-      "createdAt": "2026-08-11T14:39:14.829Z",
+      "createdAt": "2026-08-11T14:52:55.517Z",
       "bankId": "pi-coding",
       "documentId": "pi-session:f3bd26d9a6dc6943",
-      "queueJobId": "3d5352ea-0dad-4aaa-b364-a56e8b64c287",
+      "queueJobId": "3d6e3c14-f1aa-411d-8395-84dc21342353",
       "updateMode": "append",
       "source": "queue",
       "context": "Pi coding session for repo \"youtube-music\", session 2026-08-11T14-37-55-488Z_019ff142-33a0-7c4b-86e1-f826f5bc67b3.jsonl",

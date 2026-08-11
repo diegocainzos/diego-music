@@ -24,29 +24,33 @@ struct LyricsView: View {
     @State private var displayState: LyricsDisplayState = .loading
 
     var body: some View {
-        ZStack {
-            // Fondo glassmorphism con portada difuminada
-            lyricsBackground
+        GeometryReader { geo in
+            ZStack {
+                // Fondo glassmorphism con portada difuminada
+                lyricsBackground
 
-            // Contenido según estado
-            switch displayState {
-            case .loading:
-                loadingView
-            case .synced(let lines):
-                SyncedLyricsContent(
-                    lines: lines,
-                    player: player,
-                    reduceMotion: reduceMotion
-                )
-            case .plain(let text):
-                plainLyricsView(text)
-            case .instrumental:
-                instrumentalView
-            case .notFound:
-                notFoundView
-            case .error(let message):
-                errorView(message)
+                // Contenido según estado
+                switch displayState {
+                case .loading:
+                    loadingView
+                case .synced(let lines):
+                    SyncedLyricsContent(
+                        lines: lines,
+                        player: player,
+                        reduceMotion: reduceMotion,
+                        viewportHeight: geo.size.height
+                    )
+                case .plain(let text):
+                    plainLyricsView(text)
+                case .instrumental:
+                    instrumentalView
+                case .notFound:
+                    notFoundView
+                case .error(let message):
+                    errorView(message)
+                }
             }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
         .task(id: item.id) {
             displayState = .loading
@@ -179,6 +183,7 @@ private struct SyncedLyricsContent: View {
     let lines: [LyricsLine]
     @ObservedObject var player: AudioPlayerCoordinator
     let reduceMotion: Bool
+    let viewportHeight: CGFloat
 
     @State private var userScrolling = false
     @State private var scrollResetTask: Task<Void, Never>?
@@ -199,56 +204,61 @@ private struct SyncedLyricsContent: View {
     }
 
     var body: some View {
-        GeometryReader { outerGeo in
-            let viewportHeight = outerGeo.size.height
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    // Top spacer for centering first line (35% of visible viewport height)
+                    Spacer()
+                        .frame(height: max(80, viewportHeight * 0.35))
 
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        // Top spacer for centering first line (35% of visible viewport height)
-                        Spacer()
-                            .frame(height: max(80, viewportHeight * 0.35))
-
-                        ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                            lyricsLineView(line: line, index: index)
-                                .id(index)
-                        }
-
-                        // Bottom spacer for centering last line (35% of visible viewport height)
-                        Spacer()
-                            .frame(height: max(80, viewportHeight * 0.35))
+                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                        lyricsLineView(line: line, index: index)
+                            .id(index)
                     }
-                    .padding(.horizontal, 24)
+
+                    // Bottom spacer for centering last line (35% of visible viewport height)
+                    Spacer()
+                        .frame(height: max(80, viewportHeight * 0.35))
                 }
-                .scrollIndicators(.hidden)
-                .onChange(of: activeIndex) { _, newIndex in
-                    guard let newIndex, !userScrolling else { return }
-                    if reduceMotion {
+                .padding(.horizontal, 24)
+            }
+            .scrollIndicators(.hidden)
+            .onAppear {
+                // Initial scroll to active line
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    let target = activeIndex ?? 0
+                    if lines.indices.contains(target) {
+                        proxy.scrollTo(target, anchor: .center)
+                    }
+                }
+            }
+            .onChange(of: activeIndex) { _, newIndex in
+                guard let newIndex, !userScrolling else { return }
+                if reduceMotion {
+                    proxy.scrollTo(newIndex, anchor: .center)
+                } else {
+                    withAnimation(.easeInOut(duration: 0.4)) {
                         proxy.scrollTo(newIndex, anchor: .center)
-                    } else {
-                        withAnimation(.easeInOut(duration: 0.4)) {
-                            proxy.scrollTo(newIndex, anchor: .center)
-                        }
                     }
                 }
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 5)
-                        .onChanged { _ in
-                            userScrolling = true
-                            scrollResetTask?.cancel()
-                        }
-                        .onEnded { _ in
-                            scrollResetTask?.cancel()
-                            scrollResetTask = Task {
-                                try? await Task.sleep(for: .seconds(3))
-                                guard !Task.isCancelled else { return }
-                                await MainActor.run {
-                                    userScrolling = false
-                                }
+            }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 5)
+                    .onChanged { _ in
+                        userScrolling = true
+                        scrollResetTask?.cancel()
+                    }
+                    .onEnded { _ in
+                        scrollResetTask?.cancel()
+                        scrollResetTask = Task {
+                            try? await Task.sleep(for: .seconds(3))
+                            guard !Task.isCancelled else { return }
+                            await MainActor.run {
+                                userScrolling = false
                             }
                         }
-                )
-            }
+                    }
+            )
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Letras sincronizadas")
@@ -267,30 +277,29 @@ private struct SyncedLyricsContent: View {
                 .frame(height: 24)
                 .id(index)
         } else {
-            Button {
-                if let time = line.startTime {
-                    player.seek(toSeconds: time)
+            Text(line.text)
+                .font(isActive ? .title.bold() : .title3.weight(.medium))
+                .foregroundStyle(.white.opacity(isActive ? 1.0 : 0.35))
+                .shadow(
+                    color: isActive ? .white.opacity(0.6) : .clear,
+                    radius: isActive ? 8 : 0
+                )
+                .shadow(
+                    color: isActive ? .white.opacity(0.3) : .clear,
+                    radius: isActive ? 16 : 0
+                )
+                .multilineTextAlignment(.leading)
+                .lineLimit(nil)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if let time = line.startTime {
+                        player.seek(toSeconds: time)
+                    }
                 }
-            } label: {
-                Text(line.text)
-                    .font(isActive ? .title.bold() : .title3.weight(.medium))
-                    .foregroundStyle(.white.opacity(isActive ? 1.0 : 0.35))
-                    .shadow(
-                        color: isActive ? .white.opacity(0.6) : .clear,
-                        radius: isActive ? 8 : 0
-                    )
-                    .shadow(
-                        color: isActive ? .white.opacity(0.3) : .clear,
-                        radius: isActive ? 16 : 0
-                    )
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 4)
-                    .animation(.easeInOut(duration: 0.3), value: isActive)
-            }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(isActive ? .isSelected : [])
+                .animation(.easeInOut(duration: 0.3), value: isActive)
+                .accessibilityAddTraits(isActive ? .isSelected : [])
         }
     }
 
