@@ -52,6 +52,7 @@ final class PersistenceController {
                 attribute("videoID", .stringAttributeType),
                 attribute("title", .stringAttributeType),
                 attribute("channelTitle", .stringAttributeType),
+                attribute("thumbnailURLString", .stringAttributeType, optional: true),
                 attribute("playedAt", .dateAttributeType)
             ], uniqueness: [["id"]]),
             entity("Preference", PreferenceRecord.self, [

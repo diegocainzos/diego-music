@@ -26,7 +26,13 @@ struct MediaItem: Identifiable, Codable, Hashable, Sendable {
         self.kind = kind
         self.title = title
         self.channelTitle = channelTitle
-        self.thumbnailURL = thumbnailURL
+        if let thumbnailURL {
+            self.thumbnailURL = thumbnailURL
+        } else if kind == .video, !id.isEmpty {
+            self.thumbnailURL = URL(string: "https://i.ytimg.com/vi/\(id)/hqdefault.jpg")
+        } else {
+            self.thumbnailURL = nil
+        }
         self.publishedAt = publishedAt
     }
 }
