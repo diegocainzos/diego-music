@@ -22,8 +22,13 @@
 
 - [x] 4.1 Añadir `UILaunchScreen: {}` a `Config/Info.plist` y `project.yml` para evitar que iOS ejecute la app en modo compatibilidad legado (con barras negras horizontales/verticales).
 
-## 5. Validación
+## 5. Rediseño de Búsqueda (Lista horizontal de canciones y chips desplazables)
 
-- [x] 5.1 Regenerar el proyecto solo si cambian fuentes/recursos y ejecutar validaciones Swift (`./scripts/validate.sh` en máquina con Xcode).
-- [x] 5.2 Validar el cambio OpenSpec estricto (`openspec validate adaptive-iphone-layout --type change --strict`).
-- [x] 5.3 Verificar en simulador/dispositivo iPhone que Inicio abre a pantalla completa nativa con barra de pestañas, sin barras de compatibilidad ni márgenes verticales excesivos, y que iPad/macOS conservan el split.
+- [x] 5.1 Reemplazar la cuadrícula de tarjetas de búsqueda en `DiegoMusic/Features/Search/SearchView.swift` por una lista vertical desplazable de filas `SearchResultRow` (carátula cuadrada de 54pt, título en 2 líneas, canal/artista y acciones compactas a la derecha).
+- [x] 5.2 Convertir el selector de ámbito (`scopeSelector`) en un `ScrollView(.horizontal, showsIndicators: false)` con cápsulas para evitar el aplastamiento/recorte de iconos y texto en iPhone.
+
+## 6. Validación
+
+- [x] 6.1 Regenerar el proyecto solo si cambian fuentes/recursos y ejecutar validaciones Swift (`./scripts/validate.sh` en máquina con Xcode).
+- [x] 6.2 Validar el cambio OpenSpec estricto (`openspec validate adaptive-iphone-layout --type change --strict`).
+- [x] 6.3 Verificar en simulador/dispositivo iPhone que Inicio y Búsqueda abren a pantalla completa nativa con barra de pestañas, sin barras de compatibilidad ni márgenes verticales excesivos, y con listas desplazables limpias.
