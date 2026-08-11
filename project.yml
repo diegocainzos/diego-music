@@ -46,6 +46,7 @@ targets:
         AUDIO_RESOLVER_API_TOKEN: $(AUDIO_RESOLVER_API_TOKEN)
         UIBackgroundModes:
           - audio
+        UILaunchScreen: {}
         UISupportedExternalAccessoryProtocols:
           - com.apple.carplay
         UIApplicationSceneManifest:

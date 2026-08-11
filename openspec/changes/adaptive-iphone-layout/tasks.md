@@ -18,8 +18,12 @@
 
 - [x] 4.1 Añadir a `HomeView` el flag `isCompact` (lectura de `horizontalSizeClass`) y usarlo para reducir el logotipo/hero, apilar las tarjetas de características en vertical, estrechar la cuadrícula de novedades y reducir espaciados y tamaños de texto en iPhone.
 
+## 4. Pantalla completa nativa (UILaunchScreen)
+
+- [x] 4.1 Añadir `UILaunchScreen: {}` a `Config/Info.plist` y `project.yml` para evitar que iOS ejecute la app en modo compatibilidad legado (con barras negras horizontales/verticales).
+
 ## 5. Validación
 
-- [x] 5.1 Regenerar el proyecto solo si cambian fuentes/recursos (no se espera) y ejecutar validaciones Swift (`./scripts/validate.sh` en máquina con Xcode).
+- [x] 5.1 Regenerar el proyecto solo si cambian fuentes/recursos y ejecutar validaciones Swift (`./scripts/validate.sh` en máquina con Xcode).
 - [x] 5.2 Validar el cambio OpenSpec estricto (`openspec validate adaptive-iphone-layout --type change --strict`).
-- [ ] 5.3 Verificar en simulador/dispositivo iPhone que Inicio abre a pantalla completa con barra de pestañas, sin márgenes verticales excesivos y con texto legible, y que iPad/macOS conservan el split.
+- [x] 5.3 Verificar en simulador/dispositivo iPhone que Inicio abre a pantalla completa nativa con barra de pestañas, sin barras de compatibilidad ni márgenes verticales excesivos, y que iPad/macOS conservan el split.
