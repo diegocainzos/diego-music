@@ -40,3 +40,31 @@ class SearchResultItem(BaseModel):
 
 class SearchResponse(BaseModel):
     items: list[SearchResultItem]
+
+
+class ArtistTrackItem(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    id: str
+    kind: str = "video"
+    title: str
+    channel_title: str = Field(alias="channelTitle")
+    thumbnail_url: str | None = Field(default=None, alias="thumbnailURL")
+
+
+class ArtistInfo(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    id: str
+    title: str
+    bio: str | None = None
+    thumbnail_url: str | None = Field(default=None, alias="thumbnailURL")
+
+
+class ArtistDetailResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    artist: ArtistInfo
+    top_tracks: list[ArtistTrackItem] = Field(alias="topTracks")
+    related: list[ArtistTrackItem] = Field(default_factory=list)
+

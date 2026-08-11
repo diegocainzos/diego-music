@@ -10,9 +10,10 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.background import BackgroundTask
 
+from .artist_cache import ArtistCache
 from .audio_cache import PersistentAudioCache
 from .config import Settings
-from .models import HealthResponse, ResolveRequest, ResolveResponse, SearchResponse, SearchResultItem
+from .models import ArtistDetailResponse, HealthResponse, ResolveRequest, ResolveResponse, SearchResponse, SearchResultItem
 from .resolution_cache import CachingAudioResolver
 from .resolver import AudioResolutionError, AudioResolving, YTDLPResolver
 from .sessions import SessionExpiredError, SessionNotFoundError, SessionStore
@@ -51,6 +52,10 @@ def create_app(
         directory=service_settings.audio_cache_directory,
         max_bytes=service_settings.audio_cache_max_bytes,
         max_file_bytes=service_settings.audio_cache_max_file_bytes,
+    )
+    artist_cache = ArtistCache(
+        max_entries=service_settings.artist_cache_max_entries,
+        ttl_seconds=service_settings.artist_cache_ttl_seconds,
     )
     owns_upstream_client = upstream_client is None
 
@@ -149,6 +154,29 @@ def create_app(
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Error al realizar búsqueda alternativa en VPS.",
+            ) from error
+
+    @app.get(
+        "/v1/artist/{artist_id}",
+        response_model=ArtistDetailResponse,
+        dependencies=[Depends(require_api_token)],
+    )
+    async def get_artist_detail(artist_id: str) -> ArtistDetailResponse:
+        key = artist_id.strip()
+        if not key:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID de artista no válido.")
+
+        if cached := artist_cache.get(key):
+            return ArtistDetailResponse(**cached)
+
+        try:
+            detail_dict = await base_resolver.get_artist_detail(key)
+            artist_cache.set(key, detail_dict)
+            return ArtistDetailResponse(**detail_dict)
+        except Exception as error:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Error al resolver información del artista en el VPS.",
             ) from error
 
     async def proxy_audio(request: Request, token: str, head_only: bool) -> Response:

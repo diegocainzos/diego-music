@@ -197,60 +197,67 @@ struct YouTubeDataService: YouTubeDataServicing {
     func artist(byChannelID channelID: String) async throws -> ArtistDetail {
         guard !channelID.isEmpty else { throw YouTubeServiceError.invalidRequest }
 
-        if channelID.hasPrefix("UC") {
-            if let profileData = try? await executeWithRotation(
-                buildRequest: { apiKey in
-                    try endpointRequest { YouTubeEndpoint(kind: .channels(ids: [channelID]), apiKey: apiKey) }
-                },
-                responseType: YouTubeChannelListResponseDTO.self
-            ), let artist = profileData.items.first.map(mapper.map) {
-                let topData = try await executeWithRotation(
+        do {
+            if channelID.hasPrefix("UC") {
+                if let profileData = try? await executeWithRotation(
                     buildRequest: { apiKey in
-                        try endpointRequest { YouTubeEndpoint(query: artist.title, apiKey: apiKey, maxResults: 20) }
+                        try endpointRequest { YouTubeEndpoint(kind: .channels(ids: [channelID]), apiKey: apiKey) }
                     },
-                    responseType: YouTubeSearchResponseDTO.self
-                )
-                let relatedData = try await executeWithRotation(
-                    buildRequest: { apiKey in
-                        try endpointRequest { YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey, maxResults: 12) }
-                    },
-                    responseType: YouTubeVideoListEnvelopeDTO.self
-                )
-                return ArtistDetail(
-                    artist: artist,
-                    topTracks: topData.items.compactMap(mapper.map),
-                    related: relatedData.items.map(mapper.map)
-                )
+                    responseType: YouTubeChannelListResponseDTO.self
+                ), let artist = profileData.items.first.map(mapper.map) {
+                    let topData = try await executeWithRotation(
+                        buildRequest: { apiKey in
+                            try endpointRequest { YouTubeEndpoint(query: artist.title, apiKey: apiKey, maxResults: 20) }
+                        },
+                        responseType: YouTubeSearchResponseDTO.self
+                    )
+                    let relatedData = try await executeWithRotation(
+                        buildRequest: { apiKey in
+                            try endpointRequest { YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey, maxResults: 12) }
+                        },
+                        responseType: YouTubeVideoListEnvelopeDTO.self
+                    )
+                    return ArtistDetail(
+                        artist: artist,
+                        topTracks: topData.items.compactMap(mapper.map),
+                        related: relatedData.items.map(mapper.map)
+                    )
+                }
             }
+
+            let artistName = channelID
+            let topData = try await executeWithRotation(
+                buildRequest: { apiKey in
+                    try endpointRequest { YouTubeEndpoint(query: "\(artistName) tracks", apiKey: apiKey, maxResults: 20) }
+                },
+                responseType: YouTubeSearchResponseDTO.self
+            )
+            let relatedData = try await executeWithRotation(
+                buildRequest: { apiKey in
+                    try endpointRequest { YouTubeEndpoint(query: "\(artistName) radio", apiKey: apiKey, maxResults: 12) }
+                },
+                responseType: YouTubeSearchResponseDTO.self
+            )
+
+            let topTracks = topData.items.compactMap(mapper.map)
+            let artistObj = Artist(
+                id: channelID,
+                title: artistName,
+                bio: "Canal de YouTube",
+                thumbnailURL: topTracks.first?.thumbnailURL
+            )
+
+            return ArtistDetail(
+                artist: artistObj,
+                topTracks: topTracks,
+                related: relatedData.items.compactMap(mapper.map)
+            )
+        } catch {
+            if let fallbackDetail = try? await fetchArtistVPSService(artistID: channelID) {
+                return fallbackDetail
+            }
+            throw error
         }
-
-        let artistName = channelID
-        let topData = try await executeWithRotation(
-            buildRequest: { apiKey in
-                try endpointRequest { YouTubeEndpoint(query: "\(artistName) tracks", apiKey: apiKey, maxResults: 20) }
-            },
-            responseType: YouTubeSearchResponseDTO.self
-        )
-        let relatedData = try await executeWithRotation(
-            buildRequest: { apiKey in
-                try endpointRequest { YouTubeEndpoint(query: "\(artistName) radio", apiKey: apiKey, maxResults: 12) }
-            },
-            responseType: YouTubeSearchResponseDTO.self
-        )
-
-        let topTracks = topData.items.compactMap(mapper.map)
-        let artistObj = Artist(
-            id: channelID,
-            title: artistName,
-            bio: "Canal de YouTube",
-            thumbnailURL: topTracks.first?.thumbnailURL
-        )
-
-        return ArtistDetail(
-            artist: artistObj,
-            topTracks: topTracks,
-            related: relatedData.items.compactMap(mapper.map)
-        )
     }
 
     func album(byPlaylistID playlistID: String) async throws -> Album {
@@ -340,6 +347,66 @@ struct YouTubeDataService: YouTubeDataServicing {
     }
 
     // MARK: - Helpers
+
+    private func fetchArtistVPSService(artistID: String) async throws -> ArtistDetail {
+        guard let resolverConfiguration else { throw YouTubeServiceError.quotaExceeded }
+
+        let encodedID = artistID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? artistID
+        var components = URLComponents(url: resolverConfiguration.baseURL, resolvingAgainstBaseURL: true)
+        components?.path = "/v1/artist/\(encodedID)"
+
+        guard let url = components?.url else { throw YouTubeServiceError.quotaExceeded }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(resolverConfiguration.apiToken)", forHTTPHeaderField: "Authorization")
+
+        let data: Data
+        let response: HTTPURLResponse
+        do {
+            (data, response) = try await transport.data(for: request)
+        } catch {
+            throw YouTubeServiceError.quotaExceeded
+        }
+
+        guard response.statusCode == 200 else {
+            throw YouTubeServiceError.quotaExceeded
+        }
+
+        let dto = try JSONDecoder().decode(VPSArtistDetailResponseDTO.self, from: data)
+        let artistObj = Artist(
+            id: dto.artist.id,
+            title: dto.artist.title,
+            bio: dto.artist.bio,
+            thumbnailURL: dto.artist.thumbnailURL
+        )
+
+        let topTracks = dto.topTracks.map { item in
+            MediaItem(
+                id: item.id,
+                kind: .video,
+                title: item.title,
+                channelTitle: item.channelTitle,
+                thumbnailURL: item.thumbnailURL
+            )
+        }
+
+        let related = dto.related.map { item in
+            MediaItem(
+                id: item.id,
+                kind: .video,
+                title: item.title,
+                channelTitle: item.channelTitle,
+                thumbnailURL: item.thumbnailURL
+            )
+        }
+
+        return ArtistDetail(
+            artist: artistObj,
+            topTracks: topTracks,
+            related: related
+        )
+    }
 
     private func searchVPSService(query: String) async throws -> SearchPage {
         guard let resolverConfiguration else { throw YouTubeServiceError.quotaExceeded }
@@ -461,6 +528,25 @@ struct YouTubeDataService: YouTubeDataServicing {
             return domain == "youtube.quota" || reason == "quotaExceeded" || reason == "dailyLimitExceeded"
         }
     }
+}
+
+private struct VPSArtistDetailResponseDTO: Decodable {
+    struct ArtistDTO: Decodable {
+        let id: String
+        let title: String
+        let bio: String?
+        let thumbnailURL: URL?
+    }
+    struct TrackDTO: Decodable {
+        let id: String
+        let kind: String?
+        let title: String
+        let channelTitle: String
+        let thumbnailURL: URL?
+    }
+    let artist: ArtistDTO
+    let topTracks: [TrackDTO]
+    let related: [TrackDTO]
 }
 
 private struct VPSSearchResponseDTO: Decodable {

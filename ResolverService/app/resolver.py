@@ -150,6 +150,47 @@ class YTDLPResolver:
             })
         return results
 
+    async def get_artist_detail(self, artist_id: str) -> dict[str, Any]:
+        query = f"{artist_id} tracks"
+        raw_tracks = await self.search(query, limit=15)
+
+        first_thumb = raw_tracks[0].get("thumbnailURL") if raw_tracks else None
+        artist_name = artist_id
+
+        top_tracks = [
+            {
+                "id": item["id"],
+                "kind": "video",
+                "title": item["title"],
+                "channelTitle": item["channelTitle"],
+                "thumbnailURL": item.get("thumbnailURL"),
+            }
+            for item in raw_tracks
+        ]
+
+        related_raw = await self.search(f"{artist_id} radio", limit=8)
+        related = [
+            {
+                "id": item["id"],
+                "kind": "video",
+                "title": item["title"],
+                "channelTitle": item["channelTitle"],
+                "thumbnailURL": item.get("thumbnailURL"),
+            }
+            for item in related_raw
+        ]
+
+        return {
+            "artist": {
+                "id": artist_id,
+                "title": artist_name,
+                "bio": "Perfil de artista del servicio VPS",
+                "thumbnailURL": first_thumb,
+            },
+            "topTracks": top_tracks,
+            "related": related,
+        }
+
     def _arguments(self, video_id: str) -> list[str]:
         arguments = [
             self.settings.ytdlp_binary,

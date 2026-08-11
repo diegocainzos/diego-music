@@ -25,6 +25,8 @@ class Settings:
     audio_cache_directory: Path | None = None
     audio_cache_max_bytes: int = 0
     audio_cache_max_file_bytes: int = 268_435_456
+    artist_cache_max_entries: int = 1000
+    artist_cache_ttl_seconds: int = 86_400
 
     def __post_init__(self) -> None:
         if len(self.api_token) < 32:
@@ -46,6 +48,10 @@ class Settings:
             raise ConfigurationError("RESOLUTION_CACHE_TTL_SECONDS debe estar entre 60 y 21600.")
         if not 0 <= self.resolution_cache_safety_margin_seconds <= 3_600:
             raise ConfigurationError("RESOLUTION_CACHE_SAFETY_MARGIN_SECONDS debe estar entre 0 y 3600.")
+        if not 0 <= self.artist_cache_max_entries <= 10_000:
+            raise ConfigurationError("ARTIST_CACHE_MAX_ENTRIES debe estar entre 0 y 10000.")
+        if not 60 <= self.artist_cache_ttl_seconds <= 604_800:
+            raise ConfigurationError("ARTIST_CACHE_TTL_SECONDS debe estar entre 60 y 604800.")
         if self.audio_cache_max_bytes < 0 or self.audio_cache_max_file_bytes <= 0:
             raise ConfigurationError("Los límites de AUDIO_CACHE deben ser positivos.")
         if self.audio_cache_max_bytes > 0 and self.audio_cache_directory is None:
@@ -69,6 +75,8 @@ class Settings:
             resolution_margin = int(os.getenv("RESOLUTION_CACHE_SAFETY_MARGIN_SECONDS", "300"))
             audio_cache_max = int(os.getenv("AUDIO_CACHE_MAX_BYTES", "5368709120"))
             audio_cache_file_max = int(os.getenv("AUDIO_CACHE_MAX_FILE_BYTES", "268435456"))
+            artist_entries = int(os.getenv("ARTIST_CACHE_MAX_ENTRIES", "1000"))
+            artist_ttl = int(os.getenv("ARTIST_CACHE_TTL_SECONDS", "86400"))
         except ValueError as error:
             raise ConfigurationError("Una variable numérica del servicio no es válida.") from error
 
@@ -86,4 +94,6 @@ class Settings:
             audio_cache_directory=Path(audio_cache_value) if audio_cache_value else None,
             audio_cache_max_bytes=audio_cache_max,
             audio_cache_max_file_bytes=audio_cache_file_max,
+            artist_cache_max_entries=artist_entries,
+            artist_cache_ttl_seconds=artist_ttl,
         )
