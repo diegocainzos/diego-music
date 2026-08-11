@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CreatePlaylistSheet: View {
+    @EnvironmentObject private var environment: AppEnvironment
     @ObservedObject var library: LibraryStore
     @Environment(\.dismiss) private var dismiss
     @State private var name: String = ""
@@ -43,6 +44,7 @@ struct CreatePlaylistSheet: View {
         guard !trimmed.isEmpty else { return }
         do {
             let newPlaylist = try library.createPlaylist(named: trimmed)
+            environment.createPlaylistInBackend(name: trimmed, description: descriptionText.isEmpty ? nil : descriptionText)
             onCreate?(newPlaylist)
             dismiss()
         } catch {
@@ -52,6 +54,7 @@ struct CreatePlaylistSheet: View {
 }
 
 struct PlaylistsView: View {
+    @EnvironmentObject private var environment: AppEnvironment
     @ObservedObject var library: LibraryStore
     @State private var newName = ""
     @State private var expandedPlaylists: Set<UUID> = []
@@ -195,6 +198,7 @@ struct PlaylistsView: View {
         guard !name.isEmpty else { return }
         do {
             _ = try library.createPlaylist(named: name)
+            environment.createPlaylistInBackend(name: name)
             TelemetryLogger.shared.recordEvent(type: "playlist_create", data: ["name": name])
             newName = ""
             errorMessage = nil
