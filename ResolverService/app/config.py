@@ -18,6 +18,7 @@ class Settings:
     resolve_timeout_seconds: float = 35.0
     upstream_timeout_seconds: float = 30.0
     ytdlp_binary: str = "yt-dlp"
+    ffmpeg_binary: str = "ffmpeg"
     cookies_file: Path | None = None
     resolution_cache_max_entries: int = 500
     resolution_cache_ttl_seconds: int = 10_800
@@ -87,6 +88,7 @@ class Settings:
             resolve_timeout_seconds=resolve_timeout,
             upstream_timeout_seconds=upstream_timeout,
             ytdlp_binary=os.getenv("YTDLP_BINARY", "yt-dlp"),
+            ffmpeg_binary=os.getenv("FFMPEG_BINARY", "ffmpeg"),
             cookies_file=Path(cookies_value) if cookies_value else None,
             resolution_cache_max_entries=resolution_entries,
             resolution_cache_ttl_seconds=resolution_ttl,

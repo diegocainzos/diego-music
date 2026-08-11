@@ -52,6 +52,7 @@ def create_app(
         directory=service_settings.audio_cache_directory,
         max_bytes=service_settings.audio_cache_max_bytes,
         max_file_bytes=service_settings.audio_cache_max_file_bytes,
+        ffmpeg_binary=service_settings.ffmpeg_binary,
     )
     artist_cache = ArtistCache(
         max_entries=service_settings.artist_cache_max_entries,
