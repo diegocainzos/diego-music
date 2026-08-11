@@ -110,6 +110,14 @@ final class AudioPlayerCoordinator: ObservableObject {
         triggerSmartRadioQueue(for: item)
     }
 
+    func selectFromQueue(at index: Int) {
+        guard queue.items.indices.contains(index) else { return }
+        queue.selectTrack(at: index)
+        if let item = queue.current {
+            load(item, autoplay: true, resetRetryBudget: true)
+        }
+    }
+
     func triggerSmartRadioQueue(for item: MediaItem) {
         guard let service = youtubeService else { return }
         radioTask?.cancel()

@@ -247,9 +247,9 @@ struct HomeView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
-                        ForEach(favorites) { track in
+                        ForEach(Array(favorites.enumerated()), id: \.element.id) { index, track in
                             Button {
-                                environment.play(track.mediaItem)
+                                environment.playQueue(favorites.map(\.mediaItem), startingAt: index)
                             } label: {
                                 VStack(alignment: .leading, spacing: 8) {
                                     ZStack(alignment: .topTrailing) {
@@ -307,9 +307,9 @@ struct HomeView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
-                        ForEach(recentItems) { record in
+                        ForEach(Array(recentItems.enumerated()), id: \.element.id) { index, record in
                             Button {
-                                environment.play(record.mediaItem)
+                                environment.playQueue(recentItems.map(\.mediaItem), startingAt: index)
                             } label: {
                                 VStack(alignment: .leading, spacing: 8) {
                                     TrackArtwork(url: record.mediaItem.thumbnailURL)
@@ -355,9 +355,9 @@ struct HomeView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
-                        ForEach(topSongs) { songItem in
+                        ForEach(Array(topSongs.enumerated()), id: \.element.id) { index, songItem in
                             Button {
-                                environment.play(songItem.mediaItem)
+                                environment.playQueue(topSongs.map(\.mediaItem), startingAt: index)
                             } label: {
                                 VStack(alignment: .leading, spacing: 8) {
                                     ZStack(alignment: .topLeading) {
