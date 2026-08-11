@@ -9,6 +9,7 @@ struct PlayerDock: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let lyricsService: LyricsService
+    @Namespace private var queueAnimationNamespace
     @State private var expanded = false
     @State private var showLyrics = false
     @State private var showQueue = false
@@ -482,7 +483,9 @@ struct PlayerDock: View {
                     ForEach(Array(queue.items.enumerated()), id: \.element.id) { index, item in
                         let isCurrent = (index == queue.currentIndex)
                         Button {
-                            player.selectFromQueue(at: index)
+                            withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) {
+                                player.selectFromQueue(at: index)
+                            }
                         } label: {
                             HStack(spacing: 12) {
                                 ZStack {
@@ -522,11 +525,26 @@ struct PlayerDock: View {
                                         .padding(.vertical, 3)
                                         .background(DiegoTheme.accent.opacity(0.15))
                                         .clipShape(Capsule())
+                                        .matchedGeometryEffect(id: "queueBadge", in: queueAnimationNamespace)
                                 }
                             }
                             .padding(10)
-                            .background(isCurrent ? DiegoTheme.accent.opacity(0.12) : Color.white.opacity(0.04))
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .background(
+                                ZStack {
+                                    if isCurrent {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(DiegoTheme.accent.opacity(0.14))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    .stroke(DiegoTheme.accent.opacity(0.35), lineWidth: 1)
+                                            )
+                                            .matchedGeometryEffect(id: "queueHighlight", in: queueAnimationNamespace)
+                                    } else {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(Color.white.opacity(0.04))
+                                    }
+                                }
+                            )
                         }
                         .buttonStyle(.plain)
                     }
