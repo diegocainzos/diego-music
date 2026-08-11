@@ -29,6 +29,7 @@
 		9AF26B4D28F48DE77389F2AA /* PlaybackQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 090C5ADC3245B7DE1B38935A /* PlaybackQueueTests.swift */; };
 		9CEF62D1403E9DA2FED264B5 /* YouTubeDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C1E125A4BB89C0DA2D7362 /* YouTubeDataService.swift */; };
 		A24657C8C45387EA4498DB2E /* AudioResolverClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F1C27E5ECFD7F84D093D7C /* AudioResolverClient.swift */; };
+		841F0669070204C8899D2FE0 /* ArtworkCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5873D3497F04AB2596CE8B83 /* ArtworkCache.swift */; };
 		A9797161467F2C78B5BFB8CD /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F37F7675860B628B860626 /* AppEnvironment.swift */; };
 		AC46E160C5D1930FEDB87226 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80FDC15191972AAF39D79DE9 /* SearchView.swift */; };
 		B494D0D16E959FAA0DFB25D1 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EA82CB2E816602BC35D64CE /* LibraryView.swift */; };
@@ -71,6 +72,7 @@
 		67C1E125A4BB89C0DA2D7362 /* YouTubeDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeDataService.swift; sourceTree = "<group>"; };
 		6C7431211BFD831BFE345787 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		74F1C27E5ECFD7F84D093D7C /* AudioResolverClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioResolverClient.swift; sourceTree = "<group>"; };
+		5873D3497F04AB2596CE8B83 /* ArtworkCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkCache.swift; sourceTree = "<group>"; };
 		7B191B87FBB9C5DC4777FE6D /* DiegoMusicTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DiegoMusicTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		80FDC15191972AAF39D79DE9 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		892693C07393A706673A6FCD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -207,6 +209,7 @@
 				9FB13C662B63A966DBF25255 /* AudioPlayerCoordinator.swift */,
 				74F1C27E5ECFD7F84D093D7C /* AudioResolverClient.swift */,
 				BC72D12F38B1EA483B6186E7 /* AudioResolverConfiguration.swift */,
+				5873D3497F04AB2596CE8B83 /* ArtworkCache.swift */,
 			);
 			path = AudioPlayer;
 			sourceTree = "<group>";
@@ -420,6 +423,7 @@
 				D0870BC343C69067DE0613E7 /* AudioPlayerCoordinator.swift in Sources */,
 				A24657C8C45387EA4498DB2E /* AudioResolverClient.swift in Sources */,
 				90727597F4BA2B79A7F17D56 /* AudioResolverConfiguration.swift in Sources */,
+				841F0669070204C8899D2FE0 /* ArtworkCache.swift in Sources */,
 				32CFE4A9D47793DBFEAD4C6D /* DesignSystem.swift in Sources */,
 				CA2F000B54C6149104DAD2BA /* DiegoMusicApp.swift in Sources */,
 				C70262488DEF23C70F811EFF /* EmptyStateView.swift in Sources */,
