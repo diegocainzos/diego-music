@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>AUDIO_RESOLVER_API_TOKEN</key>
+	<string>$(AUDIO_RESOLVER_API_TOKEN)</string>
+	<key>AUDIO_RESOLVER_BASE_URL</key>
+	<string>$(AUDIO_RESOLVER_BASE_URL)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -22,15 +26,32 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.music</string>
-	<key>AUDIO_RESOLVER_API_TOKEN</key>
-	<string>$(AUDIO_RESOLVER_API_TOKEN)</string>
-	<key>AUDIO_RESOLVER_BASE_URL</key>
-	<string>$(AUDIO_RESOLVER_BASE_URL)</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Proyecto educativo privado</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>CPTemplateApplicationSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>CarPlay Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).CarPlaySceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+	</array>
+	<key>UISupportedExternalAccessoryProtocols</key>
+	<array>
+		<string>com.apple.carplay</string>
 	</array>
 	<key>YOUTUBE_DATA_KEY</key>
 	<string>$(YOUTUBE_DATA_KEY)</string>

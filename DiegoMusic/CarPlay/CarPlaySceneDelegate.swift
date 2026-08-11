@@ -1,7 +1,7 @@
+#if os(iOS)
 import CarPlay
 import UIKit
 
-#if os(iOS)
 /// Escena CarPlay de DiegoMusic.
 ///
 /// Conforma `CPTemplateApplicationSceneDelegate` y usa el `AudioPlayerCoordinator`
@@ -50,7 +50,7 @@ final class CarPlaySceneDelegate: NSObject, CPTemplateApplicationSceneDelegate {
         from interfaceController: CPInterfaceController
     ) {
         if let configurator {
-            CPNowPlayingTemplate.shared.removeObserver(configurator)
+            CPNowPlayingTemplate.shared.remove(configurator)
         }
         configurator = nil
         self.interfaceController = nil
@@ -76,9 +76,8 @@ final class CarPlaySceneDelegate: NSObject, CPTemplateApplicationSceneDelegate {
             guard let self, let interfaceController = self.interfaceController else { return }
             self.presentQueue(on: interfaceController)
         }
-        CPNowPlayingTemplate.shared.addObserver(configurator)
+        CPNowPlayingTemplate.shared.add(configurator)
         self.configurator = configurator
-        configurator.refresh()
 
         interfaceController.setRootTemplate(nowPlaying, animated: false)
     }

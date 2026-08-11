@@ -409,7 +409,9 @@ struct PlayerDock: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            #if os(iOS)
             .environment(\.editMode, .constant(.active))
+            #endif
             .frame(maxHeight: 150)
         }
         .padding(12)

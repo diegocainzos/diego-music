@@ -153,9 +153,9 @@ struct YouTubeDataService: YouTubeDataServicing {
         return configuration.youtubeDataKey
     }
 
-    private func endpointRequest(_ build: () throws -> URLRequest) throws -> URLRequest {
+    private func endpointRequest(_ build: () throws -> YouTubeEndpoint) throws -> URLRequest {
         do {
-            return try build()
+            return try build().makeRequest()
         } catch {
             throw YouTubeServiceError.invalidRequest
         }

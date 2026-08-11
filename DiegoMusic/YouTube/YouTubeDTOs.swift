@@ -19,13 +19,7 @@ struct YouTubeSearchItemDTO: Decodable {
         let description: String?
         let channelId: String?
         let channelTitle: String
-        let thumbnails: [String: Thumbnail]
-    }
-
-    struct Thumbnail: Decodable {
-        let url: URL
-        let width: Int?
-        let height: Int?
+        let thumbnails: [String: YouTubeThumbnail]
     }
 
     let id: Identifier

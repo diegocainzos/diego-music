@@ -92,6 +92,7 @@ struct RootView: View {
         case .settings:
             SettingsView(
                 playbackSettings: environment.playbackSettings,
+                library: environment.library,
                 resolverConfigured: environment.resolverConfigured
             )
         }

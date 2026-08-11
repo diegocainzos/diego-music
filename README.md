@@ -21,13 +21,13 @@ DiegoMusic no es una aplicación oficial ni está afiliada con YouTube o Google.
 | Componente | Requisito |
 | --- | --- |
 | iPhone/iPad | iOS/iPadOS 17 o posterior |
-| Mac | macOS 13 o posterior |
+| Mac | macOS 14.8.5 o posterior |
 | Desarrollo | Xcode 15 o posterior para SDK iOS 17 |
 | Resolver | Docker Engine con Docker Compose v2 |
 | VPS | Dominio público, puertos 80/443 y almacenamiento persistente |
 | Catálogo | Clave de YouTube Data API v3 |
 
-El bundle ID es `com.diegocainzos.DiegoMusic`. El proyecto usa Core Data porque SwiftData requiere macOS 14 y el destino mínimo es macOS 13.
+El bundle ID es `com.diegocainzos.DiegoMusic`. El destino mínimo es macOS 14.8.5; el proyecto usa Core Data de forma deliberada.
 
 ## Arquitectura
 

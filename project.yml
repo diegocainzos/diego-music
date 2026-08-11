@@ -6,7 +6,7 @@ options:
   bundleIdPrefix: com.diegocainzos
   deploymentTarget:
     iOS: "17.0"
-    macOS: "13.0"
+    macOS: "14.8.5"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 configs:
@@ -28,7 +28,7 @@ targets:
     supportedDestinations: [iOS, macOS]
     deploymentTarget:
       iOS: "17.0"
-      macOS: "13.0"
+      macOS: "14.8.5"
     sources:
       - path: DiegoMusic
         excludes:
@@ -74,7 +74,7 @@ targets:
     supportedDestinations: [iOS, macOS]
     deploymentTarget:
       iOS: "17.0"
-      macOS: "13.0"
+      macOS: "14.8.5"
     sources:
       - path: Tests/UnitTests
     dependencies:

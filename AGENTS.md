@@ -4,7 +4,7 @@ Estas instrucciones se aplican a todo el repositorio. Cualquier agente automatiz
 
 ## Objetivo del proyecto
 
-DiegoMusic es un cliente privado para iOS/iPadOS 17+ y macOS 13+. Usa YouTube Data API v3 para catálogo y metadatos, y un resolutor FastAPI privado para entregar audio a un único `AVPlayer` mediante sesiones opacas.
+DiegoMusic es un cliente privado para iOS/iPadOS 17+ y macOS 14.8.5+. Usa YouTube Data API v3 para catálogo y metadatos, y un resolutor FastAPI privado para entregar audio a un único `AVPlayer` mediante sesiones opacas.
 
 La arquitectura nativa VPS + AVPlayer vive actualmente en `main`. No reintroducir WebKit, YouTube IFrame Player, PrivacyShield ni extracción multimedia en Swift salvo petición explícita y un cambio OpenSpec aprobado.
 
@@ -73,11 +73,11 @@ Si un secreto aparece accidentalmente en una salida o artefacto, detener el trab
 - Modificar `project.yml` y regenerar con `./scripts/generate-project.sh`; evitar editar `DiegoMusic.xcodeproj/project.pbxproj` manualmente.
 - Preservar:
   - bundle ID `com.diegocainzos.DiegoMusic`;
-  - iOS/iPadOS 17 y macOS 13;
+  - iOS/iPadOS 17 y macOS 14.8.5;
   - firma automática y Team existentes, salvo petición explícita;
   - `UIBackgroundModes = audio`;
   - entitlements vigentes.
-- Core Data es deliberado; no migrar a SwiftData mientras el mínimo siga siendo macOS 13.
+- Core Data es deliberado; no migrar a SwiftData salvo petición explícita.
 
 ## Flujo de trabajo
 

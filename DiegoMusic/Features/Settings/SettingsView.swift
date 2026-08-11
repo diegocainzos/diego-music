@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var playbackSettings: PlaybackSettings
+    let library: LibraryStore
     let resolverConfigured: Bool
 
     @State private var historyMessage: String?
@@ -41,7 +42,7 @@ struct SettingsView: View {
                         .tint(DiegoTheme.accent)
                     Button("Borrar historial local") {
                         do {
-                            try playbackSettings.clearHistory()
+                            try library.clearHistory()
                             historyMessage = "Historial local eliminado."
                         } catch {
                             historyMessage = "No se pudo borrar el historial local."

@@ -22,22 +22,7 @@ struct ListaView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                TextField("Nombre de la nueva playlist", text: $newName)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(minHeight: 44)
-                    .onSubmit(createPlaylist)
-                    .accessibilityLabel("Nombre de la nueva playlist")
-                Button(action: createPlaylist) {
-                    Image(systemName: "plus")
-                        .frame(width: 44, height: 44)
-                        .background(DiegoTheme.accent)
-                        .foregroundStyle(.white)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Crear playlist")
-            }
+            createRow
 
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle")
@@ -48,93 +33,128 @@ struct ListaView: View {
 
             Group {
                 if playlists.isEmpty {
-                    EmptyStateView(
-                        title: "Sin listas",
-                        symbol: "music.note.list",
-                        description: "Crea una playlist para agrupar tus canciones."
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    emptyState
                 } else {
-                    List {
-                        ForEach(playlists) { playlist in
-                            DisclosureGroup(isExpanded: expandedBinding(for: playlist.id)) {
-                                ForEach(
-                                    Array(playlist.entries.sorted(by: { $0.position < $1.position }).enumerated()),
-                                    id: \.element.id
-                                ) { index, entry in
-                                    HStack(spacing: 10) {
-                                        Button { onPlay(entry.mediaItem) } label: {
-                                            VStack(alignment: .leading) {
-                                                Text(entry.title).font(.headline).lineLimit(1)
-                                                Text(entry.channelTitle).font(.caption).foregroundStyle(.secondary)
-                                            }
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .contentShape(Rectangle())
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("Reproducir \(entry.title)")
-
-                                        Button { move(entry, in: playlist, by: -1) } label: {
-                                            Image(systemName: "arrow.up").frame(width: 44, height: 44)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .disabled(index == 0)
-                                        .accessibilityLabel("Subir elemento")
-
-                                        Button { move(entry, in: playlist, by: 1) } label: {
-                                            Image(systemName: "arrow.down").frame(width: 44, height: 44)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .disabled(index == playlists.entries.count - 1)
-                                        .accessibilityLabel("Bajar elemento")
-
-                                        Button { remove(entry, from: playlist) } label: {
-                                            Image(systemName: "trash").frame(width: 44, height: 44)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .accessibilityLabel("Eliminar de la playlist")
-                                    }
-                                    .padding(.vertical, 4)
-                                }
-                            } label: {
-                                HStack {
-                                    Circle()
-                                        .fill(DiegoTheme.accent.opacity(0.85))
-                                        .frame(width: 44, height: 44)
-                                        .overlay {
-                                            Image(systemName: "music.note")
-                                                .font(.callout)
-                                                .foregroundStyle(.white)
-                                        }
-                                        .accessibilityHidden(true)
-                                    VStack(alignment: .leading) {
-                                        Text(playlist.name).font(.title3.bold())
-                                        Text("\(playlist.entries.count) elementos").font(.caption).foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Button { beginRename(playlist) } label: {
-                                        Image(systemName: "pencil").frame(width: 44, height: 44)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Renombrar playlist")
-                                    Button { delete(playlist) } label: {
-                                        Image(systemName: "trash").frame(width: 44, height: 44)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Eliminar playlist")
-                                }
-                                .padding(.vertical, 4)
-                            }
-                            .tint(DiegoTheme.accent)
-                        }
-                    }
-                    .scrollContentBackground(.hidden)
+                    playlistsList
                 }
             }
         }
         .sheet(item: $renamingPlaylist) { playlist in
             renameSheet(playlist)
         }
+    }
+
+    private var createRow: some View {
+        HStack(spacing: 10) {
+            TextField("Nombre de la nueva playlist", text: $newName)
+                .textFieldStyle(.roundedBorder)
+                .frame(minHeight: 44)
+                .onSubmit(createPlaylist)
+                .accessibilityLabel("Nombre de la nueva playlist")
+            Button(action: createPlaylist) {
+                Image(systemName: "plus")
+                    .frame(width: 44, height: 44)
+                    .background(DiegoTheme.accent)
+                    .foregroundStyle(.white)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Crear playlist")
+        }
+    }
+
+    @ViewBuilder private var emptyState: some View {
+        EmptyStateView(
+            title: "Sin listas",
+            symbol: "music.note.list",
+            description: "Crea una playlist para agrupar tus canciones."
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var playlistsList: some View {
+        List {
+            ForEach(playlists) { playlist in
+                DisclosureGroup(isExpanded: expandedBinding(for: playlist.id)) {
+                    entriesSection(for: playlist)
+                } label: {
+                    playlistRow(playlist)
+                }
+                .tint(DiegoTheme.accent)
+            }
+        }
+        .scrollContentBackground(.hidden)
+    }
+
+    private func entriesSection(for playlist: LocalPlaylist) -> some View {
+        ForEach(
+            Array(playlist.entries.sorted(by: { $0.position < $1.position }).enumerated()),
+            id: \.element.id
+        ) { index, entry in
+            HStack(spacing: 10) {
+                Button { onPlay(entry.mediaItem) } label: {
+                    VStack(alignment: .leading) {
+                        Text(entry.title).font(.headline).lineLimit(1)
+                        Text(entry.channelTitle).font(.caption).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Reproducir \(entry.title)")
+
+                Button { move(entry, in: playlist, by: -1) } label: {
+                    Image(systemName: "arrow.up").frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .disabled(index == 0)
+                .accessibilityLabel("Subir elemento")
+
+                Button { move(entry, in: playlist, by: 1) } label: {
+                    Image(systemName: "arrow.down").frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .disabled(index == playlist.entries.count - 1)
+                .accessibilityLabel("Bajar elemento")
+
+                Button { remove(entry, from: playlist) } label: {
+                    Image(systemName: "trash").frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Eliminar de la playlist")
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private func playlistRow(_ playlist: LocalPlaylist) -> some View {
+        HStack {
+            Circle()
+                .fill(DiegoTheme.accent.opacity(0.85))
+                .frame(width: 44, height: 44)
+                .overlay {
+                    Image(systemName: "music.note")
+                        .font(.callout)
+                        .foregroundStyle(.white)
+                }
+                .accessibilityHidden(true)
+            VStack(alignment: .leading) {
+                Text(playlist.name).font(.title3.bold())
+                Text("\(playlist.entries.count) elementos").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button { beginRename(playlist) } label: {
+                Image(systemName: "pencil").frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Renombrar playlist")
+            Button { delete(playlist) } label: {
+                Image(systemName: "trash").frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Eliminar playlist")
+        }
+        .padding(.vertical, 4)
     }
 
     private func renameSheet(_ playlist: LocalPlaylist) -> some View {
