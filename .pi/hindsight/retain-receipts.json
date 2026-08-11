@@ -2,10 +2,29 @@
   "version": 1,
   "receipts": [
     {
-      "createdAt": "2026-08-11T14:38:24.457Z",
+      "createdAt": "2026-08-11T14:43:05.195Z",
+      "bankId": "pi-coding",
+      "documentId": "pi-session:171625fc204b6e91",
+      "queueJobId": "6b76d19a-8c38-4ce8-9252-c97d793b987f",
+      "updateMode": "append",
+      "source": "queue",
+      "context": "Pi coding session for repo \"youtube-music\", session 2026-08-11T14-36-58-908Z_019ff141-569c-7d3c-b804-30e55a08e30b.jsonl",
+      "tags": [
+        "source:pi",
+        "project:github-com-diegocainzos-diego-music",
+        "repo:youtube-music-c78aeb942290",
+        "session:171625fc204b6e91"
+      ],
+      "outcome": {
+        "itemsCount": 1,
+        "operations": 1
+      }
+    },
+    {
+      "createdAt": "2026-08-11T14:39:14.829Z",
       "bankId": "pi-coding",
       "documentId": "pi-session:f3bd26d9a6dc6943",
-      "queueJobId": "1f45dde8-513e-43e5-a6f8-ec631f6a8b70",
+      "queueJobId": "3d5352ea-0dad-4aaa-b364-a56e8b64c287",
       "updateMode": "append",
       "source": "queue",
       "context": "Pi coding session for repo \"youtube-music\", session 2026-08-11T14-37-55-488Z_019ff142-33a0-7c4b-86e1-f826f5bc67b3.jsonl",

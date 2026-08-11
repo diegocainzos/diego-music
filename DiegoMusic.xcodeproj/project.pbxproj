@@ -49,6 +49,7 @@
 		AC46E160C5D1930FEDB87226 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80FDC15191972AAF39D79DE9 /* SearchView.swift */; };
 		AD2F44FA64140FB8D90976C0 /* YouTubeDiscoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 467388344670107A44EF2B3E /* YouTubeDiscoveryTests.swift */; };
 		AF5C07E46A08EA0B54A62111 /* ArtistsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6A59697B1891CBC49468A6D /* ArtistsView.swift */; };
+		B4550670107A8D20603642FF /* LRCLibProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8175F48FBD2E689D9B238B /* LRCLibProvider.swift */; };
 		B494D0D16E959FAA0DFB25D1 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EA82CB2E816602BC35D64CE /* LibraryView.swift */; };
 		BBD5C8FE26EF8F4CED422FBA /* LyricsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4080C306FEBF3645824F3C4D /* LyricsView.swift */; };
 		BD8E9A0EEFE3A40023A59B2A /* ListaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7295DD1B3594D1FB35DC30F /* ListaView.swift */; };
@@ -61,6 +62,7 @@
 		CD158DD51509D51C08527BE2 /* OfflineDownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0D07A81799D5A969378F04 /* OfflineDownloadManager.swift */; };
 		D0870BC343C69067DE0613E7 /* AudioPlayerCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FB13C662B63A966DBF25255 /* AudioPlayerCoordinator.swift */; };
 		D5BE1D4CF19CFE38F195BDAE /* HTTPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FDA5A5D2D2D02FF647A79B5 /* HTTPTransport.swift */; };
+		DCDF95C1FBCE85C28F412B8F /* LRCParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99A2BCA94F00187DF0222FA3 /* LRCParserTests.swift */; };
 		DCFBDB2E0EFE66B9A1BAAE90 /* OfflineViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD18A95C8ACCA7B278AD6718 /* OfflineViews.swift */; };
 		E2E09809A036E6777ECA4A01 /* PlaybackMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 483FBC446F537449BC6E00F4 /* PlaybackMode.swift */; };
 		E2F116B8D5EB33772BE133B7 /* LyricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C80138449F0AC641BE362544 /* LyricsService.swift */; };
@@ -114,8 +116,10 @@
 		892693C07393A706673A6FCD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8AF30D79E5CDBB7FAA824770 /* DiscoveryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryModels.swift; sourceTree = "<group>"; };
 		8D273959FF9097E9E5D248AC /* OfflineDownloadManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineDownloadManagerTests.swift; sourceTree = "<group>"; };
+		8D8175F48FBD2E689D9B238B /* LRCLibProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LRCLibProvider.swift; sourceTree = "<group>"; };
 		94CEFBF0FC30A4278679715A /* NavigationStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationStateTests.swift; sourceTree = "<group>"; };
 		983F97D6C817E685E743F2CD /* LibraryTrackRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryTrackRow.swift; sourceTree = "<group>"; };
+		99A2BCA94F00187DF0222FA3 /* LRCParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LRCParserTests.swift; sourceTree = "<group>"; };
 		9BB1A8414A4C7D6609EAE6CF /* AudioResolverClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioResolverClientTests.swift; sourceTree = "<group>"; };
 		9D35C753BFE0E20764D09FD0 /* YouTubeMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeMapper.swift; sourceTree = "<group>"; };
 		9FB13C662B63A966DBF25255 /* AudioPlayerCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerCoordinator.swift; sourceTree = "<group>"; };
@@ -154,6 +158,7 @@
 				9BB1A8414A4C7D6609EAE6CF /* AudioResolverClientTests.swift */,
 				31362CACE6F19E4F2F29A988 /* AudioResolverConfigurationTests.swift */,
 				F8520854CDB28840D481BC1D /* LibraryStoreTests.swift */,
+				99A2BCA94F00187DF0222FA3 /* LRCParserTests.swift */,
 				94CEFBF0FC30A4278679715A /* NavigationStateTests.swift */,
 				8D273959FF9097E9E5D248AC /* OfflineDownloadManagerTests.swift */,
 				090C5ADC3245B7DE1B38935A /* PlaybackQueueTests.swift */,
@@ -235,6 +240,7 @@
 		4E2E77B77885BC9897CD4CFB /* Lyrics */ = {
 			isa = PBXGroup;
 			children = (
+				8D8175F48FBD2E689D9B238B /* LRCLibProvider.swift */,
 				D716FDDA75977C70E05F94BF /* LyricsModels.swift */,
 				C80138449F0AC641BE362544 /* LyricsService.swift */,
 				4080C306FEBF3645824F3C4D /* LyricsView.swift */,
@@ -505,6 +511,7 @@
 			files = (
 				EEB3975BD0DC588DC3DE5B20 /* AudioResolverClientTests.swift in Sources */,
 				55C9016668119361F6E838F7 /* AudioResolverConfigurationTests.swift in Sources */,
+				DCDF95C1FBCE85C28F412B8F /* LRCParserTests.swift in Sources */,
 				2F5AC0C498853AF394DDF57A /* LibraryStoreTests.swift in Sources */,
 				708BE9815E38BABBEAAC3C48 /* NavigationStateTests.swift in Sources */,
 				384773FD9C858FC2C91FD270 /* OfflineDownloadManagerTests.swift in Sources */,
@@ -540,6 +547,7 @@
 				D5BE1D4CF19CFE38F195BDAE /* HTTPTransport.swift in Sources */,
 				47510C2F1438B6752D5CC68D /* HomeView.swift in Sources */,
 				CCAB397154603A49D077D1FB /* HomeViewModel.swift in Sources */,
+				B4550670107A8D20603642FF /* LRCLibProvider.swift in Sources */,
 				1ADE522DBCF94E539C00AF09 /* LibraryModels.swift in Sources */,
 				3F12A33EEFFBADC28106D28D /* LibraryStore.swift in Sources */,
 				0E4FADB21060DFF9C22DBBF9 /* LibraryTrackRow.swift in Sources */,
