@@ -70,7 +70,7 @@ struct PlaylistsView: View {
                 Button {
                     isShowingCreateSheet = true
                 } label: {
-                    Label("Crear Playlist", systemImage: "plus.circle.fill")
+                    Label("Crear", systemImage: "plus.circle.fill")
                         .font(.subheadline.weight(.semibold))
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -78,7 +78,7 @@ struct PlaylistsView: View {
                 Button {
                     isShowingImportSheet = true
                 } label: {
-                    Label("Importar YouTube", systemImage: "arrow.down.doc.fill")
+                    Label("Importar", systemImage: "arrow.down.doc.fill")
                         .font(.subheadline.weight(.semibold))
                 }
                 .buttonStyle(PrimaryButtonStyle())
