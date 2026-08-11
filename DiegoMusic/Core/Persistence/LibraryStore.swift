@@ -6,6 +6,7 @@ import Foundation
 final class LibraryStore: ObservableObject {
     @Published private(set) var favorites: [SavedTrack] = []
     @Published private(set) var playlists: [LocalPlaylist] = []
+    @Published private(set) var history: [SavedTrack] = []
 
     private let context: NSManagedObjectContext
 
@@ -92,6 +93,59 @@ final class LibraryStore: ObservableObject {
         try saveAndReload()
     }
 
+    func rename(_ playlist: LocalPlaylist, to newName: String) throws {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let request = NSFetchRequest<PlaylistRecord>(entityName: "Playlist")
+        if let record = try context.fetch(request).first(where: { $0.id == playlist.id }) {
+            record.name = trimmed
+            try saveAndReload()
+        }
+    }
+
+    // MARK: - Agregación derivada (solo local)
+
+    /// Canciones de la biblioteca: favoritos sin duplicar por vídeo.
+    var songs: [SavedTrack] { favorites }
+
+    /// Artistas locales agrupados por `channelTitle` (favoritos e historial).
+    var artists: [LocalArtist] {
+        let source = favorites + history
+        var groups: [String: [SavedTrack]] = [:]
+        for track in source { groups[track.channelTitle, default: []].append(track) }
+        return groups
+            .map { LocalArtist(name: $0.key, tracks: $0.value) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Álbumes locales derivados de forma conservadora (grupo por artista),
+    /// dado que los registros no almacenan un dato de álbum real.
+    var albums: [LocalAlbum] {
+        artists.map { LocalAlbum(name: $0.name, tracks: $0.tracks) }
+    }
+
+    /// Heurística local de recomendaciones: canciones favoritas de los
+    /// artistas más reproducidos en el historial, priorizadas por frecuencia.
+    /// Solo local, sin red.
+    var recommendations: [SavedTrack] {
+        var artistFreq: [String: Int] = [:]
+        for track in history { artistFreq[track.channelTitle, default: 0] += 1 }
+
+        let rankedArtists = artistFreq.sorted { $0.value > $1.value }.map(\.key)
+        var seen = Set<String>()
+        var result: [SavedTrack] = []
+
+        // Canciones marcadas como favorito de los artistas más escuchados.
+        for artist in rankedArtists {
+            for track in favorites where track.channelTitle == artist && !seen.contains(track.videoID) {
+                seen.insert(track.videoID)
+                result.append(track)
+                if result.count >= 12 { return result }
+            }
+        }
+        return result
+    }
+
     func addHistory(_ item: MediaItem) throws {
         let record: PlaybackHistoryRecord = insertRecord(entityName: "PlaybackHistory")
         record.id = UUID()
@@ -99,13 +153,13 @@ final class LibraryStore: ObservableObject {
         record.title = item.title
         record.channelTitle = item.channelTitle
         record.playedAt = .now
-        try context.save()
+        try saveAndReload()
     }
 
     func clearHistory() throws {
         let request = NSFetchRequest<PlaybackHistoryRecord>(entityName: "PlaybackHistory")
         for record in try context.fetch(request) { context.delete(record) }
-        try context.save()
+        try saveAndReload()
     }
 
     func preference(for key: String) -> String? {
@@ -137,6 +191,18 @@ final class LibraryStore: ObservableObject {
                 )
             }
 
+            let historyRequest = NSFetchRequest<PlaybackHistoryRecord>(entityName: "PlaybackHistory")
+            historyRequest.sortDescriptors = [NSSortDescriptor(key: "playedAt", ascending: false)]
+            history = try context.fetch(historyRequest).map {
+                SavedTrack(
+                    videoID: $0.videoID,
+                    title: $0.title,
+                    channelTitle: $0.channelTitle,
+                    thumbnailURLString: nil,
+                    savedAt: $0.playedAt
+                )
+            }
+
             let entryRequest = NSFetchRequest<PlaylistEntryRecord>(entityName: "PlaylistEntry")
             entryRequest.sortDescriptors = [NSSortDescriptor(key: "position", ascending: true)]
             let entries = try context.fetch(entryRequest)
@@ -163,6 +229,7 @@ final class LibraryStore: ObservableObject {
         } catch {
             favorites = []
             playlists = []
+            history = []
         }
     }
 

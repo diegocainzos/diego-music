@@ -8,6 +8,7 @@ enum YouTubeServiceError: LocalizedError, Equatable {
     case server(status: Int)
     case invalidResponse
     case network
+    case unavailable
 
     var errorDescription: String? {
         switch self {
@@ -25,12 +26,25 @@ enum YouTubeServiceError: LocalizedError, Equatable {
             return "YouTube devolvió una respuesta que no se pudo interpretar."
         case .network:
             return "No se pudo conectar con YouTube. Revisa la conexión."
+        case .unavailable:
+            return "Esta función de descubrimiento no está disponible."
         }
     }
 }
 
 protocol YouTubeDataServicing: Sendable {
     func search(query: String, pageToken: String?) async throws -> SearchPage
+
+    func discover() async throws -> DiscoveryFeed
+    func artist(byChannelID: String) async throws -> ArtistDetail
+    func album(byPlaylistID: String) async throws -> Album
+}
+
+/// Implementaciones por defecto para no forzar cambios en conformantes actuales.
+extension YouTubeDataServicing {
+    func discover() async throws -> DiscoveryFeed { throw YouTubeServiceError.unavailable }
+    func artist(byChannelID: String) async throws -> ArtistDetail { throw YouTubeServiceError.unavailable }
+    func album(byPlaylistID: String) async throws -> Album { throw YouTubeServiceError.unavailable }
 }
 
 struct YouTubeDataService: YouTubeDataServicing {
@@ -49,18 +63,105 @@ struct YouTubeDataService: YouTubeDataServicing {
     }
 
     func search(query: String, pageToken: String? = nil) async throws -> SearchPage {
+        let apiKey = try key()
+        let request = try endpointRequest {
+            YouTubeEndpoint(query: query, apiKey: apiKey, pageToken: pageToken)
+        }
+        let data = try await run(request, response: YouTubeSearchResponseDTO.self)
+        return mapper.map(data)
+    }
+
+    func discover() async throws -> DiscoveryFeed {
+        let apiKey = try key()
+        let request = try endpointRequest {
+            YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey)
+        }
+        let data = try await run(request, response: YouTubeVideoListEnvelopeDTO.self)
+        var seenChannelIDs: Set<String> = []
+        let artistas: [ArtistReference] = data.items.compactMap { dto in
+            guard let channelID = dto.snippet.channelId, !channelID.isEmpty else { return nil }
+            guard !seenChannelIDs.contains(channelID) else { return nil }
+            seenChannelIDs.insert(channelID)
+            let thumbnail = dto.snippet.thumbnails["high"]
+                ?? dto.snippet.thumbnails["medium"]
+                ?? dto.snippet.thumbnails["default"]
+            return ArtistReference(
+                id: channelID,
+                title: dto.snippet.channelTitle.decodingHTML,
+                thumbnailURL: thumbnail?.url
+            )
+        }
+        return DiscoveryFeed(
+            novedades: data.items.map(mapper.map),
+            artistas: artistas
+        )
+    }
+
+    func artist(byChannelID channelID: String) async throws -> ArtistDetail {
+        guard !channelID.isEmpty else { throw YouTubeServiceError.invalidRequest }
+        let apiKey = try key()
+
+        let profileRequest = try endpointRequest {
+            YouTubeEndpoint(kind: .channels(ids: [channelID]), apiKey: apiKey)
+        }
+        let profileData = try await run(profileRequest, response: YouTubeChannelListResponseDTO.self)
+        guard let artist = profileData.items.first.map(mapper.map) else {
+            throw YouTubeServiceError.invalidResponse
+        }
+
+        // Top tracks y relacionados son best-effort públicos de vídeo.
+        let topRequest = try endpointRequest {
+            YouTubeEndpoint(query: artist.title, apiKey: apiKey, maxResults: 20)
+        }
+        let relatedRequest = try endpointRequest {
+            YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey, maxResults: 12)
+        }
+        let (topData, relatedData) = try await (
+            run(topRequest, response: YouTubeSearchResponseDTO.self),
+            run(relatedRequest, response: YouTubeVideoListEnvelopeDTO.self)
+        )
+        return ArtistDetail(
+            artist: artist,
+            topTracks: topData.items.compactMap(mapper.map),
+            related: relatedData.items.map(mapper.map)
+        )
+    }
+
+    func album(byPlaylistID playlistID: String) async throws -> Album {
+        guard !playlistID.isEmpty else { throw YouTubeServiceError.invalidRequest }
+        let apiKey = try key()
+
+        let request = try endpointRequest {
+            YouTubeEndpoint(kind: .playlistItems(playlistID: playlistID, pageToken: nil), apiKey: apiKey)
+        }
+        let data = try await run(request, response: YouTubePlaylistItemsResponseDTO.self)
+        let tracks = data.items.compactMap(mapper.map)
+        let first = data.items.first?.snippet
+        return Album(
+            id: playlistID,
+            title: first?.title ?? "Álbum / Lista",
+            channelTitle: first?.channelTitle,
+            thumbnailURL: first?.thumbnails["high"]?.url ?? first?.thumbnails["medium"]?.url,
+            tracks: tracks
+        )
+    }
+
+    // MARK: - Helpers
+
+    private func key() throws -> String {
         guard let configuration else { throw YouTubeServiceError.missingConfiguration }
-        let request: URLRequest
+        return configuration.youtubeDataKey
+    }
+
+    private func endpointRequest(_ build: () throws -> URLRequest) throws -> URLRequest {
         do {
-            request = try YouTubeEndpoint(
-                query: query,
-                apiKey: configuration.youtubeDataKey,
-                pageToken: pageToken
-            ).makeRequest()
+            return try build()
         } catch {
             throw YouTubeServiceError.invalidRequest
         }
+    }
 
+    private func run<Response: Decodable>(_ request: URLRequest, response _: Response.Type) async throws -> Response {
         let data: Data
         let response: HTTPURLResponse
         do {
@@ -71,10 +172,10 @@ struct YouTubeDataService: YouTubeDataServicing {
 
         switch response.statusCode {
         case 200..<300:
-            guard let decoded = try? JSONDecoder.youtube.decode(YouTubeSearchResponseDTO.self, from: data) else {
+            guard let decoded = try? JSONDecoder.youtube.decode(Response.self, from: data) else {
                 throw YouTubeServiceError.invalidResponse
             }
-            return mapper.map(decoded)
+            return decoded
         case 400:
             throw YouTubeServiceError.invalidRequest
         case 401:
@@ -97,5 +198,16 @@ struct YouTubeDataService: YouTubeDataServicing {
         return reasons.contains { reason in
             reason == "quotaExceeded" || reason == "dailyLimitExceeded" || reason == "rateLimitExceeded"
         }
+    }
+}
+
+private extension String {
+    var decodingHTML: String {
+        guard let data = data(using: .utf8) else { return self }
+        return (try? NSAttributedString(
+            data: data,
+            options: [.documentType: NSAttributedString.DocumentType.html, .characterEncoding: String.Encoding.utf8.rawValue],
+            documentAttributes: nil
+        ).string) ?? self
     }
 }

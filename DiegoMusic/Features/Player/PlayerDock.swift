@@ -4,7 +4,18 @@ struct PlayerDock: View {
     @ObservedObject var player: AudioPlayerCoordinator
     @ObservedObject var queue: PlaybackQueue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Proveedor de letras inyectable (seam con el cambio `lyrics`).
+    /// Por defecto usa el proveedor local/experimental; una app real lo sustituye
+    /// por un `LyricsProviding` legítimo.
+    private let lyricsService: LyricsService
     @State private var expanded = false
+    @State private var showLyrics = false
+
+    init(player: AudioPlayerCoordinator, queue: PlaybackQueue, lyricsService: LyricsService = LyricsService()) {
+        self.player = player
+        self.queue = queue
+        self.lyricsService = lyricsService
+    }
 
     var body: some View {
         Group {
@@ -94,15 +105,64 @@ struct PlayerDock: View {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .center, spacing: 22) {
                     artwork(current, size: 190)
+                        .gesture(expandedSwipeGesture)
                     expandedMetadata(current)
                 }
                 VStack(spacing: 14) {
                     artwork(current, size: 170)
+                        .gesture(expandedSwipeGesture)
                     expandedMetadata(current)
                 }
             }
             queueEditor
+
+            Button { showLyrics = true } label: {
+                Label("Letras", systemImage: "text.quote")
+                    .font(.callout.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .accessibilityLabel("Ver letras")
         }
+        .contentShape(Rectangle())
+        .gesture(expandedDismissGesture)
+        .sheet(isPresented: $showLyrics) {
+            if let current = queue.current {
+                LyricsView(
+                    service: lyricsService,
+                    item: current,
+                    currentTime: player.currentTime
+                )
+                .padding(20)
+                .background(DiegoTheme.background.ignoresSafeArea())
+                .preferredColorScheme(.light)
+            }
+        }
+    }
+
+    // MARK: - Gestos del ampliado
+
+    private var expandedSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 30)
+            .onEnded { value in
+                let horizontal = value.translation.width
+                if horizontal < -60 {
+                    player.next()
+                } else if horizontal > 60 {
+                    player.previous()
+                }
+            }
+    }
+
+    private var expandedDismissGesture: some Gesture {
+        DragGesture(minimumDistance: 30)
+            .onEnded { value in
+                guard value.translation.height > 80 else { return }
+                withAnimation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.78)) {
+                    expanded = false
+                }
+            }
     }
 
     private func expandedMetadata(_ current: MediaItem) -> some View {
@@ -175,6 +235,16 @@ struct PlayerDock: View {
 
     private var controls: some View {
         HStack(spacing: 20) {
+            Button(action: { player.toggleShuffle() }) {
+                Image(systemName: "shuffle")
+                    .font(.title3)
+                    .foregroundStyle(player.shuffleEnabled ? DiegoTheme.accent : DiegoTheme.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .frame(minWidth: 44, minHeight: 44)
+            .accessibilityLabel("Barajar")
+            .accessibilityValue(player.shuffleEnabled ? "Activado" : "Desactivado")
+
             Button(action: { player.previous() }) {
                 Image(systemName: "backward.fill").font(.title2)
             }
@@ -204,9 +274,34 @@ struct PlayerDock: View {
             }
             .disabled(!queue.canAdvance)
             .accessibilityLabel("Siguiente")
+
+            Button(action: { player.cycleRepeat() }) {
+                Image(systemName: repeatSymbol)
+                    .font(.title3)
+                    .foregroundStyle(player.repeatMode == .off ? DiegoTheme.textSecondary : DiegoTheme.accent)
+            }
+            .buttonStyle(.plain)
+            .frame(minWidth: 44, minHeight: 44)
+            .accessibilityLabel("Repetir")
+            .accessibilityValue(repeatValue)
         }
         .foregroundStyle(DiegoTheme.textPrimary)
         .animation(reduceMotion ? nil : .default, value: player.isPlaying)
+    }
+
+    private var repeatSymbol: String {
+        switch player.repeatMode {
+        case .one: return "repeat.1"
+        case .all, .off: return "repeat"
+        }
+    }
+
+    private var repeatValue: String {
+        switch player.repeatMode {
+        case .off: return "Desactivado"
+        case .all: return "Repetir lista"
+        case .one: return "Repetir una"
+        }
     }
 
     private var expandButton: some View {
@@ -282,35 +377,39 @@ struct PlayerDock: View {
                     .font(.caption.bold())
                     .disabled(queue.items.isEmpty)
             }
-            ScrollView {
-                LazyVStack(spacing: 6) {
-                    ForEach(Array(queue.items.enumerated()), id: \.element.id) { index, item in
-                        HStack(spacing: 8) {
-                            Button { player.select(item) } label: {
-                                HStack {
-                                    Circle()
-                                        .fill(item.id == queue.current?.id ? DiegoTheme.accent : DiegoTheme.textSecondary.opacity(0.6))
-                                        .frame(width: 9, height: 9)
-                                    Text(item.title).lineLimit(1)
-                                        .foregroundStyle(DiegoTheme.textPrimary)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
+            List {
+                ForEach(Array(queue.items.enumerated()), id: \.element.id) { index, item in
+                    HStack(spacing: 8) {
+                        Button { player.select(item) } label: {
+                            HStack {
+                                Circle()
+                                    .fill(item.id == queue.current?.id ? DiegoTheme.accent : DiegoTheme.textSecondary.opacity(0.6))
+                                    .frame(width: 9, height: 9)
+                                Text(item.title).lineLimit(1)
+                                    .foregroundStyle(DiegoTheme.textPrimary)
                             }
-                            .buttonStyle(.plain)
-                            Button { queue.move(id: item.id, by: -1) } label: { Image(systemName: "arrow.up") }
-                                .disabled(index == 0)
-                                .accessibilityLabel("Subir en la cola")
-                            Button { queue.move(id: item.id, by: 1) } label: { Image(systemName: "arrow.down") }
-                                .disabled(index == queue.items.count - 1)
-                                .accessibilityLabel("Bajar en la cola")
-                            Button { player.removeFromQueue(id: item.id) } label: { Image(systemName: "trash") }
-                                .accessibilityLabel("Eliminar de la cola")
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .font(.callout)
-                        .foregroundStyle(DiegoTheme.textPrimary)
+                        .buttonStyle(.plain)
+                        Button { queue.move(id: item.id, by: -1) } label: { Image(systemName: "arrow.up") }
+                            .disabled(index == 0)
+                            .accessibilityLabel("Subir en la cola")
+                        Button { queue.move(id: item.id, by: 1) } label: { Image(systemName: "arrow.down") }
+                            .disabled(index == queue.items.count - 1)
+                            .accessibilityLabel("Bajar en la cola")
+                        Button { player.removeFromQueue(id: item.id) } label: { Image(systemName: "trash") }
+                            .accessibilityLabel("Eliminar de la cola")
                     }
+                    .font(.callout)
+                    .foregroundStyle(DiegoTheme.textPrimary)
+                }
+                .onMove { source, destination in
+                    queue.move(from: source, to: destination)
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .environment(\.editMode, .constant(.active))
             .frame(maxHeight: 150)
         }
         .padding(12)

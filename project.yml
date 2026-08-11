@@ -46,6 +46,14 @@ targets:
         AUDIO_RESOLVER_API_TOKEN: $(AUDIO_RESOLVER_API_TOKEN)
         UIBackgroundModes:
           - audio
+        UISupportedExternalAccessoryProtocols:
+          - com.apple.carplay
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            CPTemplateApplicationSceneSessionRoleApplication:
+              - UISceneConfigurationName: CarPlay Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlaySceneDelegate
     settings:
       base:
         PRODUCT_NAME: DiegoMusic

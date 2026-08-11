@@ -44,6 +44,41 @@ struct PlaylistEntry: Identifiable, Equatable {
     }
 }
 
+/// Artista local derivado de los registros de favoritos e historial (solo Core Data).
+struct LocalArtist: Identifiable, Equatable {
+    let name: String
+    let tracks: [SavedTrack]
+
+    var id: String { name }
+}
+
+/// Álbum local derivado: sin dato de álbum en los registros, se agrupa por
+/// artista de forma conservadora (cada artista es un "álbum" local).
+struct LocalAlbum: Identifiable, Equatable {
+    let name: String
+    let tracks: [SavedTrack]
+
+    var id: String { name }
+}
+
+extension SavedTrack {
+    /// Coincidencia local por título o artista (y álbum cuando lo hubiera).
+    func matches(query: String) -> Bool {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return true }
+        return title.lowercased().contains(q) || channelTitle.lowercased().contains(q)
+    }
+}
+
+extension String {
+    /// Coincidencia local por nombre de artista, álbum o playlist.
+    func matches(query: String) -> Bool {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return true }
+        return lowercased().contains(q)
+    }
+}
+
 @objc(FavoriteTrackRecord)
 final class FavoriteTrackRecord: NSManagedObject {
     @NSManaged var videoID: String

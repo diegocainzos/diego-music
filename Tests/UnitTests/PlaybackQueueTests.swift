@@ -52,6 +52,34 @@ final class PlaybackQueueTests: XCTestCase {
         XCTAssertEqual(queue.items.map(\.id), ["2", "4", "3", "1"])
         XCTAssertEqual(queue.current?.id, "2")
     }
+
+    func testShufflePreservesCurrentTrackAndRestoresOrder() {
+        let items = (1...5).map { MediaItem(id: String($0), title: "Pista \($0)", channelTitle: "Canal") }
+        let queue = PlaybackQueue(items: items, currentIndex: 0)
+        let originalOrder = queue.items.map(\.id)
+
+        queue.setShuffle(true)
+        XCTAssertTrue(queue.isShuffled)
+        XCTAssertTrue(queue.current?.id == "1" || queue.current == items.first)
+
+        // La pista activa se conserva dentro de la cola.
+        XCTAssertEqual(queue.items.map(\.id).sorted(), originalOrder.sorted())
+
+        queue.setShuffle(false)
+        XCTAssertFalse(queue.isShuffled)
+        XCTAssertEqual(queue.items.map(\.id), originalOrder)
+        XCTAssertEqual(queue.current?.id, "1")
+    }
+
+    func testRepeatAllResetsToStart() {
+        let first = MediaItem(id: "1", title: "Uno", channelTitle: "A")
+        let second = MediaItem(id: "2", title: "Dos", channelTitle: "B")
+        let queue = PlaybackQueue(items: [first, second], currentIndex: 1)
+
+        XCTAssertEqual(queue.current?.id, "2")
+        XCTAssertEqual(queue.resetToStart()?.id, "1")
+        XCTAssertEqual(queue.currentIndex, 0)
+    }
 }
 
 private actor RecordingAudioResolver: AudioStreamResolving {

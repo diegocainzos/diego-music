@@ -32,6 +32,75 @@ struct YouTubeSearchItemDTO: Decodable {
     let snippet: Snippet
 }
 
+/// Carátula reutilizable compartida por canales/vídeos/playlistItems.
+struct YouTubeThumbnail: Decodable {
+    let url: URL
+    let width: Int?
+    let height: Int?
+}
+
+// MARK: - Canales
+
+struct YouTubeChannelListResponseDTO: Decodable {
+    let items: [YouTubeChannelDTO]
+}
+
+struct YouTubeChannelDTO: Decodable {
+    struct Snippet: Decodable {
+        let title: String
+        let description: String?
+        let thumbnails: [String: YouTubeThumbnail]
+    }
+
+    let id: String
+    let snippet: Snippet
+}
+
+// MARK: - Vídeos trending / novedades
+
+struct YouTubeVideoListResponseDTO: Decodable {
+    struct Snippet: Decodable {
+        let publishedAt: Date?
+        let title: String
+        let channelId: String?
+        let channelTitle: String
+        let thumbnails: [String: YouTubeThumbnail]
+    }
+
+    let id: String
+    let snippet: Snippet
+}
+
+struct YouTubeVideoListEnvelopeDTO: Decodable {
+    let items: [YouTubeVideoListResponseDTO]
+    let nextPageToken: String?
+}
+
+// MARK: - PlaylistItems (pistas de álbum/lista)
+
+struct YouTubePlaylistItemsResponseDTO: Decodable {
+    let items: [YouTubePlaylistItemDTO]
+    let nextPageToken: String?
+}
+
+struct YouTubePlaylistItemDTO: Decodable {
+    struct Snippet: Decodable {
+        struct ResourceId: Decodable {
+            let videoId: String?
+        }
+
+        let publishedAt: Date?
+        let title: String
+        let channelId: String?
+        let channelTitle: String
+        let thumbnails: [String: YouTubeThumbnail]
+        let resourceId: ResourceId?
+    }
+
+    let id: String
+    let snippet: Snippet
+}
+
 struct YouTubeAPIErrorEnvelopeDTO: Decodable {
     struct Detail: Decodable {
         struct Reason: Decodable {

@@ -4,6 +4,11 @@ import Foundation
 
 @MainActor
 final class AppEnvironment: ObservableObject {
+    /// Referencia compartida débil para que la escena CarPlay (que el sistema
+    /// instancia independientemente del ciclo SwiftUI) obtenga player/queue e
+    /// inyecte su `configure(player:queue:)` (seam del cambio `carplay`).
+    static weak var shared: AppEnvironment?
+
     let youtubeService: any YouTubeDataServicing
     let queue: PlaybackQueue
     let library: LibraryStore
@@ -33,6 +38,13 @@ final class AppEnvironment: ObservableObject {
             transport: transport
         )
         player = AudioPlayerCoordinator(queue: queue, resolver: resolver)
+        player.positionPersister = { [weak playbackSettings] item, seconds in
+            playbackSettings?.persist(item: item, seconds: seconds)
+        }
+        if let restore = playbackSettings.restoreState {
+            player.restorePlayback(to: restore.item, at: restore.seconds)
+        }
+        Self.shared = self
     }
 
     func play(_ item: MediaItem) {

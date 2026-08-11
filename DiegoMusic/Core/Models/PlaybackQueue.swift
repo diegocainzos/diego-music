@@ -5,6 +5,10 @@ import Foundation
 final class PlaybackQueue: ObservableObject {
     @Published private(set) var items: [MediaItem]
     @Published private(set) var currentIndex: Int?
+    @Published private(set) var isShuffled = false
+
+    private var shuffleOrder: [MediaItem.ID] = []
+    private var shufflePosition = 0
 
     init(items: [MediaItem] = [], currentIndex: Int? = nil) {
         self.items = items
@@ -21,13 +25,50 @@ final class PlaybackQueue: ObservableObject {
     }
 
     var canAdvance: Bool {
+        if isShuffled {
+            return shufflePosition + 1 < shuffleOrder.count
+        }
         guard let currentIndex else { return false }
         return currentIndex + 1 < items.count
     }
 
     var canRetreat: Bool {
+        if isShuffled {
+            return shufflePosition > 0
+        }
         guard let currentIndex else { return false }
         return currentIndex > 0
+    }
+
+    /// Activa/desactiva el modo shuffle conservando la pista activa.
+    /// Al desactivar se restaura el orden original de `items` y la pista activa.
+    func setShuffle(_ enabled: Bool) {
+        guard enabled != isShuffled else { return }
+        isShuffled = enabled
+        if enabled {
+            reshuffleForCurrent()
+        } else {
+            shuffleOrder = []
+            shufflePosition = 0
+        }
+    }
+
+    private func reshuffleForCurrent() {
+        guard !items.isEmpty else { return }
+        let currentID = current?.id
+        var ids = items.map(\.id)
+        ids.shuffle()
+        shuffleOrder = ids
+        if let currentID, let position = shuffleOrder.firstIndex(of: currentID) {
+            shufflePosition = position
+        } else {
+            shufflePosition = 0
+        }
+        // currentIndex sigue apuntando a la pista activa dentro de `items`.
+    }
+
+    private func rebuildAfterMutation() {
+        if isShuffled { reshuffleForCurrent() }
     }
 
     func play(_ item: MediaItem) {
@@ -37,16 +78,26 @@ final class PlaybackQueue: ObservableObject {
             items.append(item)
             currentIndex = items.count - 1
         }
+        rebuildAfterMutation()
     }
 
     func enqueue(_ item: MediaItem) {
         guard !items.contains(where: { $0.id == item.id }) else { return }
         items.append(item)
         if currentIndex == nil { currentIndex = 0 }
+        rebuildAfterMutation()
     }
 
     @discardableResult
     func advance() -> MediaItem? {
+        if isShuffled {
+            guard shufflePosition + 1 < shuffleOrder.count else { return nil }
+            shufflePosition += 1
+            if let index = items.firstIndex(where: { $0.id == shuffleOrder[shufflePosition] }) {
+                currentIndex = index
+            }
+            return current
+        }
         guard canAdvance, let currentIndex else { return nil }
         self.currentIndex = currentIndex + 1
         return current
@@ -54,8 +105,33 @@ final class PlaybackQueue: ObservableObject {
 
     @discardableResult
     func retreat() -> MediaItem? {
+        if isShuffled {
+            guard shufflePosition > 0 else { return nil }
+            shufflePosition -= 1
+            if let index = items.firstIndex(where: { $0.id == shuffleOrder[shufflePosition] }) {
+                currentIndex = index
+            }
+            return current
+        }
         guard canRetreat, let currentIndex else { return nil }
         self.currentIndex = currentIndex - 1
+        return current
+    }
+
+    /// Reinicia la cola desde su primera posición (para repeat all / radio).
+    @discardableResult
+    func resetToStart() -> MediaItem? {
+        guard !items.isEmpty else { return nil }
+        currentIndex = 0
+        if isShuffled {
+            shufflePosition = 0
+            if let first = items.first, let position = shuffleOrder.firstIndex(of: first.id) {
+                shufflePosition = position
+                if let index = items.firstIndex(where: { $0.id == shuffleOrder[shufflePosition] }) {
+                    currentIndex = index
+                }
+            }
+        }
         return current
     }
 
@@ -66,6 +142,8 @@ final class PlaybackQueue: ObservableObject {
 
         guard !items.isEmpty else {
             currentIndex = nil
+            shuffleOrder = []
+            shufflePosition = 0
             return
         }
         if let currentID, let relocated = items.firstIndex(where: { $0.id == currentID }) {
@@ -73,6 +151,7 @@ final class PlaybackQueue: ObservableObject {
         } else {
             currentIndex = min(removedIndex, items.count - 1)
         }
+        rebuildAfterMutation()
     }
 
     func move(from source: IndexSet, to destination: Int) {
@@ -84,6 +163,7 @@ final class PlaybackQueue: ObservableObject {
         let insertion = max(0, min(destination - removedBeforeDestination, items.count))
         items.insert(contentsOf: moving, at: insertion)
         if let currentID { currentIndex = items.firstIndex(where: { $0.id == currentID }) }
+        rebuildAfterMutation()
     }
 
     func move(id: MediaItem.ID, by offset: Int) {
@@ -93,10 +173,14 @@ final class PlaybackQueue: ObservableObject {
         let currentID = current?.id
         items.swapAt(source, destination)
         if let currentID { currentIndex = items.firstIndex(where: { $0.id == currentID }) }
+        rebuildAfterMutation()
     }
 
     func clear() {
         items.removeAll()
         currentIndex = nil
+        shuffleOrder = []
+        shufflePosition = 0
+        isShuffled = false
     }
 }

@@ -22,16 +22,24 @@ final class AudioPlayerCoordinator: ObservableObject {
     @Published private(set) var currentTime: Double = 0
     @Published private(set) var duration: Double = 0
     @Published private(set) var errorMessage: String?
+    @Published private(set) var repeatMode: RepeatMode = .off
+    @Published private(set) var shuffleEnabled: Bool = false
 
     private let player = AVPlayer()
     private let queue: PlaybackQueue
     private let resolver: any AudioStreamResolving
+    private let relatedProvider: (any RelatedTrackProviding)?
     private var resolveTask: Task<Void, Never>?
     private var recoveryTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
     private var queueObservation: AnyCancellable?
     private var loadGeneration = 0
     private var automaticRetryAvailable = true
+    private var radioTask: Task<Void, Never>?
+    private var pendingSeekSeconds: Double?
+    private var lastPersistedPosition: Double = 0
+    /// Callback para persistir la pista activa + posición ("continuar donde dejaste").
+    var positionPersister: ((MediaItem, Double) -> Void)?
     private var periodicTimeObserver: Any?
     private var timeControlObservation: NSKeyValueObservation?
     private var itemStatusObservation: NSKeyValueObservation?
@@ -42,9 +50,14 @@ final class AudioPlayerCoordinator: ObservableObject {
     private var artworkItemID: MediaItem.ID?
     #endif
 
-    init(queue: PlaybackQueue, resolver: any AudioStreamResolving) {
+    init(
+        queue: PlaybackQueue,
+        resolver: any AudioStreamResolving,
+        relatedProvider: (any RelatedTrackProviding)? = nil
+    ) {
         self.queue = queue
         self.resolver = resolver
+        self.relatedProvider = relatedProvider
         observePlayer()
         observeQueueForPrefetch()
         configurePlatformPlayback()
@@ -54,6 +67,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         resolveTask?.cancel()
         recoveryTask?.cancel()
         prefetchTask?.cancel()
+        radioTask?.cancel()
         queueObservation?.cancel()
         if let periodicTimeObserver {
             player.removeTimeObserver(periodicTimeObserver)
@@ -86,6 +100,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         if isPlaying {
             player.pause()
             playbackState = .paused
+            persistPosition(throttled: false)
             updateNowPlayingInfo()
             return
         }
@@ -105,8 +120,71 @@ final class AudioPlayerCoordinator: ObservableObject {
     }
 
     func next() {
-        guard let item = queue.advance() else { return }
+        guard let item = queue.advance() else {
+            // Fin de cola: repeat all reinicia; si no, radio best-effort.
+            handleQueueEnded()
+            return
+        }
         load(item, autoplay: true, resetRetryBudget: true)
+    }
+
+    // MARK: - Modos de reproducción
+
+    func toggleShuffle() {
+        shuffleEnabled.toggle()
+        queue.setShuffle(shuffleEnabled)
+    }
+
+    func cycleRepeat() {
+        switch repeatMode {
+        case .off: repeatMode = .all
+        case .all: repeatMode = .one
+        case .one: repeatMode = .off
+        }
+    }
+
+    /// Al terminar la pista actual, respeta repeat one/all y radio best-effort.
+    private func handleEndOfPlayback() {
+        switch repeatMode {
+        case .one:
+            if let item = queue.current {
+                load(item, autoplay: true, resetRetryBudget: true)
+            }
+        case .all:
+            if queue.canAdvance {
+                next()
+            } else if let first = queue.resetToStart() {
+                load(first, autoplay: true, resetRetryBudget: true)
+            }
+        case .off:
+            next()
+        }
+    }
+
+    /// Autoplay/radio best-effort al terminar la cola (repeat off).
+    private func handleQueueEnded() {
+        guard let provider = relatedProvider,
+              let current = queue.current
+        else { return }
+        radioTask?.cancel()
+        radioTask = Task { [weak self, queue, provider] in
+            do {
+                if let related = try await provider.next(after: current, playlist: queue.items) {
+                    try Task.checkCancellation()
+                    guard let self else { return }
+                    await self.enqueueAndPlayRelated(related)
+                }
+            } catch {
+                // Best-effort: ante error se mantiene detenido, sin error visible.
+            }
+        }
+    }
+
+    @MainActor
+    private func enqueueAndPlayRelated(_ related: MediaItem) {
+        // `play(_:)` encola (si no está) y sitúa la pista como actual.
+        queue.play(related)
+        load(related, autoplay: true, resetRetryBudget: true)
     }
 
     func previous() {
@@ -164,6 +242,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         #if os(iOS)
         artworkTask?.cancel()
         #endif
+        persistPosition(throttled: false)
         currentTime = 0
         duration = 0
         playbackState = .idle
@@ -301,7 +380,7 @@ final class AudioPlayerCoordinator: ObservableObject {
                 self.playbackState = .ended
                 self.currentTime = self.duration
                 self.updateNowPlayingInfo()
-                self.next()
+                self.handleEndOfPlayback()
             }
         }
         notificationObservers.append(endObserver)
@@ -314,6 +393,10 @@ final class AudioPlayerCoordinator: ObservableObject {
                 switch observed.status {
                 case .readyToPlay:
                     self.updateDuration(from: observed)
+                    if let pending = self.pendingSeekSeconds {
+                        self.pendingSeekSeconds = nil
+                        self.seek(toSeconds: pending)
+                    }
                     if self.player.timeControlStatus != .playing {
                         self.playbackState = .paused
                     }
@@ -352,7 +435,25 @@ final class AudioPlayerCoordinator: ObservableObject {
         let seconds = time.seconds
         if seconds.isFinite { currentTime = max(0, seconds) }
         if let item = player.currentItem { updateDuration(from: item) }
+        persistPosition(throttled: true)
         updateNowPlayingInfo()
+    }
+
+    /// Persiste la pista activa + posición si hay un `positionPersister` configurado.
+    /// `throttled` limita la escritura periódica sin perder la escritura en pausa.
+    private func persistPosition(throttled: Bool) {
+        guard let current = queue.current else { return }
+        if throttled, abs(currentTime - lastPersistedPosition) < 5.0 { return }
+        lastPersistedPosition = currentTime
+        positionPersister?(current, currentTime)
+    }
+
+    /// Restaura la reproducción tras reabrir: carga la pista y se posiciona sin
+    /// auto-reproducción (queda en pausa).
+    func restorePlayback(to item: MediaItem, at position: Double) {
+        queue.play(item)
+        pendingSeekSeconds = position
+        load(item, autoplay: false, resetRetryBudget: true)
     }
 
     private func updateDuration(from item: AVPlayerItem) {
