@@ -57,7 +57,17 @@ final class PersistenceController {
             entity("Preference", PreferenceRecord.self, [
                 attribute("key", .stringAttributeType),
                 attribute("value", .stringAttributeType)
-            ], uniqueness: [["key"]])
+            ], uniqueness: [["key"]]),
+            entity("DownloadedTrack", DownloadedTrackRecord.self, [
+                attribute("videoID", .stringAttributeType),
+                attribute("title", .stringAttributeType),
+                attribute("channelTitle", .stringAttributeType),
+                attribute("thumbnailURLString", .stringAttributeType, optional: true),
+                attribute("localFilePath", .stringAttributeType),
+                attribute("fileSizeBytes", .integer64AttributeType),
+                attribute("downloadedAt", .dateAttributeType),
+                attribute("contentType", .stringAttributeType)
+            ], uniqueness: [["videoID"]])
         ]
         return model
     }

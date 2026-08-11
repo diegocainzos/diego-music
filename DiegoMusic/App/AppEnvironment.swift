@@ -15,6 +15,8 @@ final class AppEnvironment: ObservableObject {
     let playbackSettings: PlaybackSettings
     let player: AudioPlayerCoordinator
     let resolverConfigured: Bool
+    let downloadManager: OfflineDownloadManager
+    let networkMonitor: NetworkMonitor
 
     init(modelContext: NSManagedObjectContext, transport: any HTTPTransport = URLSessionTransport()) {
         let library = LibraryStore(context: modelContext)
@@ -33,11 +35,14 @@ final class AppEnvironment: ObservableObject {
         self.library = library
         self.queue = queue
         self.playbackSettings = playbackSettings
+        self.downloadManager = OfflineDownloadManager(context: modelContext)
+        self.networkMonitor = NetworkMonitor()
         youtubeService = YouTubeDataService(
             configuration: try? APIConfiguration.live(),
             transport: transport
         )
         player = AudioPlayerCoordinator(queue: queue, resolver: resolver, youtubeService: youtubeService)
+        player.offlineManager = downloadManager
         player.positionPersister = { [weak playbackSettings] item, seconds in
             playbackSettings?.persist(item: item, seconds: seconds)
         }
