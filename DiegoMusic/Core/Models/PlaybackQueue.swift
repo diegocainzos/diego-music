@@ -81,6 +81,13 @@ final class PlaybackQueue: ObservableObject {
         rebuildAfterMutation()
     }
 
+    /// Cambia la posición actual de la cola al índice indicado sin eliminar pistas previas.
+    func selectTrack(at index: Int) {
+        guard items.indices.contains(index) else { return }
+        currentIndex = index
+        rebuildAfterMutation()
+    }
+
     /// Reemplaza toda la cola de reproducción por una nueva lista y se posiciona en `startIndex`.
     func replaceQueue(items: [MediaItem], startIndex: Int = 0) {
         self.items = items
