@@ -61,6 +61,27 @@ struct LocalAlbum: Identifiable, Equatable {
     var id: String { name }
 }
 
+/// Álbum guardado explícitamente por el usuario en la biblioteca.
+struct SavedAlbum: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let channelTitle: String?
+    let thumbnailURLString: String?
+    let savedAt: Date
+
+    var thumbnailURL: URL? {
+        thumbnailURLString.flatMap(URL.init(string:))
+    }
+
+    func matches(query: String) -> Bool {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return true }
+        let matchesTitle = title.lowercased().contains(q)
+        let matchesChannel = channelTitle?.lowercased().contains(q) ?? false
+        return matchesTitle || matchesChannel
+    }
+}
+
 extension SavedTrack {
     /// Coincidencia local por título o artista (y álbum cuando lo hubiera).
     func matches(query: String) -> Bool {
@@ -119,6 +140,15 @@ final class PlaybackHistoryRecord: NSManagedObject {
 final class PreferenceRecord: NSManagedObject {
     @NSManaged var key: String
     @NSManaged var value: String
+}
+
+@objc(SavedAlbumRecord)
+final class SavedAlbumRecord: NSManagedObject {
+    @NSManaged var id: String
+    @NSManaged var title: String
+    @NSManaged var channelTitle: String?
+    @NSManaged var thumbnailURLString: String?
+    @NSManaged var savedAt: Date
 }
 
 // MARK: - Descarga Offline

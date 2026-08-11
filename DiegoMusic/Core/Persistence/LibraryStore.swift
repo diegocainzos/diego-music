@@ -7,6 +7,7 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var favorites: [SavedTrack] = []
     @Published private(set) var playlists: [LocalPlaylist] = []
     @Published private(set) var history: [SavedTrack] = []
+    @Published private(set) var savedAlbums: [SavedAlbum] = []
 
     private let context: NSManagedObjectContext
 
@@ -35,6 +36,63 @@ final class LibraryStore: ObservableObject {
 
     func deleteFavorite(_ track: SavedTrack) throws {
         if let record = try favoriteRecord(videoID: track.videoID) {
+            context.delete(record)
+            try saveAndReload()
+        }
+    }
+
+    // MARK: - Álbumes Guardados
+
+    func isAlbumSaved(id: String) -> Bool {
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return savedAlbums.contains {
+            $0.id.lowercased() == trimmed || $0.title.lowercased() == trimmed
+        }
+    }
+
+    func toggleSaveAlbum(_ album: Album) throws {
+        try toggleSaveAlbum(
+            id: album.id,
+            title: album.title,
+            channelTitle: album.channelTitle,
+            thumbnailURL: album.thumbnailURL,
+            tracks: album.tracks
+        )
+    }
+
+    func toggleSaveAlbum(
+        id: String,
+        title: String,
+        channelTitle: String?,
+        thumbnailURL: URL?,
+        tracks: [MediaItem] = []
+    ) throws {
+        if let existing = try savedAlbumRecord(id: id) {
+            context.delete(existing)
+        } else {
+            let record: SavedAlbumRecord = insertRecord(entityName: "SavedAlbum")
+            record.id = id
+            record.title = title
+            record.channelTitle = channelTitle
+            record.thumbnailURLString = thumbnailURL?.absoluteString
+            record.savedAt = .now
+
+            for track in tracks {
+                if !isFavorite(track) {
+                    let trackRecord: FavoriteTrackRecord = insertRecord(entityName: "FavoriteTrack")
+                    trackRecord.videoID = track.id
+                    trackRecord.title = track.title
+                    trackRecord.channelTitle = track.channelTitle
+                    trackRecord.thumbnailURLString = track.thumbnailURL?.absoluteString
+                    trackRecord.savedAt = .now
+                }
+            }
+        }
+        try saveAndReload()
+    }
+
+    func deleteSavedAlbum(id: String) throws {
+        if let record = try savedAlbumRecord(id: id) {
             context.delete(record)
             try saveAndReload()
         }
@@ -226,10 +284,23 @@ final class LibraryStore: ObservableObject {
                     }
                 )
             }
+
+            let savedAlbumRequest = NSFetchRequest<SavedAlbumRecord>(entityName: "SavedAlbum")
+            savedAlbumRequest.sortDescriptors = [NSSortDescriptor(key: "savedAt", ascending: false)]
+            savedAlbums = (try? context.fetch(savedAlbumRequest))?.map {
+                SavedAlbum(
+                    id: $0.id,
+                    title: $0.title,
+                    channelTitle: $0.channelTitle,
+                    thumbnailURLString: $0.thumbnailURLString,
+                    savedAt: $0.savedAt
+                )
+            } ?? []
         } catch {
             favorites = []
             playlists = []
             history = []
+            savedAlbums = []
         }
     }
 
@@ -237,6 +308,13 @@ final class LibraryStore: ObservableObject {
         let request = NSFetchRequest<FavoriteTrackRecord>(entityName: "FavoriteTrack")
         request.fetchLimit = 1
         request.predicate = NSPredicate(format: "videoID == %@", videoID)
+        return try context.fetch(request).first
+    }
+
+    private func savedAlbumRecord(id: String) throws -> SavedAlbumRecord? {
+        let request = NSFetchRequest<SavedAlbumRecord>(entityName: "SavedAlbum")
+        request.fetchLimit = 1
+        request.predicate = NSPredicate(format: "id == %@ OR title ==[c] %@", id, id)
         return try context.fetch(request).first
     }
 

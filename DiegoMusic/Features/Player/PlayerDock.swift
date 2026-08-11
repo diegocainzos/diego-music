@@ -413,6 +413,47 @@ struct PlayerDock: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cerrar") { expanded = false }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button {
+                            expanded = false
+                            navState.navigate(to: .albumDetail(id: current.title, title: current.title))
+                        } label: {
+                            Label("Ir al álbum", systemImage: "square.stack")
+                        }
+
+                        Button {
+                            expanded = false
+                            navState.navigate(to: .artistDetail(id: current.channelTitle, name: current.channelTitle))
+                        } label: {
+                            Label("Ir al artista", systemImage: "music.mic")
+                        }
+
+                        Divider()
+
+                        Button {
+                            let albumID = current.title
+                            try? environment.library.toggleSaveAlbum(
+                                id: albumID,
+                                title: current.title,
+                                channelTitle: current.channelTitle,
+                                thumbnailURL: current.thumbnailURL,
+                                tracks: [current]
+                            )
+                        } label: {
+                            if environment.library.isAlbumSaved(id: current.title) {
+                                Label("Quitar álbum de la biblioteca", systemImage: "bookmark.slash")
+                            } else {
+                                Label("Salvar álbum en la librería", systemImage: "bookmark")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title3)
+                            .foregroundStyle(DiegoTheme.textPrimary)
+                    }
+                    .accessibilityLabel("Más opciones de reproducción")
+                }
             }
         }
         .tint(DiegoTheme.accent)

@@ -58,6 +58,13 @@ final class PersistenceController {
                 attribute("key", .stringAttributeType),
                 attribute("value", .stringAttributeType)
             ], uniqueness: [["key"]]),
+            entity("SavedAlbum", SavedAlbumRecord.self, [
+                attribute("id", .stringAttributeType),
+                attribute("title", .stringAttributeType),
+                attribute("channelTitle", .stringAttributeType, optional: true),
+                attribute("thumbnailURLString", .stringAttributeType, optional: true),
+                attribute("savedAt", .dateAttributeType)
+            ], uniqueness: [["id"]]),
             entity("DownloadedTrack", DownloadedTrackRecord.self, [
                 attribute("videoID", .stringAttributeType),
                 attribute("title", .stringAttributeType),

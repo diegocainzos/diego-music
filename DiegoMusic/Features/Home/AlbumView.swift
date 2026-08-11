@@ -309,6 +309,43 @@ struct AlbumView: View {
                     resolver: resolverClient
                 )
             }
+
+            // Botón "Salvar álbum en la biblioteca"
+            let isSaved = environment.library.isAlbumSaved(id: album.id) || environment.library.isAlbumSaved(id: album.title)
+            Button {
+                do {
+                    try environment.library.toggleSaveAlbum(album)
+                    let nowSaved = environment.library.isAlbumSaved(id: album.id) || environment.library.isAlbumSaved(id: album.title)
+                    withAnimation {
+                        toastMessage = nowSaved ? "Álbum guardado en la biblioteca" : "Álbum eliminado de la biblioteca"
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation { toastMessage = nil }
+                    }
+                } catch {
+                    withAnimation { toastMessage = "Error al guardar el álbum" }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation { toastMessage = nil }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                        .font(.subheadline.weight(.bold))
+                    Text(isSaved ? "Guardado" : "Guardar")
+                        .font(.subheadline.weight(.bold))
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(isSaved ? DiegoTheme.accent.opacity(0.15) : DiegoTheme.surface)
+                .foregroundStyle(DiegoTheme.accent)
+                .clipShape(Capsule())
+                .overlay {
+                    Capsule().stroke(DiegoTheme.accent.opacity(0.5), lineWidth: 1.5)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isSaved ? "Eliminar álbum de la biblioteca" : "Guardar álbum en la biblioteca")
         }
     }
 

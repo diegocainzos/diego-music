@@ -50,6 +50,30 @@ final class LibraryStoreTests: XCTestCase {
         XCTAssertEqual(store.preference(for: "playback.historyEnabled"), "true")
     }
 
+    func testSavedAlbumToggleAndDelete() throws {
+        let store = makeStore()
+        let album = Album(
+            id: "album_123",
+            title: "OK Computer",
+            channelTitle: "Radiohead",
+            thumbnailURL: URL(string: "https://example.com/cover.jpg"),
+            tracks: [MediaItem(id: "track_1", title: "Airbag", channelTitle: "Radiohead")]
+        )
+
+        XCTAssertFalse(store.isAlbumSaved(id: album.id))
+        try store.toggleSaveAlbum(album)
+
+        XCTAssertTrue(store.isAlbumSaved(id: album.id))
+        XCTAssertTrue(store.isAlbumSaved(id: "OK Computer"))
+        XCTAssertEqual(store.savedAlbums.count, 1)
+        XCTAssertEqual(store.savedAlbums.first?.title, "OK Computer")
+        XCTAssertEqual(store.favorites.map(\.videoID), ["track_1"])
+
+        try store.deleteSavedAlbum(id: album.id)
+        XCTAssertFalse(store.isAlbumSaved(id: album.id))
+        XCTAssertTrue(store.savedAlbums.isEmpty)
+    }
+
     private func makeStore() -> LibraryStore {
         LibraryStore(context: Self.persistence.container.viewContext)
     }
