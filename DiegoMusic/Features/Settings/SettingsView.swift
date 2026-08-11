@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @EnvironmentObject private var environment: AppEnvironment
     @ObservedObject var playbackSettings: PlaybackSettings
     let library: LibraryStore
     let resolverConfigured: Bool
@@ -8,16 +9,20 @@ struct SettingsView: View {
 
     @State private var historyMessage: String?
     @State private var showClearDownloadsConfirm = false
+    @State private var isShowingLoginSheet = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 SectionHeader(eyebrow: "Control local", title: "Ajustes", color: DiegoTheme.accent)
 
+                // MARK: - Cuenta de Usuario (Backend)
+                accountSection
+
                 VStack(alignment: .leading, spacing: 14) {
                     Label("Apariencia", systemImage: "paintpalette.fill")
                         .font(.title2.bold())
-                    
+
                     Text("Selecciona la apariencia preferida para la interfaz de la aplicación.")
                         .font(.callout)
                         .foregroundStyle(DiegoTheme.textSecondary)
@@ -70,7 +75,7 @@ struct SettingsView: View {
                     .buttonStyle(PrimaryButtonStyle())
                     if let historyMessage { Text(historyMessage).font(.caption) }
                     settingLine("Telemetría propia", value: "Desactivada")
-                    settingLine("Inicio de sesión", value: "No requerido")
+                    settingLine("Inicio de sesión", value: environment.authState.isAuthenticated ? "Activo" : "No iniciado")
                 }
                 .minimalCard()
 
@@ -118,6 +123,73 @@ struct SettingsView: View {
             .frame(maxWidth: 900)
             .frame(maxWidth: .infinity)
         }
+        .sheet(isPresented: $isShowingLoginSheet) {
+            LoginView()
+        }
+    }
+
+    @ViewBuilder
+    private var accountSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Cuenta de usuario", systemImage: "person.crop.circle.fill")
+                .font(.title2.bold())
+
+            switch environment.authState {
+            case .authenticated(let user):
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(DiegoTheme.accent)
+                            .frame(width: 48, height: 48)
+                        Text(String((user.fullName ?? user.email).prefix(1)).uppercased())
+                            .font(.title3.bold())
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(user.fullName ?? "Usuario DiegoMusic")
+                            .font(.headline)
+                        Text(user.email)
+                            .font(.subheadline)
+                            .foregroundStyle(DiegoTheme.textSecondary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        environment.logout()
+                    } label: {
+                        Text("Cerrar Sesión")
+                            .font(.subheadline.bold())
+                    }
+                    .buttonStyle(PrimaryButtonStyle(color: DiegoTheme.red))
+                }
+
+            case .loading:
+                HStack {
+                    ProgressView()
+                        .tint(DiegoTheme.accent)
+                    Text("Verificando sesión...")
+                        .font(.subheadline)
+                        .foregroundStyle(DiegoTheme.textSecondary)
+                }
+
+            case .unauthenticated:
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Conecta con tu servidor privado para sincronizar listas y preferencias.")
+                        .font(.callout)
+                        .foregroundStyle(DiegoTheme.textSecondary)
+
+                    Button {
+                        isShowingLoginSheet = true
+                    } label: {
+                        Label("Iniciar Sesión / Registrarse", systemImage: "lock.shield.fill")
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                }
+            }
+        }
+        .minimalCard()
     }
 
     private func settingLine(_ title: String, value: String) -> some View {

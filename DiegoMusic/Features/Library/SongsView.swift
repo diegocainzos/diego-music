@@ -6,6 +6,7 @@ struct SongsView: View {
     @ObservedObject var library: LibraryStore
     let query: String
     let onPlay: (MediaItem) -> Void
+    var onPlayQueue: (([MediaItem], Int) -> Void)? = nil
     var downloadManager: OfflineDownloadManager? = nil
     var resolver: (any AudioStreamResolving)? = nil
     var isOffline: Bool = false
@@ -104,7 +105,11 @@ struct SongsView: View {
 
         return HStack(spacing: 12) {
             Button {
-                onPlay(track.mediaItem)
+                if let onPlayQueue {
+                    onPlayQueue(filtered.map(\.mediaItem), index - 1)
+                } else {
+                    onPlay(track.mediaItem)
+                }
             } label: {
                 HStack(spacing: 12) {
                     Text("\(index)")

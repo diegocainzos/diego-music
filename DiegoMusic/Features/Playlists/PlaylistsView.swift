@@ -57,7 +57,10 @@ struct PlaylistsView: View {
     @State private var expandedPlaylists: Set<UUID> = []
     @State private var errorMessage: String?
     @State private var isShowingCreateSheet = false
+    @State private var isShowingImportSheet = false
     let onPlay: (MediaItem) -> Void
+    var onPlayQueue: (([MediaItem], Int) -> Void)? = nil
+    var youtubeService: (any YouTubeDataServicing)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -67,7 +70,15 @@ struct PlaylistsView: View {
                 Button {
                     isShowingCreateSheet = true
                 } label: {
-                    Label("Crear Playlist", systemImage: "plus.circle.fill")
+                    Label("Crear", systemImage: "plus.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(PrimaryButtonStyle())
+
+                Button {
+                    isShowingImportSheet = true
+                } label: {
+                    Label("Importar", systemImage: "arrow.down.doc.fill")
                         .font(.subheadline.weight(.semibold))
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -106,9 +117,16 @@ struct PlaylistsView: View {
                                             .foregroundStyle(.secondary)
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                     }
-                                    ForEach(Array(playlist.entries.sorted(by: { $0.position < $1.position }).enumerated()), id: \.element.id) { index, entry in
+                                    let sortedEntries = playlist.entries.sorted(by: { $0.position < $1.position })
+                                    ForEach(Array(sortedEntries.enumerated()), id: \.element.id) { index, entry in
                                         HStack(spacing: 10) {
-                                            Button { onPlay(entry.mediaItem) } label: {
+                                            Button {
+                                                if let onPlayQueue {
+                                                    onPlayQueue(sortedEntries.map(\.mediaItem), index)
+                                                } else {
+                                                    onPlay(entry.mediaItem)
+                                                }
+                                            } label: {
                                                 VStack(alignment: .leading) {
                                                     Text(entry.title).font(.headline).lineLimit(1)
                                                     Text(entry.channelTitle).font(.caption).foregroundStyle(.secondary)
@@ -152,6 +170,11 @@ struct PlaylistsView: View {
         .padding(28)
         .sheet(isPresented: $isShowingCreateSheet) {
             CreatePlaylistSheet(library: library) { created in
+                expandedPlaylists.insert(created.id)
+            }
+        }
+        .sheet(isPresented: $isShowingImportSheet) {
+            ImportYouTubePlaylistSheet(library: library, youtubeService: youtubeService) { created in
                 expandedPlaylists.insert(created.id)
             }
         }

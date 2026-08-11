@@ -25,10 +25,12 @@ class PersistentAudioCache:
         directory: Path | None,
         max_bytes: int,
         max_file_bytes: int,
+        ffmpeg_binary: str = "ffmpeg",
     ) -> None:
         self.directory = directory
         self.max_bytes = max_bytes
         self.max_file_bytes = max_file_bytes
+        self.ffmpeg_binary = ffmpeg_binary
         self._downloads: dict[str, asyncio.Task[None]] = {}
         self._maintenance_lock = asyncio.Lock()
 
@@ -143,7 +145,11 @@ class PersistentAudioCache:
 
             if written != content_length:
                 return
-            await asyncio.to_thread(temporary.replace, destination)
+            # Los fMP4 de YouTube declaran la duración en mvhd Y en los
+            # fragmentos; AVFoundation los suma y muestra el doble. Remux a
+            # MP4 progresivo (stream copy) para dejar una única fuente.
+            final = await self._defragment(temporary) or temporary
+            await asyncio.to_thread(final.replace, destination)
             await asyncio.to_thread(destination.touch)
             await self._evict_if_needed()
         except asyncio.CancelledError:
@@ -152,6 +158,30 @@ class PersistentAudioCache:
             return
         finally:
             await asyncio.to_thread(temporary.unlink, missing_ok=True)
+            await asyncio.to_thread(self._defrag_temp_for(temporary).unlink, missing_ok=True)
+
+    async def _defragment(self, source: Path) -> Path | None:
+        """Remux fMP4 -> MP4 progresivo; None si falla (best-effort)."""
+        target = self._defrag_temp_for(source)
+        try:
+            process = await asyncio.create_subprocess_exec(
+                self.ffmpeg_binary,
+                "-y", "-v", "error", "-i", str(source),
+                "-c", "copy", "-movflags", "+faststart", "-f", "mp4", str(target),
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.wait_for(process.communicate(), timeout=60)
+            if process.returncode != 0:
+                return None
+            stat = await asyncio.to_thread(target.stat)
+            return target if stat.st_size > 0 else None
+        except (OSError, asyncio.TimeoutError):
+            return None
+
+    @staticmethod
+    def _defrag_temp_for(source: Path) -> Path:
+        return source.with_suffix(".mux.part")
 
     async def _content_length(
         self,

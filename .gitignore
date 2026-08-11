@@ -6,7 +6,9 @@ Config/Secrets.xcconfig
 .pi/npm/
 .pi/tools/
 .pi/openspec/node_modules/
+.pi/hindsight/
 .pi-subagents/
+.worktrees/
 
 # Xcode
 DerivedData/
@@ -21,6 +23,9 @@ xcuserdata/
 __pycache__/
 *.pyc
 .pytest_cache/
+*.db
+*.db-wal
+*.db-shm
 .DS_Store
 
 # Informes locales

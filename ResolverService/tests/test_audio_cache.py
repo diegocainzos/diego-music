@@ -151,6 +151,33 @@ async def test_initialization_removes_partials_and_evicts_lru(tmp_path: Path) ->
 
 
 @pytest.mark.asyncio
+async def test_defragment_failure_falls_back_to_fragmented_file(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "HEAD":
+            return httpx.Response(200, headers={"Content-Length": "8"})
+        return httpx.Response(
+            206,
+            headers={"Content-Range": "bytes 0-7/8"},
+            stream=httpx.ByteStream(b"abcdefgh"),
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    cache = PersistentAudioCache(
+        tmp_path, max_bytes=100, max_file_bytes=50, ffmpeg_binary="/nonexistent-ffmpeg"
+    )
+    await cache.initialize()
+    cache.schedule(VIDEO_ID, upstream_audio(), client)
+    await cache.wait_for_download(VIDEO_ID)
+
+    result = await cache.get(VIDEO_ID)
+    assert result is not None
+    assert result.cached_path is not None
+    assert result.cached_path.read_bytes() == b"abcdefgh"
+    assert list(tmp_path.glob("*.part")) == []
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_zero_size_disables_cache(tmp_path: Path) -> None:
     cache = PersistentAudioCache(tmp_path, max_bytes=0, max_file_bytes=50)
     await cache.initialize()

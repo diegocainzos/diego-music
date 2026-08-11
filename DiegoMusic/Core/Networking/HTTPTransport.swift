@@ -1,17 +1,17 @@
 import Foundation
 
-protocol HTTPTransport: Sendable {
+public protocol HTTPTransport: Sendable {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse)
 }
 
-struct URLSessionTransport: HTTPTransport {
+public struct URLSessionTransport: HTTPTransport {
     private let session: URLSession
 
-    init(session: URLSession = .shared) {
+    public init(session: URLSession = .shared) {
         self.session = session
     }
 
-    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    public func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)

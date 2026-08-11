@@ -6,11 +6,14 @@ struct ListaView: View {
     @ObservedObject var library: LibraryStore
     let query: String
     let onPlay: (MediaItem) -> Void
+    var onPlayQueue: (([MediaItem], Int) -> Void)? = nil
+    var youtubeService: (any YouTubeDataServicing)? = nil
 
     @State private var newName = ""
     @State private var expandedPlaylists: Set<UUID> = []
     @State private var renamingPlaylist: LocalPlaylist?
     @State private var isShowingCreateSheet = false
+    @State private var isShowingImportSheet = false
     @State private var draftName = ""
     @State private var errorMessage: String?
 
@@ -48,6 +51,11 @@ struct ListaView: View {
                 expandedPlaylists.insert(created.id)
             }
         }
+        .sheet(isPresented: $isShowingImportSheet) {
+            ImportYouTubePlaylistSheet(library: library, youtubeService: youtubeService) { created in
+                expandedPlaylists.insert(created.id)
+            }
+        }
     }
 
     private var createRow: some View {
@@ -71,6 +79,14 @@ struct ListaView: View {
                 isShowingCreateSheet = true
             } label: {
                 Label("Nueva Playlist", systemImage: "plus.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(PrimaryButtonStyle())
+
+            Button {
+                isShowingImportSheet = true
+            } label: {
+                Label("Importar YouTube", systemImage: "arrow.down.doc.fill")
                     .font(.subheadline.weight(.semibold))
             }
             .buttonStyle(PrimaryButtonStyle())
@@ -101,12 +117,19 @@ struct ListaView: View {
     }
 
     private func entriesSection(for playlist: LocalPlaylist) -> some View {
-        ForEach(
-            Array(playlist.entries.sorted(by: { $0.position < $1.position }).enumerated()),
+        let sortedEntries = playlist.entries.sorted(by: { $0.position < $1.position })
+        return ForEach(
+            Array(sortedEntries.enumerated()),
             id: \.element.id
         ) { index, entry in
             HStack(spacing: 10) {
-                Button { onPlay(entry.mediaItem) } label: {
+                Button {
+                    if let onPlayQueue {
+                        onPlayQueue(sortedEntries.map(\.mediaItem), index)
+                    } else {
+                        onPlay(entry.mediaItem)
+                    }
+                } label: {
                     VStack(alignment: .leading) {
                         Text(entry.title).font(.headline).lineLimit(1)
                         Text(entry.channelTitle).font(.caption).foregroundStyle(.secondary)
