@@ -24,6 +24,7 @@ struct RootView: View {
             }
         }
         .tint(DiegoTheme.accent)
+        .preferredColorScheme(environment.playbackSettings.themeMode.colorScheme)
     }
 
     // MARK: - Rama Desktop / Regular (Apple Music Web Split Layout)

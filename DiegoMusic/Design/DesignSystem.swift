@@ -1,20 +1,49 @@
 import SwiftUI
 
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
+import SwiftUI
+
 enum DiegoTheme {
     // MARK: - Tokens semánticos (estética Apple Music Web)
 
     /// Rojo vibrante Apple Music `#FA2D48` (RGB: 250, 45, 72)
     static let accent = Color(red: 250 / 255.0, green: 45 / 255.0, blue: 72 / 255.0)
 
-    /// Preservados por compatibilidad (Modo Oscuro predeterminado)
-    static let background = Color.black
-    static let surface = Color(red: 28 / 255.0, green: 28 / 255.0, blue: 30 / 255.0) // #1C1C1E
-    static let cardSurface = Color.white.opacity(0.06)
+    static let background = Color(
+        light: Color.white,
+        dark: Color.black
+    )
+
+    static let surface = Color(
+        light: Color(red: 242 / 255.0, green: 242 / 255.0, blue: 247 / 255.0),
+        dark: Color(red: 28 / 255.0, green: 28 / 255.0, blue: 30 / 255.0)
+    )
+
+    static let cardSurface = Color(
+        light: Color.black.opacity(0.04),
+        dark: Color.white.opacity(0.06)
+    )
+
     static let glassMaterial: Material = .ultraThinMaterial
 
-    static let textPrimary = Color.white
-    static let textSecondary = Color.white.opacity(0.60)
-    static let textTertiary = Color.white.opacity(0.35)
+    static let textPrimary = Color(
+        light: Color.black,
+        dark: Color.white
+    )
+
+    static let textSecondary = Color(
+        light: Color.black.opacity(0.60),
+        dark: Color.white.opacity(0.60)
+    )
+
+    static let textTertiary = Color(
+        light: Color.black.opacity(0.35),
+        dark: Color.white.opacity(0.35)
+    )
 
     static let green = Color(red: 0.12, green: 0.84, blue: 0.38)
     static let red = Color(red: 250 / 255.0, green: 45 / 255.0, blue: 72 / 255.0)
@@ -63,6 +92,22 @@ enum DiegoTheme {
         scheme == .light
             ? Color.black.opacity(0.06)
             : Color.white.opacity(0.08)
+    }
+}
+
+extension Color {
+    init(light: Color, dark: Color) {
+        #if os(iOS)
+        self.init(uiColor: UIColor { trait in
+            trait.userInterfaceStyle == .light ? UIColor(light) : UIColor(dark)
+        })
+        #elseif os(macOS)
+        self.init(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor(dark) : NSColor(light)
+        })
+        #else
+        self = dark
+        #endif
     }
 }
 

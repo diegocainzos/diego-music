@@ -13,6 +13,23 @@ struct SettingsView: View {
                 SectionHeader(eyebrow: "Control local", title: "Ajustes", color: DiegoTheme.accent)
 
                 VStack(alignment: .leading, spacing: 14) {
+                    Label("Apariencia", systemImage: "paintpalette.fill")
+                        .font(.title2.bold())
+                    
+                    Text("Selecciona la apariencia preferida para la interfaz de la aplicación.")
+                        .font(.callout)
+                        .foregroundStyle(DiegoTheme.textSecondary)
+
+                    Picker("Tema de la interfaz", selection: $playbackSettings.themeMode) {
+                        ForEach(AppThemeMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .minimalCard()
+
+                VStack(alignment: .leading, spacing: 14) {
                     Label("Audio privado", systemImage: "waveform.badge.shield.lefthalf.filled")
                         .font(.title2.bold())
                     HStack {
