@@ -15,13 +15,13 @@ struct RootView: View {
                 phoneTabView
             } else {
                 desktopLayout
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        PlayerDock(
+                            player: environment.player,
+                            queue: environment.queue
+                        )
+                    }
             }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            PlayerDock(
-                player: environment.player,
-                queue: environment.queue
-            )
         }
         .tint(DiegoTheme.accent)
     }
@@ -67,46 +67,28 @@ struct RootView: View {
         }
     }
 
-    // MARK: - Rama iPhone (TabView)
+    // MARK: - Rama iPhone (Layout Jerárquico: Contenido Z-0, PlayerDock Z-1, PhoneTabBar Z-2)
 
     private var phoneTabView: some View {
-        TabView(selection: Binding(
-            get: { navState.current },
-            set: { navState.navigate(to: $0) }
-        )) {
-            themed { HomeView { navState.navigate(to: .search) } }
-                .tabItem { Label(AppDestination.home.title, systemImage: AppDestination.home.symbol) }
-                .tag(AppDestination.home)
-
-            themed {
-                SearchView(
-                    service: environment.youtubeService,
-                    library: environment.library,
-                    onPlay: environment.play,
-                    onFavorite: { try? environment.library.toggleFavorite($0) }
-                )
+        VStack(spacing: 0) {
+            ZStack {
+                DiegoTheme.background.ignoresSafeArea()
+                destinationView(navState.current)
+                    .id(navState.rootResetTrigger)
             }
-            .tabItem { Label(AppDestination.search.title, systemImage: AppDestination.search.symbol) }
-            .tag(AppDestination.search)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .zIndex(0)
 
-            themed { LibraryView(library: environment.library, onPlay: environment.play) }
-                .tabItem { Label(AppDestination.library.title, systemImage: AppDestination.library.symbol) }
-                .tag(AppDestination.library)
+            PlayerDock(
+                player: environment.player,
+                queue: environment.queue
+            )
+            .zIndex(1)
 
-            themed { PlaylistsView(library: environment.library, onPlay: environment.play) }
-                .tabItem { Label(AppDestination.playlists.title, systemImage: AppDestination.playlists.symbol) }
-                .tag(AppDestination.playlists)
-
-            themed {
-                SettingsView(
-                    playbackSettings: environment.playbackSettings,
-                    library: environment.library,
-                    resolverConfigured: environment.resolverConfigured
-                )
-            }
-            .tabItem { Label(AppDestination.settings.title, systemImage: AppDestination.settings.symbol) }
-            .tag(AppDestination.settings)
+            PhoneTabBar(navState: navState)
+                .zIndex(2)
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
     private func themed<Content: View>(@ViewBuilder content: () -> Content) -> some View {
@@ -327,5 +309,42 @@ struct HeaderView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
+    }
+}
+
+// MARK: - Barra de Pestañas Inferior para iPhone (PhoneTabBar con z-index 2)
+
+struct PhoneTabBar: View {
+    @ObservedObject var navState: NavigationState
+
+    private let mainTabs: [AppDestination] = [.home, .search, .library, .playlists, .settings]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(mainTabs) { destination in
+                Button {
+                    navState.selectTab(destination)
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: destination.symbol)
+                            .font(.system(size: 18, weight: navState.current == destination ? .bold : .regular))
+                        Text(destination.title)
+                            .font(.system(size: 10, weight: navState.current == destination ? .semibold : .medium))
+                    }
+                    .foregroundStyle(navState.current == destination ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(destination.title)
+            }
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 22)
+        .background(DiegoTheme.surface)
+        .overlay(alignment: .top) {
+            Divider()
+                .opacity(0.12)
+        }
     }
 }

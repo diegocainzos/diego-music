@@ -15,6 +15,15 @@ struct HomeView: View {
 
     private var isCompact: Bool { sizeClass == .compact }
 
+    private var greeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 6..<12: return "Buenos días"
+        case 12..<20: return "Buenas tardes"
+        default: return "Buenas noches"
+        }
+    }
+
     init(onStartSearch: @escaping () -> Void) {
         self.onStartSearch = onStartSearch
         _model = StateObject(wrappedValue: HomeViewModel(service: UnavailableDiscoveryService()))
@@ -24,25 +33,22 @@ struct HomeView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: isCompact ? 24 : 32) {
-                    // Header de Sección Principal
-                    HStack(alignment: .firstTextBaseline) {
+                    // Header de Sección Principal ("Escuchar / Listen Now")
+                    HStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("ESCUCHA AHORA")
+                            Text(greeting.uppercased())
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(DiegoTheme.accent)
                                 .tracking(1.2)
-                            Text("Explorar")
-                                .font(.system(size: isCompact ? 30 : 38, weight: .bold, design: .default))
+                            Text("Escuchar")
+                                .font(.system(size: 32, weight: .bold, design: .default))
                                 .foregroundStyle(DiegoTheme.textPrimary)
                         }
                         Spacer()
                         Button(action: onStartSearch) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.title3.weight(.semibold))
+                            Image(systemName: "person.crop.circle.fill")
+                                .font(.system(size: 32))
                                 .foregroundStyle(DiegoTheme.accent)
-                                .padding(10)
-                                .background(DiegoTheme.surface)
-                                .clipShape(Circle())
                         }
                         .accessibilityLabel("Buscar música")
                     }
@@ -50,7 +56,10 @@ struct HomeView: View {
                     // 1. Hero Carousel (Destacados Banners)
                     heroCarousel
 
-                    // 2. Sección Novedades / Feed Principal
+                    // 2. Historial Reciente (si está disponible)
+                    recentlyPlayedSection
+
+                    // 3. Sección Descubrimiento (Top Artistas + Recomendaciones)
                     discoverySection
                 }
                 .padding(.top, isCompact ? 16 : 24)
@@ -80,32 +89,32 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Hero Carousel (Banners Destacados horizontales 320-400pt)
+    // MARK: - Hero Carousel (Banners Destacados horizontales 340-380pt de ancho, 220pt de alto)
 
     private var heroCarousel: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: isCompact ? 14 : 20) {
                 heroCard(
-                    eyebrow: "SESIÓN EN DESTACADO",
+                    eyebrow: "NUEVO ÁLBUM",
                     title: "Hip-Hop & R&B Essentials",
                     subtitle: "Grandes clásicos y lo más reciente del panorama urbano.",
-                    gradientColors: [Color.red.opacity(0.8), Color.purple.opacity(0.9)],
+                    gradientColors: [DiegoTheme.accent.opacity(0.9), Color.purple.opacity(0.9)],
                     symbol: "music.mic"
                 )
 
                 heroCard(
-                    eyebrow: "NUEVO ÁLBUM",
+                    eyebrow: "ESTACIÓN RECOMENDADA",
                     title: "Novedades de la Semana",
                     subtitle: "Los lanzamientos más escuchados seleccionados para ti.",
-                    gradientColors: [Color.orange.opacity(0.8), Color.red.opacity(0.9)],
+                    gradientColors: [Color.orange.opacity(0.85), DiegoTheme.accent.opacity(0.9)],
                     symbol: "sparkles"
                 )
 
                 heroCard(
-                    eyebrow: "RADIO 24/7",
+                    eyebrow: "DESTACADO DE HOY",
                     title: "Chill & Focus Beats",
                     subtitle: "Sesiones instrumentales perfectas para concentración.",
-                    gradientColors: [Color.blue.opacity(0.8), Color.indigo.opacity(0.9)],
+                    gradientColors: [Color.blue.opacity(0.85), Color.indigo.opacity(0.9)],
                     symbol: "radio.fill"
                 )
             }
@@ -128,22 +137,34 @@ struct HomeView: View {
                     endPoint: .bottomTrailing
                 )
 
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.75)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text(eyebrow)
                             .font(.caption2.bold())
-                            .tracking(1.5)
-                            .foregroundStyle(.white.opacity(0.9))
+                            .tracking(1.4)
+                            .foregroundStyle(DiegoTheme.accent)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(.white.opacity(0.95))
+                            .clipShape(Capsule())
+
                         Spacer()
+
                         Image(systemName: symbol)
                             .font(.title3)
-                            .foregroundStyle(.white.opacity(0.8))
+                            .foregroundStyle(.white.opacity(0.85))
                     }
 
                     Spacer()
 
                     Text(title)
-                        .font(.system(size: 24, weight: .bold, design: .default))
+                        .font(.system(size: 22, weight: .bold, design: .default))
                         .foregroundStyle(.white)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
@@ -156,11 +177,56 @@ struct HomeView: View {
                 }
                 .padding(20)
             }
-            .frame(width: isCompact ? 300 : 380, height: isCompact ? 190 : 220)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .frame(width: isCompact ? 340 : 380, height: 220)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .shadow(color: gradientColors.first?.opacity(0.3) ?? .black.opacity(0.15), radius: 8, x: 0, y: 4)
         }
         .buttonStyle(TilePressButtonStyle())
+    }
+
+    // MARK: - Escuchado Recientemente
+
+    @ViewBuilder
+    private var recentlyPlayedSection: some View {
+        if let recentItem = environment.playbackSettings.restoreState?.item {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Escuchado recientemente")
+                    .font(.title2.bold())
+                    .foregroundStyle(DiegoTheme.textPrimary)
+
+                Button {
+                    environment.play(recentItem)
+                } label: {
+                    HStack(spacing: 14) {
+                        TrackArtwork(url: recentItem.thumbnailURL)
+                            .frame(width: 60, height: 60)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(recentItem.title)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(DiegoTheme.textPrimary)
+                                .lineLimit(1)
+
+                            Text(recentItem.channelTitle)
+                                .font(.caption)
+                                .foregroundStyle(DiegoTheme.textSecondary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "play.circle.fill")
+                            .font(.title)
+                            .foregroundStyle(DiegoTheme.accent)
+                    }
+                    .padding(12)
+                    .background(DiegoTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(TilePressButtonStyle())
+            }
+        }
     }
 
     // MARK: - Sección Descubrimiento
@@ -197,36 +263,37 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Artistas Destacados
+    // MARK: - Top Artistas (Avatares Circulares 110pt)
 
     private func artistSection(_ artistas: [ArtistReference]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Artistas Destacados")
+                Text("Top Artistas")
                     .font(.title2.bold())
                     .foregroundStyle(DiegoTheme.textPrimary)
                 Spacer()
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: isCompact ? 14 : 18) {
+                HStack(spacing: 18) {
                     ForEach(artistas) { artist in
                         Button {
                             withAnimation(reduceMotion ? nil : .default) {
                                 path.append(.artist(id: artist.id, title: artist.title))
                             }
                         } label: {
-                            VStack(spacing: 10) {
+                            VStack(spacing: 8) {
                                 TrackArtwork(url: artist.thumbnailURL)
-                                    .frame(width: isCompact ? 100 : 120, height: isCompact ? 100 : 120)
+                                    .frame(width: 110, height: 110)
                                     .clipShape(Circle())
+                                    .overlay(Circle().stroke(DiegoTheme.textPrimary.opacity(0.08), lineWidth: 1))
                                     .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
 
                                 Text(artist.title)
-                                    .font(.subheadline.weight(.semibold))
+                                    .font(.system(size: 13, weight: .semibold))
                                     .lineLimit(1)
                                     .multilineTextAlignment(.center)
-                                    .frame(width: isCompact ? 100 : 120)
+                                    .frame(width: 110)
                                     .foregroundStyle(DiegoTheme.textPrimary)
                             }
                         }
@@ -238,20 +305,20 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Novedades Grid (Tarjetas 180x180pt con esquinas redondeadas de 10pt)
+    // MARK: - Recomendaciones Grid (Tarjetas 160x160pt con esquinas redondeadas de 12pt)
 
     private func novedadesGridSection(_ items: [MediaItem]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Top Charts & Novedades")
+                Text("Recomendaciones")
                     .font(.title2.bold())
                     .foregroundStyle(DiegoTheme.textPrimary)
                 Spacer()
             }
 
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: isCompact ? 150 : 180), spacing: isCompact ? 14 : 18)],
-                spacing: isCompact ? 16 : 22
+                columns: [GridItem(.adaptive(minimum: 160), spacing: 16)],
+                spacing: 20
             ) {
                 ForEach(items) { item in
                     Button {
@@ -261,20 +328,20 @@ struct HomeView: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 8) {
                             TrackArtwork(url: item.thumbnailURL)
-                                .frame(height: isCompact ? 150 : 180)
+                                .frame(width: 160, height: 160)
                                 .frame(maxWidth: .infinity)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                 .shadow(color: .black.opacity(0.1), radius: 5, y: 2)
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.title)
-                                    .font(.subheadline.weight(.semibold))
+                                    .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(DiegoTheme.textPrimary)
                                     .lineLimit(2)
                                     .multilineTextAlignment(.leading)
 
                                 Text(item.channelTitle)
-                                    .font(.caption)
+                                    .font(.system(size: 12))
                                     .foregroundStyle(DiegoTheme.textSecondary)
                                     .lineLimit(1)
                             }

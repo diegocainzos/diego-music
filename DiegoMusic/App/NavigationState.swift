@@ -61,6 +61,7 @@ final class NavigationState: ObservableObject {
     @Published var current: AppDestination
     @Published private(set) var backStack: [AppDestination] = []
     @Published private(set) var forwardStack: [AppDestination] = []
+    @Published var rootResetTrigger: UUID = UUID()
 
     init(initialDestination: AppDestination = .home) {
         self.current = initialDestination
@@ -91,6 +92,25 @@ final class NavigationState: ObservableObject {
         backStack.append(current)
         current = destination
         forwardStack.removeAll()
+    }
+
+    /// Selecciona una pestaña; si ya es la pestaña activa, resetea la pila a la raíz.
+    func selectTab(_ destination: AppDestination) {
+        if current == destination {
+            resetToRoot(destination)
+        } else {
+            navigate(to: destination)
+        }
+    }
+
+    /// Resetea la pila de rutas e historial a la vista raíz de la pestaña actual.
+    func resetToRoot(_ destination: AppDestination? = nil) {
+        backStack.removeAll()
+        forwardStack.removeAll()
+        if let destination {
+            current = destination
+        }
+        rootResetTrigger = UUID()
     }
 }
 

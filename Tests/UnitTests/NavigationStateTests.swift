@@ -33,4 +33,18 @@ final class NavigationStateTests: XCTestCase {
         XCTAssertTrue(navState.forwardStack.isEmpty)
         XCTAssertEqual(navState.current, .settings)
     }
+
+    func testSelectTabResetsToRootWhenReTappingActiveTab() {
+        let navState = NavigationState(initialDestination: .home)
+        navState.navigate(to: .search)
+        XCTAssertEqual(navState.current, .search)
+        XCTAssertFalse(navState.backStack.isEmpty)
+
+        // Re-tapping active tab (.search)
+        let initialToken = navState.rootResetTrigger
+        navState.selectTab(.search)
+        XCTAssertEqual(navState.current, .search)
+        XCTAssertTrue(navState.backStack.isEmpty)
+        XCTAssertNotEqual(navState.rootResetTrigger, initialToken)
+    }
 }

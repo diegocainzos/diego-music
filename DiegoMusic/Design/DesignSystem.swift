@@ -1,35 +1,75 @@
 import SwiftUI
 
 enum DiegoTheme {
-    // MARK: - Tokens semánticos (estética Apple Music Web dark)
+    // MARK: - Tokens semánticos (estética Apple Music Web)
 
-    /// Rojo vibrante Apple Music `#FA233C`
-    static let accent = Color(red: 250 / 255.0, green: 35 / 255.0, blue: 60 / 255.0)
-    /// Fondo oscuro base `#121212`
-    static let background = Color(red: 18 / 255.0, green: 18 / 255.0, blue: 18 / 255.0)
-    /// Superficie `#1E1E1E`
-    static let surface = Color(red: 30 / 255.0, green: 30 / 255.0, blue: 30 / 255.0)
-    /// Superficie de tarjetas `rgba(255,255,255,0.06)`
+    /// Rojo vibrante Apple Music `#FA2D48` (RGB: 250, 45, 72)
+    static let accent = Color(red: 250 / 255.0, green: 45 / 255.0, blue: 72 / 255.0)
+
+    /// Preservados por compatibilidad (Modo Oscuro predeterminado)
+    static let background = Color.black
+    static let surface = Color(red: 28 / 255.0, green: 28 / 255.0, blue: 30 / 255.0) // #1C1C1E
     static let cardSurface = Color.white.opacity(0.06)
-    /// Overlay traslúcido efecto cristal
     static let glassMaterial: Material = .ultraThinMaterial
 
-    /// Texto principal (blanco en interfaz oscura)
     static let textPrimary = Color.white
-    /// Texto secundario / metadatos
-    static let textSecondary = Color.white.opacity(0.6)
+    static let textSecondary = Color.white.opacity(0.60)
+    static let textTertiary = Color.white.opacity(0.35)
 
-    /// Estado "reproduciendo" / verde
     static let green = Color(red: 0.12, green: 0.84, blue: 0.38)
-    /// Errores
-    static let red = Color(red: 250 / 255.0, green: 35 / 255.0, blue: 60 / 255.0)
+    static let red = Color(red: 250 / 255.0, green: 45 / 255.0, blue: 72 / 255.0)
 
     static let cornerRadius: CGFloat = 12
+
+    // MARK: - Adaptadores dinámicos por ColorScheme (Modo Claro / Oscuro)
+
+    static func backgroundColor(for scheme: ColorScheme) -> Color {
+        scheme == .light ? Color.white : Color.black
+    }
+
+    static func background(for scheme: ColorScheme) -> Color {
+        backgroundColor(for: scheme)
+    }
+
+    static func surfaceColor(for scheme: ColorScheme) -> Color {
+        scheme == .light
+            ? Color(red: 242 / 255.0, green: 242 / 255.0, blue: 247 / 255.0) // #F2F2F7
+            : Color(red: 28 / 255.0, green: 28 / 255.0, blue: 30 / 255.0)    // #1C1C1E
+    }
+
+    static func surface(for scheme: ColorScheme) -> Color {
+        surfaceColor(for: scheme)
+    }
+
+    static func textPrimaryColor(for scheme: ColorScheme) -> Color {
+        scheme == .light ? Color.black : Color.white
+    }
+
+    static func textPrimary(for scheme: ColorScheme) -> Color {
+        textPrimaryColor(for: scheme)
+    }
+
+    static func textSecondaryColor(for scheme: ColorScheme) -> Color {
+        scheme == .light
+            ? Color.black.opacity(0.60)
+            : Color.white.opacity(0.60)
+    }
+
+    static func textSecondary(for scheme: ColorScheme) -> Color {
+        textSecondaryColor(for: scheme)
+    }
+
+    static func cardStrokeColor(for scheme: ColorScheme) -> Color {
+        scheme == .light
+            ? Color.black.opacity(0.06)
+            : Color.white.opacity(0.08)
+    }
 }
 
 // MARK: - Tarjeta estilo Apple Music Glassmorphic
 
 struct AppleMusicCardModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
     var cornerRadius: CGFloat = DiegoTheme.cornerRadius
 
     func body(content: Content) -> some View {
@@ -37,31 +77,37 @@ struct AppleMusicCardModifier: ViewModifier {
             .padding(16)
             .background(
                 ZStack {
-                    DiegoTheme.cardSurface
-                    Rectangle().fill(DiegoTheme.glassMaterial)
+                    DiegoTheme.surfaceColor(for: colorScheme).opacity(colorScheme == .light ? 0.88 : 0.85)
+                    Rectangle().fill(colorScheme == .light ? Material.regularMaterial : Material.ultraThinMaterial)
                 }
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    .stroke(DiegoTheme.cardStrokeColor(for: colorScheme), lineWidth: 1)
             )
     }
 }
 
-// MARK: - Tarjeta mínima heredada
+// MARK: - Tarjeta mínima adaptativa
 
 struct MinimalCardModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
     func body(content: Content) -> some View {
         content
             .padding(16)
-            .background(DiegoTheme.surface)
+            .background(DiegoTheme.surfaceColor(for: colorScheme))
             .clipShape(RoundedRectangle(cornerRadius: DiegoTheme.cornerRadius, style: .continuous))
     }
 }
 
 extension View {
     func appleMusicCard(cornerRadius: CGFloat = DiegoTheme.cornerRadius) -> some View {
+        modifier(AppleMusicCardModifier(cornerRadius: cornerRadius))
+    }
+
+    func glassCard(cornerRadius: CGFloat = DiegoTheme.cornerRadius) -> some View {
         modifier(AppleMusicCardModifier(cornerRadius: cornerRadius))
     }
 
@@ -115,6 +161,7 @@ struct SectionHeader: View {
     let eyebrow: String
     let title: String
     let color: Color
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -124,7 +171,7 @@ struct SectionHeader: View {
                 .foregroundStyle(color)
             Text(title)
                 .font(.title.bold())
-                .foregroundStyle(DiegoTheme.textPrimary)
+                .foregroundStyle(DiegoTheme.textPrimaryColor(for: colorScheme))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
