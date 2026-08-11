@@ -6,7 +6,7 @@ struct LibraryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            SectionHeader(eyebrow: "Solo en tu dispositivo", title: "Biblioteca", color: DiegoTheme.yellowText)
+            SectionHeader(eyebrow: "Solo en tu dispositivo", title: "Biblioteca", color: DiegoTheme.accent)
                 .padding(.horizontal, 28)
                 .padding(.top, 28)
 
@@ -22,13 +22,13 @@ struct LibraryView: View {
                     ForEach(library.favorites) { track in
                         Button { onPlay(track.mediaItem) } label: {
                             HStack(spacing: 14) {
-                                RecordPlaceholder(color: DiegoTheme.yellow).frame(width: 54, height: 54)
+                                TrackArtwork(url: track.mediaItem.thumbnailURL).frame(width: 54, height: 54)
                                 VStack(alignment: .leading) {
                                     Text(track.title).font(.headline)
                                     Text(track.channelTitle).font(.subheadline).foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                Image(systemName: "play.fill").foregroundStyle(DiegoTheme.red)
+                                Image(systemName: "play.fill").foregroundStyle(DiegoTheme.accent)
                             }
                         }
                         .buttonStyle(.plain)

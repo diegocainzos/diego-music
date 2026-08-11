@@ -21,21 +21,21 @@ struct SearchView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 18) {
-                SectionHeader(eyebrow: "Catálogo público", title: "Encuentra una frecuencia", color: DiegoTheme.blue)
+                SectionHeader(eyebrow: "Catálogo público", title: "Encuentra una frecuencia", color: DiegoTheme.accent)
                 HStack(spacing: 12) {
                     TextField("Canción, artista o sesión…", text: $model.query)
                         .textFieldStyle(.plain)
                         .font(.title3.weight(.semibold))
                         .padding(.horizontal, 16)
                         .frame(height: 50)
-                        .background(DiegoTheme.paper)
+                        .background(DiegoTheme.surface)
                         .clipShape(Capsule())
-                        .overlay { Capsule().stroke(DiegoTheme.ink, lineWidth: 2) }
+                        .overlay { Capsule().stroke(DiegoTheme.textPrimary.opacity(0.15), lineWidth: 1) }
                         .onSubmit { model.search() }
                     Button(action: { model.search() }) {
                         Label("Buscar", systemImage: "magnifyingglass")
                     }
-                    .buttonStyle(HiFiButtonStyle(color: DiegoTheme.blue))
+                    .buttonStyle(PrimaryButtonStyle())
                     .keyboardShortcut(.return, modifiers: [.command])
                 }
             }
@@ -57,7 +57,7 @@ struct SearchView: View {
             )
         case .loading:
             VStack(spacing: 14) {
-                ProgressView().controlSize(.large).tint(DiegoTheme.blue)
+                ProgressView().controlSize(.large).tint(DiegoTheme.accent)
                 Text("Sintonizando YouTube…").font(.headline)
             }
         case let .loaded(items):
@@ -101,26 +101,26 @@ struct SearchResultCard: View {
                 case let .success(image): image.resizable().scaledToFill()
                 default:
                     ZStack {
-                        DiegoTheme.ink
-                        Image(systemName: "music.note").font(.largeTitle).foregroundStyle(DiegoTheme.yellow)
+                        DiegoTheme.surface
+                        Image(systemName: "music.note").font(.largeTitle).foregroundStyle(DiegoTheme.accent)
                     }
                 }
             }
             .frame(height: 150)
             .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: DiegoTheme.cornerRadius, style: .continuous))
             .clipped()
 
-            Text(item.title).font(.headline).lineLimit(2)
-            Text(item.channelTitle).font(.subheadline).foregroundStyle(DiegoTheme.ink.opacity(0.65)).lineLimit(1)
+            Text(item.title).font(.headline).foregroundStyle(DiegoTheme.textPrimary).lineLimit(2)
+            Text(item.channelTitle).font(.subheadline).foregroundStyle(DiegoTheme.textSecondary).lineLimit(1)
 
             HStack {
                 Button { onPlay(item) } label: { Label("Reproducir", systemImage: "play.fill") }
-                    .buttonStyle(HiFiButtonStyle(color: DiegoTheme.yellow))
+                    .buttonStyle(PrimaryButtonStyle())
                 Button { onFavorite(item) } label: {
                     Image(systemName: library.isFavorite(item) ? "heart.fill" : "heart")
                 }
-                .buttonStyle(HiFiButtonStyle(color: DiegoTheme.red))
+                .buttonStyle(PrimaryButtonStyle())
                 .accessibilityLabel(library.isFavorite(item) ? "Quitar de favoritos" : "Añadir a favoritos")
                 .accessibilityValue(library.isFavorite(item) ? "Favorito" : "No favorito")
                 if !library.playlists.isEmpty {
@@ -136,6 +136,6 @@ struct SearchResultCard: View {
                 }
             }
         }
-        .bauhausCard(accent: DiegoTheme.blue)
+        .minimalCard()
     }
 }

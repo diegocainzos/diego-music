@@ -9,14 +9,14 @@ struct PlaylistsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            SectionHeader(eyebrow: "Secuencias locales", title: "Playlists", color: DiegoTheme.green)
+            SectionHeader(eyebrow: "Secuencias locales", title: "Playlists", color: DiegoTheme.accent)
 
             HStack {
                 TextField("Nombre de la nueva playlist", text: $newName)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(createPlaylist)
                 Button(action: createPlaylist) { Label("Crear", systemImage: "plus") }
-                    .buttonStyle(HiFiButtonStyle(color: DiegoTheme.green))
+                    .buttonStyle(PrimaryButtonStyle())
             }
 
             if let errorMessage {
@@ -69,7 +69,7 @@ struct PlaylistsView: View {
                                 .padding(.top, 12)
                             } label: {
                                 HStack {
-                                    Circle().fill(DiegoTheme.green).frame(width: 46, height: 46)
+                                    Circle().fill(DiegoTheme.accent).frame(width: 46, height: 46)
                                     VStack(alignment: .leading) {
                                         Text(playlist.name).font(.title3.bold())
                                         Text("\(playlist.entries.count) elementos").font(.caption).foregroundStyle(.secondary)
@@ -81,7 +81,7 @@ struct PlaylistsView: View {
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .bauhausCard(accent: DiegoTheme.green)
+                            .minimalCard()
                         }
                     }
                 }

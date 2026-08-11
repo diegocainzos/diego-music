@@ -25,8 +25,9 @@ struct EmptyStateView: View {
         VStack(spacing: 14) {
             Image(systemName: symbol)
                 .font(.system(size: 42, weight: .bold))
-                .foregroundStyle(DiegoTheme.red)
+                .foregroundStyle(DiegoTheme.accent)
             Text(title).font(.title2.bold())
+                .foregroundStyle(DiegoTheme.textPrimary)
             Text(description)
                 .font(.body)
                 .foregroundStyle(.secondary)
@@ -34,7 +35,7 @@ struct EmptyStateView: View {
                 .frame(maxWidth: 460)
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .buttonStyle(HiFiButtonStyle())
+                    .buttonStyle(PrimaryButtonStyle())
             }
         }
         .padding(32)

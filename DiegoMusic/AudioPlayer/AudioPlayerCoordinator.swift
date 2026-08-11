@@ -3,6 +3,7 @@ import Combine
 import Foundation
 #if os(iOS)
 import MediaPlayer
+import UIKit
 #endif
 
 enum AudioPlaybackState: Equatable, Sendable {
@@ -37,6 +38,8 @@ final class AudioPlayerCoordinator: ObservableObject {
     private var notificationObservers: [NSObjectProtocol] = []
     #if os(iOS)
     private var remoteCommandTargets: [(MPRemoteCommand, Any)] = []
+    private var artworkTask: Task<Void, Never>?
+    private var artworkItemID: MediaItem.ID?
     #endif
 
     init(queue: PlaybackQueue, resolver: any AudioStreamResolving) {
@@ -62,6 +65,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         for (command, target) in remoteCommandTargets {
             command.removeTarget(target)
         }
+        artworkTask?.cancel()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         #endif
     }
@@ -157,6 +161,9 @@ final class AudioPlayerCoordinator: ObservableObject {
         player.pause()
         player.replaceCurrentItem(with: nil)
         itemStatusObservation = nil
+        #if os(iOS)
+        artworkTask?.cancel()
+        #endif
         currentTime = 0
         duration = 0
         playbackState = .idle
@@ -484,10 +491,39 @@ final class AudioPlayerCoordinator: ObservableObject {
         ]
         if duration > 0 { information[MPMediaItemPropertyPlaybackDuration] = duration }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = information
+        publishArtwork(for: item)
 
         let center = MPRemoteCommandCenter.shared()
         center.nextTrackCommand.isEnabled = queue.canAdvance
         center.previousTrackCommand.isEnabled = queue.canRetreat || currentTime > 0
         #endif
     }
+
+    #if os(iOS)
+    /// Carga la carátula de forma asíncrona y la publica en Now Playing cuando
+    /// está lista, sin bloquear el hilo principal. Los metadatos de texto ya se
+    /// han publicado en `updateNowPlayingInfo`; aquí solo se añade la portada.
+    private func publishArtwork(for item: MediaItem) {
+        guard item.id != artworkItemID else { return }
+        artworkItemID = item.id
+        artworkTask?.cancel()
+        guard let url = item.thumbnailURL else { return }
+        artworkTask = Task { [weak self] in
+            guard let self else { return }
+            let image = await ArtworkCache.shared.image(for: url)
+            guard !Task.isCancelled,
+                  let image,
+                  self.queue.current?.id == item.id
+            else { return }
+            let artwork = MPMediaItemArtwork(
+                boundsSize: CGSize(width: CGFloat(image.width), height: CGFloat(image.height))
+            ) { _ in
+                UIImage(cgImage: image)
+            }
+            var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+            info[MPMediaItemPropertyArtwork] = artwork
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        }
+    }
+    #endif
 }

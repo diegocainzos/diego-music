@@ -9,7 +9,7 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                SectionHeader(eyebrow: "Control local", title: "Ajustes", color: DiegoTheme.red)
+                SectionHeader(eyebrow: "Control local", title: "Ajustes", color: DiegoTheme.accent)
 
                 VStack(alignment: .leading, spacing: 14) {
                     Label("Audio privado", systemImage: "waveform.badge.shield.lefthalf.filled")
@@ -27,18 +27,18 @@ struct SettingsView: View {
                             : "Añade AUDIO_RESOLVER_BASE_URL y AUDIO_RESOLVER_API_TOKEN a .env y regenera el proyecto."
                     )
                     .font(.callout)
-                    .foregroundStyle(DiegoTheme.ink.opacity(0.72))
+                    .foregroundStyle(DiegoTheme.textSecondary)
                     settingLine("Motor", value: "AVPlayer")
                     settingLine("Vídeo embebido", value: "Desactivado")
                     settingLine("URL y token", value: "Configuración local protegida")
                 }
-                .bauhausCard(accent: resolverConfigured ? DiegoTheme.green : DiegoTheme.red)
+                .minimalCard()
 
                 VStack(alignment: .leading, spacing: 12) {
                     Label("Privacidad", systemImage: "lock.fill").font(.title2.bold())
                     settingLine("Biblioteca", value: "Solo local")
                     Toggle("Guardar historial local opcional", isOn: $playbackSettings.historyEnabled)
-                        .tint(DiegoTheme.blue)
+                        .tint(DiegoTheme.accent)
                     Button("Borrar historial local") {
                         do {
                             try playbackSettings.clearHistory()
@@ -47,12 +47,12 @@ struct SettingsView: View {
                             historyMessage = "No se pudo borrar el historial local."
                         }
                     }
-                    .buttonStyle(HiFiButtonStyle(color: DiegoTheme.blue))
+                    .buttonStyle(PrimaryButtonStyle())
                     if let historyMessage { Text(historyMessage).font(.caption) }
                     settingLine("Telemetría propia", value: "Desactivada")
                     settingLine("Inicio de sesión", value: "No requerido")
                 }
-                .bauhausCard(accent: DiegoTheme.blue)
+                .minimalCard()
 
                 VStack(alignment: .leading, spacing: 10) {
                     Label("Acerca de DiegoMusic", systemImage: "circle.hexagongrid.fill").font(.title2.bold())
@@ -62,7 +62,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .bauhausCard(accent: DiegoTheme.yellow)
+                .minimalCard()
             }
             .padding(28)
             .frame(maxWidth: 900)

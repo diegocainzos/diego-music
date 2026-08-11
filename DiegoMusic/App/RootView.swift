@@ -29,13 +29,13 @@ enum AppDestination: String, CaseIterable, Identifiable {
         }
     }
 
-    var color: Color {
+    var accentColor: Color {
         switch self {
-        case .home: return DiegoTheme.red
-        case .search: return DiegoTheme.blue
-        case .library: return DiegoTheme.yellowText
+        case .home: return DiegoTheme.accent
+        case .search: return DiegoTheme.accent
+        case .library: return DiegoTheme.accent
         case .playlists: return DiegoTheme.green
-        case .settings: return DiegoTheme.red
+        case .settings: return DiegoTheme.accent
         }
     }
 }
@@ -48,18 +48,18 @@ struct RootView: View {
         NavigationSplitView {
             List(AppDestination.allCases, selection: $selection) { destination in
                 HStack(spacing: 10) {
-                    Image(systemName: destination.symbol).foregroundStyle(destination.color)
-                    Text(destination.title).foregroundStyle(DiegoTheme.ink)
+                    Image(systemName: destination.symbol).foregroundStyle(destination.accentColor)
+                    Text(destination.title).foregroundStyle(DiegoTheme.textPrimary)
                 }
-                .font(.system(.body, design: .rounded, weight: .bold))
+                .font(.system(.body, design: .default, weight: .semibold))
                 .tag(destination)
             }
             .navigationTitle("DiegoMusic")
             .scrollContentBackground(.hidden)
-            .background(DiegoTheme.cream)
+            .background(DiegoTheme.background)
         } detail: {
             ZStack {
-                DiegoTheme.cream.ignoresSafeArea()
+                DiegoTheme.background.ignoresSafeArea()
                 destinationView(selection ?? .home)
             }
         }
@@ -70,7 +70,7 @@ struct RootView: View {
                 queue: environment.queue
             )
         }
-        .tint(DiegoTheme.red)
+        .tint(DiegoTheme.accent)
     }
 
     @ViewBuilder

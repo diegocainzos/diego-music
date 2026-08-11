@@ -9,7 +9,7 @@ struct PlayerDock: View {
     var body: some View {
         Group {
             if let current = queue.current {
-                VStack(spacing: expanded ? 16 : 9) {
+                VStack(spacing: expanded ? 18 : 10) {
                     if expanded {
                         expandedPlayer(current)
                     } else {
@@ -17,32 +17,48 @@ struct PlayerDock: View {
                     }
 
                     if let error = player.errorMessage {
-                        HStack(spacing: 10) {
-                            Label(error, systemImage: "exclamationmark.triangle.fill")
-                                .font(.caption)
-                                .foregroundStyle(DiegoTheme.red)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Button("Reintentar") { player.retry() }
-                                .font(.caption.bold())
-                                .buttonStyle(HiFiButtonStyle(color: DiegoTheme.red))
-                        }
+                        errorBanner(error)
                     }
                 }
-                .padding(expanded ? 16 : 10)
+                .padding(expanded ? 20 : 10)
                 .frame(maxWidth: expanded ? 980 : .infinity)
+                .background(ambientBackground)
                 .background(.ultraThinMaterial)
-                .background(DiegoTheme.paper.opacity(0.96))
-                .overlay(alignment: .top) { Rectangle().fill(DiegoTheme.ink).frame(height: 2) }
-                .shadow(color: DiegoTheme.ink.opacity(0.22), radius: 16, y: -4)
+                .clipShape(RoundedRectangle(cornerRadius: DiegoTheme.cornerRadius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: DiegoTheme.cornerRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                }
+                .shadow(color: Color.black.opacity(0.08), radius: 20, y: 8)
             }
         }
         .frame(maxWidth: .infinity)
     }
 
+    // MARK: - Fondo ambiental derivado de la carátula
+
+    @ViewBuilder
+    private var ambientBackground: some View {
+        GeometryReader { geo in
+            ZStack {
+                DiegoTheme.background
+                TrackArtwork(url: queue.current?.thumbnailURL)
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+                    .blur(radius: reduceMotion ? 12 : 40)
+                    .opacity(0.18)
+                    .saturation(1.2)
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    // MARK: - Compacto
+
     private func compactPlayer(_ current: MediaItem) -> some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
-                artwork(current, size: 64)
+                artwork(current, size: 60)
                 compactMetadata(current)
                 controls
                 expandButton
@@ -64,22 +80,24 @@ struct PlayerDock: View {
             Text(current.title).font(.headline).lineLimit(1)
             Text(current.channelTitle)
                 .font(.caption)
-                .foregroundStyle(DiegoTheme.ink.opacity(0.65))
+                .foregroundStyle(DiegoTheme.textSecondary)
                 .lineLimit(1)
             stateLabel
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // MARK: - Ampliado
+
     private func expandedPlayer(_ current: MediaItem) -> some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 20) {
-                    artwork(current, size: 180)
+                HStack(alignment: .center, spacing: 22) {
+                    artwork(current, size: 190)
                     expandedMetadata(current)
                 }
                 VStack(spacing: 14) {
-                    artwork(current, size: 150)
+                    artwork(current, size: 170)
                     expandedMetadata(current)
                 }
             }
@@ -96,7 +114,7 @@ struct PlayerDock: View {
                 .lineLimit(1)
             stateLabel
             progressControl
-            HStack(spacing: 12) {
+            HStack(spacing: 20) {
                 controls
                 Spacer(minLength: 8)
                 expandButton
@@ -105,35 +123,17 @@ struct PlayerDock: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // MARK: - Carátula (vía caché compartida)
+
     private func artwork(_ item: MediaItem, size: CGFloat) -> some View {
-        AsyncImage(url: item.thumbnailURL) { phase in
-            switch phase {
-            case let .success(image):
-                image.resizable().scaledToFill()
-            case .failure:
-                artworkPlaceholder
-            case .empty:
-                ZStack {
-                    artworkPlaceholder
-                    ProgressView().tint(DiegoTheme.ink)
-                }
-            @unknown default:
-                artworkPlaceholder
-            }
-        }
-        .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: 9))
-        .overlay { RoundedRectangle(cornerRadius: 9).stroke(DiegoTheme.ink, lineWidth: 2) }
-        .accessibilityHidden(true)
+        TrackArtwork(url: item.thumbnailURL)
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .shadow(color: Color.black.opacity(0.15), radius: 10, y: 4)
+            .accessibilityHidden(true)
     }
 
-    private var artworkPlaceholder: some View {
-        ZStack {
-            DiegoTheme.yellow
-            Circle().fill(DiegoTheme.ink).padding(13)
-            Circle().fill(DiegoTheme.paper).padding(25)
-        }
-    }
+    // MARK: - Estado / errores
 
     @ViewBuilder
     private var stateLabel: some View {
@@ -142,10 +142,10 @@ struct PlayerDock: View {
             Label("Preparado", systemImage: "circle")
         case .resolving:
             Label("Resolviendo en tu VPS…", systemImage: "network")
-                .foregroundStyle(DiegoTheme.blue)
+                .foregroundStyle(DiegoTheme.accent)
         case .buffering:
             Label("Cargando audio…", systemImage: "waveform")
-                .foregroundStyle(DiegoTheme.blue)
+                .foregroundStyle(DiegoTheme.accent)
         case .playing:
             Label("Reproduciendo", systemImage: "speaker.wave.2.fill")
                 .foregroundStyle(DiegoTheme.green)
@@ -159,29 +159,54 @@ struct PlayerDock: View {
         }
     }
 
+    private func errorBanner(_ error: String) -> some View {
+        HStack(spacing: 10) {
+            Label(error, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(DiegoTheme.red)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Reintentar") { player.retry() }
+                .font(.caption.bold())
+                .buttonStyle(PrimaryButtonStyle())
+        }
+    }
+
+    // MARK: - Controles (SF Symbols, sin bordes de 2px)
+
     private var controls: some View {
-        HStack(spacing: 6) {
-            Button(action: { player.previous() }) { Image(systemName: "backward.fill") }
-                .disabled(!queue.canRetreat && player.currentTime < 1)
-                .accessibilityLabel("Anterior")
+        HStack(spacing: 20) {
+            Button(action: { player.previous() }) {
+                Image(systemName: "backward.fill").font(.title2)
+            }
+            .disabled(!queue.canRetreat && player.currentTime < 1)
+            .accessibilityLabel("Anterior")
+
             Button(action: { player.togglePlayback() }) {
                 Group {
                     if player.isLoading {
-                        ProgressView().controlSize(.small)
+                        ProgressView().controlSize(.small).tint(.white)
                     } else {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.title2)
                     }
                 }
-                .font(.title3)
-                .frame(width: 26, height: 26)
+                .frame(width: 56, height: 56)
+                .background(DiegoTheme.accent)
+                .foregroundStyle(.white)
+                .clipShape(Circle())
+                .shadow(color: DiegoTheme.accent.opacity(0.35), radius: 8, y: 4)
             }
             .disabled(player.playbackState == .resolving)
             .accessibilityLabel(player.isPlaying ? "Pausar" : "Reproducir")
-            Button(action: { player.next() }) { Image(systemName: "forward.fill") }
-                .disabled(!queue.canAdvance)
-                .accessibilityLabel("Siguiente")
+
+            Button(action: { player.next() }) {
+                Image(systemName: "forward.fill").font(.title2)
+            }
+            .disabled(!queue.canAdvance)
+            .accessibilityLabel("Siguiente")
         }
-        .buttonStyle(HiFiButtonStyle(color: DiegoTheme.yellow))
+        .foregroundStyle(DiegoTheme.textPrimary)
+        .animation(reduceMotion ? nil : .default, value: player.isPlaying)
     }
 
     private var expandButton: some View {
@@ -191,27 +216,59 @@ struct PlayerDock: View {
             }
         } label: {
             Image(systemName: expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                .font(.body)
                 .frame(width: 34, height: 34)
+                .foregroundStyle(DiegoTheme.textPrimary)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(expanded ? "Contraer reproductor" : "Ampliar reproductor")
     }
 
+    // MARK: - Progreso fino
+
     private var progressControl: some View {
-        HStack {
-            Text(format(player.currentTime)).monospacedDigit()
-            Slider(
-                value: Binding(get: { player.progress }, set: { player.seek(to: $0) }),
-                in: 0...1
-            )
-            .disabled(player.duration <= 0)
-            .tint(DiegoTheme.red)
+        HStack(spacing: 8) {
+            Text(format(player.currentTime)).monospacedDigit().font(.caption)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(DiegoTheme.textPrimary.opacity(0.12))
+                        .frame(height: 4)
+                    Capsule()
+                        .fill(DiegoTheme.accent)
+                        .frame(width: max(4, geo.size.width * player.progress), height: 4)
+                }
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onEnded { value in
+                            guard geo.size.width > 0 else { return }
+                            let fraction = min(max(value.location.x / geo.size.width, 0), 1)
+                            player.seek(to: fraction)
+                        }
+                )
+            }
+            .frame(height: 22)
+            .accessibilityElement()
             .accessibilityLabel("Posición de reproducción")
             .accessibilityValue("\(format(player.currentTime)) de \(format(player.duration))")
-            Text(format(player.duration)).monospacedDigit()
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment:
+                    player.seek(to: min(player.progress + 0.05, 1))
+                case .decrement:
+                    player.seek(to: max(player.progress - 0.05, 0))
+                @unknown default:
+                    break
+                }
+            }
+            Text(format(player.duration)).monospacedDigit().font(.caption)
         }
         .font(.caption)
     }
+
+    // MARK: - Editor de cola
 
     private var queueEditor: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -219,6 +276,7 @@ struct PlayerDock: View {
                 Text("COLA · \(queue.items.count)")
                     .font(.caption.bold())
                     .tracking(1.5)
+                    .foregroundStyle(DiegoTheme.textPrimary)
                 Spacer()
                 Button("Vaciar") { player.clearQueue() }
                     .font(.caption.bold())
@@ -231,9 +289,10 @@ struct PlayerDock: View {
                             Button { player.select(item) } label: {
                                 HStack {
                                     Circle()
-                                        .fill(item.id == queue.current?.id ? DiegoTheme.red : DiegoTheme.blue)
+                                        .fill(item.id == queue.current?.id ? DiegoTheme.accent : DiegoTheme.textSecondary.opacity(0.6))
                                         .frame(width: 9, height: 9)
                                     Text(item.title).lineLimit(1)
+                                        .foregroundStyle(DiegoTheme.textPrimary)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
@@ -248,19 +307,53 @@ struct PlayerDock: View {
                                 .accessibilityLabel("Eliminar de la cola")
                         }
                         .font(.callout)
+                        .foregroundStyle(DiegoTheme.textPrimary)
                     }
                 }
             }
             .frame(maxHeight: 150)
         }
         .padding(12)
-        .background(DiegoTheme.cream)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay { RoundedRectangle(cornerRadius: 8).stroke(DiegoTheme.ink, lineWidth: 1) }
+        .background(DiegoTheme.surface.opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func format(_ seconds: Double) -> String {
         guard seconds.isFinite else { return "0:00" }
         return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+    }
+}
+
+/// Carga la carátula a través de `ArtworkCache` (la misma caché compartida que
+/// publica Now Playing), en lugar de `AsyncImage`, para reutilizar la imagen y
+/// evitar descargas duplicadas. Mantiene un placeholder ante fallo de red.
+struct TrackArtwork: View {
+    let url: URL?
+    @State private var image: CGImage?
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                placeholder
+            }
+        }
+        .task(id: url) {
+            image = nil
+            guard let url else { return }
+            image = await ArtworkCache.shared.image(for: url)
+        }
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            DiegoTheme.surface
+            Image(systemName: "music.note")
+                .font(.title)
+                .foregroundStyle(DiegoTheme.accent.opacity(0.6))
+        }
     }
 }
