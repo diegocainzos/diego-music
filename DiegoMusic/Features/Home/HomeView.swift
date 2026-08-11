@@ -61,7 +61,7 @@ struct HomeView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: isCompact ? 24 : 32) {
-                    // Header de Sección Principal ("Escuchar / Listen Now")
+                    // Header Principal ("ESCUCHAR")
                     HStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("ESCUCHAR")
@@ -91,13 +91,16 @@ struct HomeView: View {
                     // 1. Hero Carousel (Destacados Banners)
                     heroCarousel
 
-                    // 2. Sección "Hecho Para Ti" (Mixes Personalizados)
-                    madeForYouSection
+                    // 2. Sección "Tus Favoritos" (user_favorites)
+                    userFavoritesSection
 
-                    // 3. Historial Reciente (Escuchado Recientemente)
+                    // 3. Sección "Escuchado Recientemente" (user_play_history)
                     recentlyPlayedSection
 
-                    // 4. Sección Descubrimiento (Top Artistas + Recomendaciones)
+                    // 4. Sección "Hecho Para Ti y Registro de Actividad" (user_activity_logs / Telemetría)
+                    madeForYouSection
+
+                    // 5. Sección Descubrimiento (Catálogo / Top Artistas)
                     discoverySection
                 }
                 .padding(.top, isCompact ? 16 : 24)
@@ -127,7 +130,7 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Hero Carousel (Banners Destacados horizontales 340-380pt de ancho, 220pt de alto)
+    // MARK: - 1. Hero Carousel
 
     private var heroCarousel: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -222,25 +225,78 @@ struct HomeView: View {
         .buttonStyle(TilePressButtonStyle())
     }
 
-    // MARK: - Escuchado Recientemente (Fila horizontal de portadas cuadradas)
+    // MARK: - 2. Sección "Tus Favoritos" (user_favorites)
+
+    @ViewBuilder
+    private var userFavoritesSection: some View {
+        let favorites = environment.library.favorites
+        if !favorites.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("Tus Favoritos", systemImage: "heart.fill")
+                        .font(.title2.bold())
+                        .foregroundStyle(DiegoTheme.accent)
+                    Spacer()
+                    Text("\(favorites.count) guardados")
+                        .font(.caption.bold())
+                        .foregroundStyle(DiegoTheme.textSecondary)
+                }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(favorites) { track in
+                            Button {
+                                environment.play(track.mediaItem)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ZStack(alignment: .topTrailing) {
+                                        TrackArtwork(url: track.mediaItem.thumbnailURL)
+                                            .frame(width: 140, height: 140)
+                                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                            .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+
+                                        Image(systemName: "heart.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(.white)
+                                            .padding(6)
+                                            .background(DiegoTheme.accent)
+                                            .clipShape(Circle())
+                                            .padding(6)
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(track.title)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(DiegoTheme.textPrimary)
+                                            .lineLimit(1)
+                                        Text(track.channelTitle)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(DiegoTheme.textSecondary)
+                                            .lineLimit(1)
+                                    }
+                                    .frame(width: 140, alignment: .leading)
+                                }
+                            }
+                            .buttonStyle(TilePressButtonStyle())
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+
+    // MARK: - 3. Sección "Escuchado Recientemente" (user_play_history)
 
     @ViewBuilder
     private var recentlyPlayedSection: some View {
-        let historyItems = environment.library.history.map(\.mediaItem)
-        let recentItems: [MediaItem] = {
-            if !historyItems.isEmpty {
-                return Array(historyItems.prefix(10))
-            } else if let restoreItem = environment.playbackSettings.restoreState?.item {
-                return [restoreItem]
-            } else {
-                return []
-            }
-        }()
+        let historyRecords = environment.library.history
+        let recentItems: [SavedTrack] = Array(historyRecords.prefix(10))
 
         if !recentItems.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("Escuchado recientemente")
+                    Label("Escuchado recientemente", systemImage: "clock.arrow.circlepath")
                         .font(.title2.bold())
                         .foregroundStyle(DiegoTheme.textPrimary)
                     Spacer()
@@ -248,22 +304,22 @@ struct HomeView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
-                        ForEach(recentItems) { item in
+                        ForEach(recentItems) { record in
                             Button {
-                                environment.play(item)
+                                environment.play(record.mediaItem)
                             } label: {
                                 VStack(alignment: .leading, spacing: 8) {
-                                    TrackArtwork(url: item.thumbnailURL)
+                                    TrackArtwork(url: record.mediaItem.thumbnailURL)
                                         .frame(width: 130, height: 130)
                                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                         .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
 
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.title)
+                                        Text(record.title)
                                             .font(.system(size: 13, weight: .semibold))
                                             .foregroundStyle(DiegoTheme.textPrimary)
                                             .lineLimit(1)
-                                        Text(item.channelTitle)
+                                        Text(record.channelTitle)
                                             .font(.system(size: 11))
                                             .foregroundStyle(DiegoTheme.textSecondary)
                                             .lineLimit(1)
@@ -280,40 +336,43 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Hecho Para Ti (Mixes Personalizados Estilo Apple Music)
+    // MARK: - 4. Hecho Para Ti y Registro de Actividad (user_activity_logs)
 
     private var madeForYouSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Hecho para ti")
-                .font(.title2.bold())
-                .foregroundStyle(DiegoTheme.textPrimary)
+            HStack {
+                Label("Hecho para ti y Actividad", systemImage: "sparkles")
+                    .font(.title2.bold())
+                    .foregroundStyle(DiegoTheme.textPrimary)
+                Spacer()
+            }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
                     mixCard(
                         title: "Mix de Descubrimiento",
-                        subtitle: "Nuevas canciones seleccionadas según tu actividad",
+                        subtitle: "Basado en tu actividad reciente y reproducciones",
                         gradientColors: [Color.pink.opacity(0.9), Color.purple.opacity(0.9)],
                         iconName: "sparkles"
                     )
 
                     mixCard(
                         title: "Mix de Favoritos",
-                        subtitle: "Tus temas más reproducidos y guardados",
+                        subtitle: "Tus temas guardados en user_favorites",
                         gradientColors: [Color.blue.opacity(0.85), Color.indigo.opacity(0.9)],
                         iconName: "heart.fill"
                     )
 
                     mixCard(
                         title: "Mix Urbana",
-                        subtitle: "Ritmos latinos, reggaetón y hip-hop en tendencia",
+                        subtitle: "Reggaetón y hip-hop seleccionados para ti",
                         gradientColors: [Color.orange.opacity(0.9), DiegoTheme.accent.opacity(0.9)],
                         iconName: "flame.fill"
                     )
 
                     mixCard(
                         title: "Mix Chill & Relax",
-                        subtitle: "Sonidos suaves para desconectar",
+                        subtitle: "Música tranquila para concentración",
                         gradientColors: [Color.teal.opacity(0.85), Color.cyan.opacity(0.9)],
                         iconName: "waveform"
                     )
@@ -373,7 +432,7 @@ struct HomeView: View {
         .buttonStyle(TilePressButtonStyle())
     }
 
-    // MARK: - Sección Descubrimiento
+    // MARK: - 5. Sección Descubrimiento
 
     private var discoverySection: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -407,7 +466,7 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Top Artistas (Avatares Circulares 110pt)
+    // MARK: - Top Artistas
 
     private func artistSection(_ artistas: [ArtistReference]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -449,7 +508,7 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Recomendaciones Grid (Tarjetas 160x160pt con esquinas redondeadas de 12pt)
+    // MARK: - Recomendaciones Grid
 
     private func novedadesGridSection(_ items: [MediaItem]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
