@@ -38,6 +38,7 @@ protocol YouTubeDataServicing: Sendable {
     func discover() async throws -> DiscoveryFeed
     func artist(byChannelID: String) async throws -> ArtistDetail
     func album(byPlaylistID: String) async throws -> Album
+    func fetchRelatedRadio(for item: MediaItem) async throws -> [MediaItem]
 }
 
 /// Implementaciones por defecto para no forzar cambios en conformantes actuales.
@@ -45,6 +46,7 @@ extension YouTubeDataServicing {
     func discover() async throws -> DiscoveryFeed { throw YouTubeServiceError.unavailable }
     func artist(byChannelID: String) async throws -> ArtistDetail { throw YouTubeServiceError.unavailable }
     func album(byPlaylistID: String) async throws -> Album { throw YouTubeServiceError.unavailable }
+    func fetchRelatedRadio(for item: MediaItem) async throws -> [MediaItem] { return [] }
 }
 
 struct YouTubeDataService: YouTubeDataServicing {
@@ -101,29 +103,44 @@ struct YouTubeDataService: YouTubeDataServicing {
         guard !channelID.isEmpty else { throw YouTubeServiceError.invalidRequest }
         let apiKey = try key()
 
-        let profileRequest = try endpointRequest {
-            YouTubeEndpoint(kind: .channels(ids: [channelID]), apiKey: apiKey)
-        }
-        let profileData = try await run(profileRequest, response: YouTubeChannelListResponseDTO.self)
-        guard let artist = profileData.items.first.map(mapper.map) else {
-            throw YouTubeServiceError.invalidResponse
+        if channelID.hasPrefix("UC") {
+            if let profileRequest = try? endpointRequest({ YouTubeEndpoint(kind: .channels(ids: [channelID]), apiKey: apiKey) }),
+               let profileData = try? await run(profileRequest, response: YouTubeChannelListResponseDTO.self),
+               let artist = profileData.items.first.map(mapper.map) {
+                let topRequest = try endpointRequest { YouTubeEndpoint(query: artist.title, apiKey: apiKey, maxResults: 20) }
+                let relatedRequest = try endpointRequest { YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey, maxResults: 12) }
+                let (topData, relatedData) = try await (
+                    run(topRequest, response: YouTubeSearchResponseDTO.self),
+                    run(relatedRequest, response: YouTubeVideoListEnvelopeDTO.self)
+                )
+                return ArtistDetail(
+                    artist: artist,
+                    topTracks: topData.items.compactMap(mapper.map),
+                    related: relatedData.items.map(mapper.map)
+                )
+            }
         }
 
-        // Top tracks y relacionados son best-effort públicos de vídeo.
-        let topRequest = try endpointRequest {
-            YouTubeEndpoint(query: artist.title, apiKey: apiKey, maxResults: 20)
-        }
-        let relatedRequest = try endpointRequest {
-            YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey, maxResults: 12)
-        }
+        let artistName = channelID
+        let topRequest = try endpointRequest { YouTubeEndpoint(query: "\(artistName) tracks", apiKey: apiKey, maxResults: 20) }
+        let relatedRequest = try endpointRequest { YouTubeEndpoint(query: "\(artistName) radio", apiKey: apiKey, maxResults: 12) }
         let (topData, relatedData) = try await (
             run(topRequest, response: YouTubeSearchResponseDTO.self),
-            run(relatedRequest, response: YouTubeVideoListEnvelopeDTO.self)
+            run(relatedRequest, response: YouTubeSearchResponseDTO.self)
         )
+
+        let topTracks = topData.items.compactMap(mapper.map)
+        let artistObj = Artist(
+            id: channelID,
+            title: artistName,
+            bio: "Canal de YouTube",
+            thumbnailURL: topTracks.first?.thumbnailURL
+        )
+
         return ArtistDetail(
-            artist: artist,
-            topTracks: topData.items.compactMap(mapper.map),
-            related: relatedData.items.map(mapper.map)
+            artist: artistObj,
+            topTracks: topTracks,
+            related: relatedData.items.compactMap(mapper.map)
         )
     }
 
@@ -131,19 +148,79 @@ struct YouTubeDataService: YouTubeDataServicing {
         guard !playlistID.isEmpty else { throw YouTubeServiceError.invalidRequest }
         let apiKey = try key()
 
-        let request = try endpointRequest {
-            YouTubeEndpoint(kind: .playlistItems(playlistID: playlistID, pageToken: nil), apiKey: apiKey)
+        if playlistID.hasPrefix("PL") || playlistID.hasPrefix("OL") {
+            if let request = try? endpointRequest({ YouTubeEndpoint(kind: .playlistItems(playlistID: playlistID, pageToken: nil), apiKey: apiKey) }),
+               let data = try? await run(request, response: YouTubePlaylistItemsResponseDTO.self) {
+                let tracks = data.items.compactMap(mapper.map)
+                let first = data.items.first?.snippet
+                return Album(
+                    id: playlistID,
+                    title: first?.title ?? "Álbum / Lista",
+                    channelTitle: first?.channelTitle,
+                    thumbnailURL: first?.thumbnails["high"]?.url ?? first?.thumbnails["medium"]?.url,
+                    tracks: tracks
+                )
+            }
         }
-        let data = try await run(request, response: YouTubePlaylistItemsResponseDTO.self)
+
+        let searchRequest = try endpointRequest {
+            YouTubeEndpoint(query: "\(playlistID) album", apiKey: apiKey, maxResults: 20)
+        }
+        let data = try await run(searchRequest, response: YouTubeSearchResponseDTO.self)
         let tracks = data.items.compactMap(mapper.map)
-        let first = data.items.first?.snippet
         return Album(
             id: playlistID,
-            title: first?.title ?? "Álbum / Lista",
-            channelTitle: first?.channelTitle,
-            thumbnailURL: first?.thumbnails["high"]?.url ?? first?.thumbnails["medium"]?.url,
+            title: playlistID,
+            channelTitle: tracks.first?.channelTitle,
+            thumbnailURL: tracks.first?.thumbnailURL,
             tracks: tracks
         )
+    }
+
+    func fetchRelatedRadio(for item: MediaItem) async throws -> [MediaItem] {
+        let apiKey = try key()
+        let artistName = item.channelTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !artistName.isEmpty else { return [] }
+
+        let artistQuery = "\(artistName) music"
+        let artistRequest = try endpointRequest {
+            YouTubeEndpoint(query: artistQuery, apiKey: apiKey, maxResults: 10)
+        }
+
+        let relatedQuery = "\(artistName) radio"
+        let relatedRequest = try endpointRequest {
+            YouTubeEndpoint(query: relatedQuery, apiKey: apiKey, maxResults: 10)
+        }
+
+        async let artistTask = try? run(artistRequest, response: YouTubeSearchResponseDTO.self)
+        async let relatedTask = try? run(relatedRequest, response: YouTubeSearchResponseDTO.self)
+
+        let (artistData, relatedData) = await (artistTask, relatedTask)
+
+        var resultItems: [MediaItem] = []
+        var seenIDs: Set<String> = [item.id]
+
+        if let artistItems = artistData?.items.compactMap(mapper.map) {
+            for track in artistItems {
+                let trackID = track.id
+                if !seenIDs.contains(trackID) {
+                    seenIDs.insert(trackID)
+                    resultItems.append(track)
+                }
+            }
+        }
+
+        if let relatedItems = relatedData?.items.compactMap(mapper.map) {
+            for track in relatedItems {
+                let trackID = track.id
+                if !seenIDs.contains(trackID) {
+                    seenIDs.insert(trackID)
+                    resultItems.append(track)
+                }
+            }
+        }
+
+        return resultItems
     }
 
     // MARK: - Helpers

@@ -28,6 +28,7 @@ final class AudioPlayerCoordinator: ObservableObject {
     private let player = AVPlayer()
     private let queue: PlaybackQueue
     private let resolver: any AudioStreamResolving
+    private let youtubeService: (any YouTubeDataServicing)?
     private let relatedProvider: (any RelatedTrackProviding)?
     private var resolveTask: Task<Void, Never>?
     private var recoveryTask: Task<Void, Never>?
@@ -53,10 +54,12 @@ final class AudioPlayerCoordinator: ObservableObject {
     init(
         queue: PlaybackQueue,
         resolver: any AudioStreamResolving,
+        youtubeService: (any YouTubeDataServicing)? = nil,
         relatedProvider: (any RelatedTrackProviding)? = nil
     ) {
         self.queue = queue
         self.resolver = resolver
+        self.youtubeService = youtubeService
         self.relatedProvider = relatedProvider
         observePlayer()
         observeQueueForPrefetch()
@@ -94,6 +97,23 @@ final class AudioPlayerCoordinator: ObservableObject {
     func select(_ item: MediaItem) {
         queue.play(item)
         load(item, autoplay: true, resetRetryBudget: true)
+        triggerSmartRadioQueue(for: item)
+    }
+
+    func triggerSmartRadioQueue(for item: MediaItem) {
+        guard let service = youtubeService else { return }
+        radioTask?.cancel()
+        radioTask = Task { [weak self, queue] in
+            do {
+                let relatedRadioItems = try await service.fetchRelatedRadio(for: item)
+                try Task.checkCancellation()
+                await MainActor.run {
+                    queue.enqueueBatch(relatedRadioItems)
+                }
+            } catch {
+                // Radio best-effort
+            }
+        }
     }
 
     func togglePlayback() {

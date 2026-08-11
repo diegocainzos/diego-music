@@ -71,6 +71,22 @@ final class PlaybackQueueTests: XCTestCase {
         XCTAssertEqual(queue.current?.id, "1")
     }
 
+    func testEnqueueNextInsertsDirectlyAfterCurrentItem() {
+        let first = MediaItem(id: "1", title: "Uno", channelTitle: "A")
+        let second = MediaItem(id: "2", title: "Dos", channelTitle: "B")
+        let third = MediaItem(id: "3", title: "Tres", channelTitle: "C")
+
+        let queue = PlaybackQueue()
+        queue.play(first)
+        queue.enqueue(third)
+        XCTAssertEqual(queue.items.map(\.id), ["1", "3"])
+
+        queue.enqueueNext(second)
+        XCTAssertEqual(queue.items.map(\.id), ["1", "2", "3"])
+        XCTAssertEqual(queue.current?.id, "1")
+        XCTAssertEqual(queue.advance()?.id, "2")
+    }
+
     func testRepeatAllResetsToStart() {
         let first = MediaItem(id: "1", title: "Uno", channelTitle: "A")
         let second = MediaItem(id: "2", title: "Dos", channelTitle: "B")

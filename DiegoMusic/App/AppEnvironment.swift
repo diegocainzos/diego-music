@@ -37,7 +37,7 @@ final class AppEnvironment: ObservableObject {
             configuration: try? APIConfiguration.live(),
             transport: transport
         )
-        player = AudioPlayerCoordinator(queue: queue, resolver: resolver)
+        player = AudioPlayerCoordinator(queue: queue, resolver: resolver, youtubeService: youtubeService)
         player.positionPersister = { [weak playbackSettings] item, seconds in
             playbackSettings?.persist(item: item, seconds: seconds)
         }

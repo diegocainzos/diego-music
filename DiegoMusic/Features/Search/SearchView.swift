@@ -1,11 +1,29 @@
 import SwiftUI
 
+enum SearchDetailDestination: Identifiable {
+    case artist(id: String, title: String)
+    case album(id: String)
+
+    var id: String {
+        switch self {
+        case let .artist(id, title): return "artist-\(id)-\(title)"
+        case let .album(id): return "album-\(id)"
+        }
+    }
+}
+
 struct SearchView: View {
     @StateObject private var model: SearchViewModel
     @ObservedObject var library: LibraryStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @EnvironmentObject private var environment: AppEnvironment
+
+    let service: any YouTubeDataServicing
     let onPlay: (MediaItem) -> Void
     let onFavorite: (MediaItem) -> Void
+
+    @State private var activeDestination: SearchDetailDestination?
+    @State private var toastMessage: String?
 
     init(
         service: any YouTubeDataServicing,
@@ -13,6 +31,7 @@ struct SearchView: View {
         onPlay: @escaping (MediaItem) -> Void,
         onFavorite: @escaping (MediaItem) -> Void
     ) {
+        self.service = service
         _model = StateObject(wrappedValue: SearchViewModel(service: service, libraryStore: library))
         self.library = library
         self.onPlay = onPlay
@@ -70,8 +89,59 @@ struct SearchView: View {
             .padding(.top, 14)
             .padding(.bottom, 10)
 
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ZStack(alignment: .bottom) {
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if let toastMessage {
+                    Text(toastMessage)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(DiegoTheme.accent)
+                        .clipShape(Capsule())
+                        .shadow(radius: 4)
+                        .padding(.bottom, 16)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+        }
+        .sheet(item: $activeDestination) { destination in
+            NavigationStack {
+                ZStack {
+                    DiegoTheme.background.ignoresSafeArea()
+                    switch destination {
+                    case let .artist(id, title):
+                        ArtistView(
+                            artistID: id,
+                            artistTitle: title,
+                            service: service,
+                            onPlay: onPlay
+                        )
+                    case let .album(id):
+                        AlbumView(
+                            playlistID: id,
+                            service: service,
+                            onPlay: onPlay
+                        )
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cerrar") { activeDestination = nil }
+                    }
+                }
+            }
+            .tint(DiegoTheme.accent)
+        }
+    }
+
+    private func showToast(_ text: String) {
+        withAnimation { toastMessage = text }
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            withAnimation { toastMessage = nil }
         }
     }
 
@@ -144,7 +214,17 @@ struct SearchView: View {
                             item: item,
                             library: library,
                             onPlay: onPlay,
-                            onFavorite: onFavorite
+                            onFavorite: onFavorite,
+                            onEnqueueNext: { track in
+                                environment.queue.enqueueNext(track)
+                                showToast("Añadida a continuación")
+                            },
+                            onSelectArtist: { id, title in
+                                activeDestination = .artist(id: id, title: title)
+                            },
+                            onSelectAlbum: { playlistID in
+                                activeDestination = .album(id: playlistID)
+                            }
                         )
                     }
                 }
@@ -216,13 +296,16 @@ struct SearchView: View {
     }
 }
 
-// MARK: - Fila de Resultado de Búsqueda (Formato Lista limpia como scroll.png)
+// MARK: - Fila de Resultado de Búsqueda (Formato Lista limpia con Menú de 3 Puntos)
 
 struct SearchResultRow: View {
     let item: MediaItem
     @ObservedObject var library: LibraryStore
     let onPlay: (MediaItem) -> Void
     let onFavorite: (MediaItem) -> Void
+    let onEnqueueNext: (MediaItem) -> Void
+    let onSelectArtist: (String, String) -> Void
+    let onSelectAlbum: (String) -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -271,20 +354,42 @@ struct SearchResultRow: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(library.isFavorite(item) ? "Quitar de favoritos" : "Añadir a favoritos")
 
-                if !library.playlists.isEmpty {
-                    Menu {
-                        ForEach(library.playlists) { playlist in
-                            Button(playlist.name) { try? library.add(item, to: playlist) }
-                        }
+                Menu {
+                    Button {
+                        onEnqueueNext(item)
                     } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.body)
-                            .foregroundStyle(DiegoTheme.textSecondary)
-                            .frame(width: 38, height: 38)
+                        Label("Añadir a la cola", systemImage: "text.insert")
                     }
-                    .menuStyle(.borderlessButton)
-                    .accessibilityLabel("Opciones de playlist")
+
+                    Button {
+                        onSelectArtist(item.channelTitle, item.channelTitle)
+                    } label: {
+                        Label("Ir al artista (\(item.channelTitle))", systemImage: "person.wave.2")
+                    }
+
+                    Button {
+                        onSelectAlbum(item.title)
+                    } label: {
+                        Label("Ir al álbum", systemImage: "square.stack")
+                    }
+
+                    if !library.playlists.isEmpty {
+                        Menu {
+                            ForEach(library.playlists) { playlist in
+                                Button(playlist.name) { try? library.add(item, to: playlist) }
+                            }
+                        } label: {
+                            Label("Añadir a playlist", systemImage: "text.badge.plus")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.body)
+                        .foregroundStyle(DiegoTheme.textSecondary)
+                        .frame(width: 38, height: 38)
                 }
+                .menuStyle(.borderlessButton)
+                .accessibilityLabel("Más opciones para \(item.title)")
             }
         }
         .padding(10)

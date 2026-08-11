@@ -88,6 +88,37 @@ final class PlaybackQueue: ObservableObject {
         rebuildAfterMutation()
     }
 
+    /// Añade una pista inmediatamente después de la pista en reproducción actual (posición 1 de siguientes).
+    func enqueueNext(_ item: MediaItem) {
+        if current?.id == item.id { return }
+
+        if let existingIndex = items.firstIndex(where: { $0.id == item.id }) {
+            items.remove(at: existingIndex)
+            if let currentIdx = currentIndex, existingIndex < currentIdx {
+                currentIndex = currentIdx - 1
+            }
+        }
+
+        if let currentIdx = currentIndex, currentIdx < items.count {
+            let targetIndex = currentIdx + 1
+            items.insert(item, at: targetIndex)
+        } else {
+            items.append(item)
+            if currentIndex == nil { currentIndex = 0 }
+        }
+        rebuildAfterMutation()
+    }
+
+    /// Añade una lista de pistas al final de la cola (para radio automática o álbumes) evitando duplicar elementos.
+    func enqueueBatch(_ newItems: [MediaItem]) {
+        let existingIDs = Set(items.map(\.id))
+        let filtered = newItems.filter { !existingIDs.contains($0.id) }
+        guard !filtered.isEmpty else { return }
+        items.append(contentsOf: filtered)
+        if currentIndex == nil { currentIndex = 0 }
+        rebuildAfterMutation()
+    }
+
     @discardableResult
     func advance() -> MediaItem? {
         if isShuffled {
