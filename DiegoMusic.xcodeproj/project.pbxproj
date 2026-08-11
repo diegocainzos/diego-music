@@ -53,6 +53,7 @@
 		9CED3AAD75CE5FFA93D61941 /* SearchCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC0A167AD028A5841AB61B3 /* SearchCacheTests.swift */; };
 		9CEF62D1403E9DA2FED264B5 /* YouTubeDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C1E125A4BB89C0DA2D7362 /* YouTubeDataService.swift */; };
 		9EB09A0622151C96F5085093 /* APIConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FBDBF56204493C68EF8C405 /* APIConfigurationTests.swift */; };
+		9F135351FCF1FDA7C51914D8 /* TelemetryLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04335C5D5E73547D4D6E586D /* TelemetryLogger.swift */; };
 		A24657C8C45387EA4498DB2E /* AudioResolverClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F1C27E5ECFD7F84D093D7C /* AudioResolverClient.swift */; };
 		A9797161467F2C78B5BFB8CD /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F37F7675860B628B860626 /* AppEnvironment.swift */; };
 		A9DC2AD302F90792D39791BF /* NavigationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D21933FE8FC663CF4BCBB9E4 /* NavigationState.swift */; };
@@ -94,6 +95,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		04335C5D5E73547D4D6E586D /* TelemetryLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryLogger.swift; sourceTree = "<group>"; };
 		06080C7AB650DEDEADA44D84 /* ImportYouTubePlaylistSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportYouTubePlaylistSheet.swift; sourceTree = "<group>"; };
 		090C5ADC3245B7DE1B38935A /* PlaybackQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackQueueTests.swift; sourceTree = "<group>"; };
 		0976345E0EAFD37E5D7FA028 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -253,6 +255,7 @@
 				9DCEBDB4334C8CF02760A7DC /* AuthState.swift */,
 				0FDA5A5D2D2D02FF647A79B5 /* HTTPTransport.swift */,
 				8F88060C4CD1FF3AF40FDEF2 /* KeychainTokenManager.swift */,
+				04335C5D5E73547D4D6E586D /* TelemetryLogger.swift */,
 			);
 			path = Networking;
 			sourceTree = "<group>";
@@ -626,6 +629,7 @@
 				40B1CB675A36B391BBD5698D /* SettingsView.swift in Sources */,
 				667DF4AF04C5648136BA73AE /* SignUpView.swift in Sources */,
 				1F93FC56B54E3682BEAF6843 /* SongsView.swift in Sources */,
+				9F135351FCF1FDA7C51914D8 /* TelemetryLogger.swift in Sources */,
 				6151A90AE8662A3BF68F6F81 /* YouTubeDTOs.swift in Sources */,
 				9CEF62D1403E9DA2FED264B5 /* YouTubeDataService.swift in Sources */,
 				7CFD3DADE5FDDAC4CD2ABD7F /* YouTubeEndpoint.swift in Sources */,

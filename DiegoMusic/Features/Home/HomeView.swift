@@ -227,7 +227,15 @@ struct HomeView: View {
     @ViewBuilder
     private var recentlyPlayedSection: some View {
         let historyItems = environment.library.history.map(\.mediaItem)
-        let recentItems: [MediaItem] = historyItems.isEmpty ? (environment.playbackSettings.restoreState?.item.map { [$0] } ?? []) : Array(historyItems.prefix(10))
+        let recentItems: [MediaItem] = {
+            if !historyItems.isEmpty {
+                return Array(historyItems.prefix(10))
+            } else if let restoreItem = environment.playbackSettings.restoreState?.item {
+                return [restoreItem]
+            } else {
+                return []
+            }
+        }()
 
         if !recentItems.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
