@@ -6,7 +6,9 @@ Config/Secrets.xcconfig
 .pi/npm/
 .pi/tools/
 .pi/openspec/node_modules/
+.pi/hindsight/
 .pi-subagents/
+.worktrees/
 
 # Xcode
 DerivedData/
