@@ -24,6 +24,11 @@ final class AudioPlayerCoordinator: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var repeatMode: RepeatMode = .off
     @Published private(set) var shuffleEnabled: Bool = false
+    @Published var volume: Float = 1.0 {
+        didSet {
+            player.volume = max(0, min(volume, 1.0))
+        }
+    }
 
     private let player = AVPlayer()
     private let queue: PlaybackQueue

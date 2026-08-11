@@ -1,27 +1,55 @@
 import SwiftUI
 
 enum DiegoTheme {
-    // MARK: - Tokens semánticos (estética minimal tipo Apple Music)
+    // MARK: - Tokens semánticos (estética Apple Music Web dark)
 
-    /// Fondo claro base, similar a `systemBackground`.
-    static let background = Color(red: 0.96, green: 0.96, blue: 0.97)
-    /// Superficie de tarjetas.
-    static let surface = Color(red: 1.0, green: 1.0, blue: 1.0)
-    /// Texto principal.
-    static let textPrimary = Color(red: 0.10, green: 0.10, blue: 0.11)
-    /// Texto secundario / metadatos.
-    static let textSecondary = Color.secondary
-    /// Acento único (rojo actual de DiegoMusic, conservado).
-    static let accent = Color(red: 0.88, green: 0.22, blue: 0.17)
-    /// Estado "reproduciendo".
-    static let green = Color(red: 0.08, green: 0.45, blue: 0.31)
-    /// Errores.
-    static let red = Color(red: 0.88, green: 0.22, blue: 0.17)
+    /// Rojo vibrante Apple Music `#FA233C`
+    static let accent = Color(red: 250 / 255.0, green: 35 / 255.0, blue: 60 / 255.0)
+    /// Fondo oscuro base `#121212`
+    static let background = Color(red: 18 / 255.0, green: 18 / 255.0, blue: 18 / 255.0)
+    /// Superficie `#1E1E1E`
+    static let surface = Color(red: 30 / 255.0, green: 30 / 255.0, blue: 30 / 255.0)
+    /// Superficie de tarjetas `rgba(255,255,255,0.06)`
+    static let cardSurface = Color.white.opacity(0.06)
+    /// Overlay traslúcido efecto cristal
+    static let glassMaterial: Material = .ultraThinMaterial
 
-    static let cornerRadius: CGFloat = 16
+    /// Texto principal (blanco en interfaz oscura)
+    static let textPrimary = Color.white
+    /// Texto secundario / metadatos
+    static let textSecondary = Color.white.opacity(0.6)
+
+    /// Estado "reproduciendo" / verde
+    static let green = Color(red: 0.12, green: 0.84, blue: 0.38)
+    /// Errores
+    static let red = Color(red: 250 / 255.0, green: 35 / 255.0, blue: 60 / 255.0)
+
+    static let cornerRadius: CGFloat = 12
 }
 
-// MARK: - Tarjeta mínima
+// MARK: - Tarjeta estilo Apple Music Glassmorphic
+
+struct AppleMusicCardModifier: ViewModifier {
+    var cornerRadius: CGFloat = DiegoTheme.cornerRadius
+
+    func body(content: Content) -> some View {
+        content
+            .padding(16)
+            .background(
+                ZStack {
+                    DiegoTheme.cardSurface
+                    Rectangle().fill(DiegoTheme.glassMaterial)
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+    }
+}
+
+// MARK: - Tarjeta mínima heredada
 
 struct MinimalCardModifier: ViewModifier {
     func body(content: Content) -> some View {
@@ -33,6 +61,10 @@ struct MinimalCardModifier: ViewModifier {
 }
 
 extension View {
+    func appleMusicCard(cornerRadius: CGFloat = DiegoTheme.cornerRadius) -> some View {
+        modifier(AppleMusicCardModifier(cornerRadius: cornerRadius))
+    }
+
     func minimalCard() -> some View {
         modifier(MinimalCardModifier())
     }
@@ -61,7 +93,7 @@ extension View {
     }
 }
 
-// MARK: - Botón primario
+// MARK: - Botón primario estilo Apple Music
 
 struct PrimaryButtonStyle: ButtonStyle {
     var color: Color = DiegoTheme.accent

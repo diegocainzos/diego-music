@@ -13,34 +13,51 @@ struct HomeView: View {
     @StateObject private var model: HomeViewModel
     @State private var path: [DiscoveryRoute] = []
 
-    /// True en pantallas compactas (iPhone): reduce tipografías y espaciado para
-    /// aprovechar mejor la pantalla y mejorar la navegación.
     private var isCompact: Bool { sizeClass == .compact }
 
     init(onStartSearch: @escaping () -> Void) {
         self.onStartSearch = onStartSearch
-        // El servicio se resuelve desde el entorno en `body` mediante `.task`.
         _model = StateObject(wrappedValue: HomeViewModel(service: UnavailableDiscoveryService()))
     }
 
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
-                VStack(alignment: .leading, spacing: isCompact ? 22 : 26) {
-                    SectionHeader(eyebrow: "Escucha privada", title: "Descubrir", color: DiegoTheme.accent)
+                VStack(alignment: .leading, spacing: isCompact ? 24 : 32) {
+                    // Header de Sección Principal
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("ESCUCHA AHORA")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(DiegoTheme.accent)
+                                .tracking(1.2)
+                            Text("Explorar")
+                                .font(.system(size: isCompact ? 30 : 38, weight: .bold, design: .default))
+                                .foregroundStyle(DiegoTheme.textPrimary)
+                        }
+                        Spacer()
+                        Button(action: onStartSearch) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(DiegoTheme.accent)
+                                .padding(10)
+                                .background(DiegoTheme.surface)
+                                .clipShape(Circle())
+                        }
+                        .accessibilityLabel("Buscar música")
+                    }
 
-                    hero
+                    // 1. Hero Carousel (Destacados Banners)
+                    heroCarousel
 
-                    features
-
+                    // 2. Sección Novedades / Feed Principal
                     discoverySection
                 }
-                .padding(.top, isCompact ? 16 : 28)
-                .padding(.bottom, 28)
+                .padding(.top, isCompact ? 16 : 24)
+                .padding(.bottom, 32)
                 .responsiveHorizontalPadding()
-                .frame(maxWidth: 1100)
+                .frame(maxWidth: 1200)
                 .frame(maxWidth: .infinity)
-                .frame(maxHeight: .infinity)
             }
             .scrollBounceBehavior(.basedOnSize)
             .navigationDestination(for: DiscoveryRoute.self) { route in
@@ -63,45 +80,106 @@ struct HomeView: View {
         }
     }
 
-    /// Las tres tarjetas de características se apilan verticalmente en compacto
-    /// (donde tres columnas son ilegibles) y en horizontal en pantallas amplias.
-    @ViewBuilder
-    private var features: some View {
-        if isCompact {
-            VStack(alignment: .leading, spacing: 12) {
-                feature(title: "Explora", symbol: "waveform.path.ecg", text: "Busca música pública con metadatos de YouTube Data API.")
-                feature(title: "Protege", symbol: "shield.lefthalf.filled", text: "Controla reglas locales y recupera la reproducción con un toque.")
-                feature(title: "Colecciona", symbol: "square.stack.3d.up.fill", text: "Guarda favoritos y playlists solo en este dispositivo.")
+    // MARK: - Hero Carousel (Banners Destacados horizontales 320-400pt)
+
+    private var heroCarousel: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: isCompact ? 14 : 20) {
+                heroCard(
+                    eyebrow: "SESIÓN EN DESTACADO",
+                    title: "Hip-Hop & R&B Essentials",
+                    subtitle: "Grandes clásicos y lo más reciente del panorama urbano.",
+                    gradientColors: [Color.red.opacity(0.8), Color.purple.opacity(0.9)],
+                    symbol: "music.mic"
+                )
+
+                heroCard(
+                    eyebrow: "NUEVO ÁLBUM",
+                    title: "Novedades de la Semana",
+                    subtitle: "Los lanzamientos más escuchados seleccionados para ti.",
+                    gradientColors: [Color.orange.opacity(0.8), Color.red.opacity(0.9)],
+                    symbol: "sparkles"
+                )
+
+                heroCard(
+                    eyebrow: "RADIO 24/7",
+                    title: "Chill & Focus Beats",
+                    subtitle: "Sesiones instrumentales perfectas para concentración.",
+                    gradientColors: [Color.blue.opacity(0.8), Color.indigo.opacity(0.9)],
+                    symbol: "radio.fill"
+                )
             }
-        } else {
-            HStack(alignment: .top, spacing: 18) {
-                feature(title: "Explora", symbol: "waveform.path.ecg", text: "Busca música pública con metadatos de YouTube Data API.")
-                feature(title: "Protege", symbol: "shield.lefthalf.filled", text: "Controla reglas locales y recupera la reproducción con un toque.")
-                feature(title: "Colecciona", symbol: "square.stack.3d.up.fill", text: "Guarda favoritos y playlists solo en este dispositivo.")
-            }
+            .padding(.vertical, 4)
         }
     }
 
-    private var discoverySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(
-                eyebrow: "Contenido público",
-                title: "Novedades y artistas",
-                color: DiegoTheme.accent
-            )
+    private func heroCard(
+        eyebrow: String,
+        title: String,
+        subtitle: String,
+        gradientColors: [Color],
+        symbol: String
+    ) -> some View {
+        Button(action: onStartSearch) {
+            ZStack(alignment: .bottomLeading) {
+                LinearGradient(
+                    colors: gradientColors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
 
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(eyebrow)
+                            .font(.caption2.bold())
+                            .tracking(1.5)
+                            .foregroundStyle(.white.opacity(0.9))
+                        Spacer()
+                        Image(systemName: symbol)
+                            .font(.title3)
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+
+                    Spacer()
+
+                    Text(title)
+                        .font(.system(size: 24, weight: .bold, design: .default))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                .padding(20)
+            }
+            .frame(width: isCompact ? 300 : 380, height: isCompact ? 190 : 220)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: gradientColors.first?.opacity(0.3) ?? .black.opacity(0.15), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(TilePressButtonStyle())
+    }
+
+    // MARK: - Sección Descubrimiento
+
+    private var discoverySection: some View {
+        VStack(alignment: .leading, spacing: 24) {
             switch model.state {
             case .idle, .loading:
                 HStack(spacing: 12) {
                     ProgressView().controlSize(.small).tint(DiegoTheme.accent)
-                    Text("Cargando novedades…").font(.callout).foregroundStyle(DiegoTheme.textSecondary)
+                    Text("Cargando catálogo…").font(.callout).foregroundStyle(DiegoTheme.textSecondary)
                 }
+                .padding(.vertical, 20)
             case let .loaded(feed):
                 if !feed.artistas.isEmpty {
-                    artistRow(feed.artistas)
+                    artistSection(feed.artistas)
                 }
                 if !feed.novedades.isEmpty {
-                    novedadesGrid(feed.novedades)
+                    novedadesGridSection(feed.novedades)
                 } else {
                     emptyText
                 }
@@ -119,31 +197,40 @@ struct HomeView: View {
         }
     }
 
-    private func artistRow(_ artistas: [ArtistReference]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Artistas").font(.title3.bold()).foregroundStyle(DiegoTheme.textPrimary)
+    // MARK: - Artistas Destacados
+
+    private func artistSection(_ artistas: [ArtistReference]) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Artistas Destacados")
+                    .font(.title2.bold())
+                    .foregroundStyle(DiegoTheme.textPrimary)
+                Spacer()
+            }
+
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+                HStack(spacing: isCompact ? 14 : 18) {
                     ForEach(artistas) { artist in
                         Button {
                             withAnimation(reduceMotion ? nil : .default) {
                                 path.append(.artist(id: artist.id, title: artist.title))
                             }
                         } label: {
-                            VStack(spacing: 8) {
+                            VStack(spacing: 10) {
                                 TrackArtwork(url: artist.thumbnailURL)
-                                    .frame(width: isCompact ? 72 : 84, height: isCompact ? 72 : 84)
+                                    .frame(width: isCompact ? 100 : 120, height: isCompact ? 100 : 120)
                                     .clipShape(Circle())
                                     .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+
                                 Text(artist.title)
-                                    .font(.caption)
-                                    .lineLimit(2)
+                                    .font(.subheadline.weight(.semibold))
+                                    .lineLimit(1)
                                     .multilineTextAlignment(.center)
-                                    .frame(width: isCompact ? 72 : 84)
+                                    .frame(width: isCompact ? 100 : 120)
                                     .foregroundStyle(DiegoTheme.textPrimary)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(TilePressButtonStyle())
                         .accessibilityLabel("Artista \(artist.title)")
                     }
                 }
@@ -151,28 +238,50 @@ struct HomeView: View {
         }
     }
 
-    private func novedadesGrid(_ items: [MediaItem]) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 240), spacing: isCompact ? 12 : 16)], spacing: isCompact ? 12 : 16) {
-            ForEach(items) { item in
-                Button {
-                    withAnimation(reduceMotion ? nil : .default) {
-                        environment.play(item)
-                    }
-                } label: {
-                    VStack(alignment: .leading, spacing: 10) {
-                        TrackArtwork(url: item.thumbnailURL)
-                            .frame(height: isCompact ? 110 : 140)
-                            .frame(maxWidth: .infinity)
-                            .clipShape(RoundedRectangle(cornerRadius: DiegoTheme.cornerRadius, style: .continuous))
-                            .clipped()
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(item.title).font(isCompact ? .subheadline.bold() : .headline).foregroundStyle(DiegoTheme.textPrimary).lineLimit(2)
-                            Text(item.channelTitle).font(.caption).foregroundStyle(DiegoTheme.textSecondary).lineLimit(1)
+    // MARK: - Novedades Grid (Tarjetas 180x180pt con esquinas redondeadas de 10pt)
+
+    private func novedadesGridSection(_ items: [MediaItem]) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Top Charts & Novedades")
+                    .font(.title2.bold())
+                    .foregroundStyle(DiegoTheme.textPrimary)
+                Spacer()
+            }
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: isCompact ? 150 : 180), spacing: isCompact ? 14 : 18)],
+                spacing: isCompact ? 16 : 22
+            ) {
+                ForEach(items) { item in
+                    Button {
+                        withAnimation(reduceMotion ? nil : .default) {
+                            environment.play(item)
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            TrackArtwork(url: item.thumbnailURL)
+                                .frame(height: isCompact ? 150 : 180)
+                                .frame(maxWidth: .infinity)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .shadow(color: .black.opacity(0.1), radius: 5, y: 2)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(DiegoTheme.textPrimary)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+
+                                Text(item.channelTitle)
+                                    .font(.caption)
+                                    .foregroundStyle(DiegoTheme.textSecondary)
+                                    .lineLimit(1)
+                            }
                         }
                     }
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(TilePressButtonStyle())
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -182,42 +291,15 @@ struct HomeView: View {
             .font(.callout)
             .foregroundStyle(DiegoTheme.textSecondary)
     }
+}
 
-    private var hero: some View {
-        VStack(alignment: .leading, spacing: isCompact ? 10 : 14) {
-            Text("DIEGO\nMUSIC")
-                .font(.system(size: isCompact ? 40 : 58, weight: .black, design: .default))
-                .tracking(-3)
-                .foregroundStyle(DiegoTheme.textPrimary)
-                .minimumScaleFactor(0.6)
-            Text("Una máquina musical educativa, local y deliberadamente diferente.")
-                .font(isCompact ? .headline.weight(.semibold) : .title3.weight(.semibold))
-                .foregroundStyle(DiegoTheme.textSecondary)
-                .frame(maxWidth: 520, alignment: .leading)
-            Button(action: onStartSearch) {
-                Label("Buscar música", systemImage: "arrow.up.right")
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .accessibilityHint("Abre la sección de búsqueda")
-        }
-        .frame(maxWidth: .infinity, minHeight: isCompact ? 190 : 300, alignment: .leading)
-        .minimalCard()
-    }
-
-    private func feature(title: String, symbol: String, text: String) -> some View {
-        VStack(alignment: .leading, spacing: isCompact ? 8 : 10) {
-            HStack(spacing: 10) {
-                Image(systemName: symbol)
-                    .font(isCompact ? .title3 : .title)
-                    .foregroundStyle(DiegoTheme.accent)
-                Text(title).font(isCompact ? .headline.bold() : .title2.bold()).foregroundStyle(DiegoTheme.textPrimary)
-            }
-            Text(text)
-                .font(isCompact ? .footnote : .callout)
-                .foregroundStyle(DiegoTheme.textSecondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .minimalCard()
+/// Estilo de botón interactivo con suave efecto al pulsar (Hover/Press Apple Music)
+struct TilePressButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .opacity(configuration.isPressed ? 0.88 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 

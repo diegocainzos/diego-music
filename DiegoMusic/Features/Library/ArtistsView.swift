@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Artistas locales derivados de favoritos e historial, agrupados por nombre.
+/// Artistas de la biblioteca: rejilla de avatares circulares (160x160pt) al estilo Apple Music Web.
 struct ArtistsView: View {
     @ObservedObject var library: LibraryStore
     let query: String
@@ -13,6 +13,10 @@ struct ArtistsView: View {
         }
     }
 
+    private let columns = [
+        GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 20)
+    ]
+
     var body: some View {
         Group {
             if artists.isEmpty {
@@ -23,21 +27,53 @@ struct ArtistsView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
-                    ForEach(artists) { artist in
-                        Section(header: Text(artist.name).font(.headline)) {
-                            ForEach(artist.tracks) { track in
-                                LibraryTrackRow(
-                                    track: track,
-                                    isFavorite: library.isFavorite(track.mediaItem),
-                                    onPlay: { onPlay(track.mediaItem) },
-                                    onFavorite: { try? library.toggleFavorite(track.mediaItem) }
-                                )
-                            }
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 24) {
+                        ForEach(artists) { artist in
+                            artistAvatarCard(artist)
                         }
                     }
+                    .padding(.vertical, 16)
+                    .responsiveHorizontalPadding()
                 }
-                .scrollContentBackground(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+            }
+        }
+    }
+
+    private func artistAvatarCard(_ artist: LocalArtist) -> some View {
+        VStack(spacing: 10) {
+            Button {
+                if let firstTrack = artist.tracks.first {
+                    onPlay(firstTrack.mediaItem)
+                }
+            } label: {
+                ZStack {
+                    TrackArtwork(url: artist.tracks.first?.mediaItem.thumbnailURL)
+                        .aspectRatio(1, contentMode: .fill)
+                        .frame(maxWidth: .infinity)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundStyle(DiegoTheme.accent)
+                        .background(Circle().fill(.black.opacity(0.4)))
+                        .opacity(0.85)
+                }
+            }
+            .buttonStyle(.plain)
+
+            VStack(spacing: 2) {
+                Text(artist.name)
+                    .font(.system(.body, design: .default, weight: .bold))
+                    .foregroundStyle(DiegoTheme.textPrimary)
+                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
+
+                Text("Artista")
+                    .font(.caption)
+                    .foregroundStyle(DiegoTheme.textSecondary)
             }
         }
     }

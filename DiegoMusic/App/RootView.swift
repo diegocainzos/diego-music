@@ -1,60 +1,20 @@
 import SwiftUI
 
-enum AppDestination: String, CaseIterable, Identifiable {
-    case home
-    case search
-    case library
-    case playlists
-    case settings
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .home: return "Inicio"
-        case .search: return "Búsqueda"
-        case .library: return "Biblioteca"
-        case .playlists: return "Playlists"
-        case .settings: return "Ajustes"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .home: return "circle.grid.cross"
-        case .search: return "magnifyingglass"
-        case .library: return "square.stack.3d.up"
-        case .playlists: return "music.note.list"
-        case .settings: return "slider.horizontal.3"
-        }
-    }
-
-    var accentColor: Color {
-        switch self {
-        case .home: return DiegoTheme.accent
-        case .search: return DiegoTheme.accent
-        case .library: return DiegoTheme.accent
-        case .playlists: return DiegoTheme.green
-        case .settings: return DiegoTheme.accent
-        }
-    }
-}
-
-/// Raíz de la app con navegación adaptativa por `horizontalSizeClass`:
-/// - Compacto (iPhone): `TabView` con barra de pestañas inferior nativa.
-/// - Regular (iPad/macOS): `NavigationSplitView` con el listado lateral.
-/// En ambas ramas se comparte el `PlayerDock` como `safeAreaInset` inferior.
+/// Vista Raíz inspirada en Apple Music Web:
+/// - Compacto (iPhone): `TabView` inferior nativa.
+/// - Regular (iPad/macOS): `SidebarView` + `HeaderView` con historial + `DetailView`.
 struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.horizontalSizeClass) private var sizeClass
-    @State private var selection: AppDestination? = .home
+    @StateObject private var navState = NavigationState()
+    @State private var headerSearchText: String = ""
 
     var body: some View {
         Group {
             if sizeClass == .compact {
                 phoneTabView
             } else {
-                splitView
+                desktopLayout
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -66,37 +26,57 @@ struct RootView: View {
         .tint(DiegoTheme.accent)
     }
 
-    // MARK: - Rama iPad/macOS (NavigationSplitView)
+    // MARK: - Rama Desktop / Regular (Apple Music Web Split Layout)
 
-    private var splitView: some View {
-        NavigationSplitView {
-            List(AppDestination.allCases, selection: $selection) { destination in
-                HStack(spacing: 10) {
-                    Image(systemName: destination.symbol).foregroundStyle(destination.accentColor)
-                    Text(destination.title).foregroundStyle(DiegoTheme.textPrimary)
+    private var desktopLayout: some View {
+        HStack(spacing: 0) {
+            SidebarView(navState: navState)
+                .frame(width: 250)
+                .background(DiegoTheme.surface)
+                .overlay(
+                    Rectangle()
+                        .fill(DiegoTheme.textPrimary.opacity(0.08))
+                        .frame(width: 1),
+                    alignment: .trailing
+                )
+
+            VStack(spacing: 0) {
+                HeaderView(
+                    navState: navState,
+                    searchText: $headerSearchText,
+                    onSearchSubmit: {
+                        if !headerSearchText.isEmpty {
+                            navState.navigate(to: .search)
+                        }
+                    }
+                )
+                .frame(height: 56)
+                .background(DiegoTheme.background)
+                .overlay(
+                    Rectangle()
+                        .fill(DiegoTheme.textPrimary.opacity(0.06))
+                        .frame(height: 1),
+                    alignment: .bottom
+                )
+
+                ZStack {
+                    DiegoTheme.background.ignoresSafeArea()
+                    destinationView(navState.current)
                 }
-                .font(.system(.body, design: .default, weight: .semibold))
-                .tag(destination)
-            }
-            .navigationTitle("DiegoMusic")
-            .scrollContentBackground(.hidden)
-            .background(DiegoTheme.background)
-        } detail: {
-            ZStack {
-                DiegoTheme.background.ignoresSafeArea()
-                destinationView(selection ?? .home)
             }
         }
-        .navigationSplitViewStyle(.prominentDetail)
     }
 
     // MARK: - Rama iPhone (TabView)
 
     private var phoneTabView: some View {
-        TabView(selection: $selection) {
-            themed { HomeView { selection = .search } }
+        TabView(selection: Binding(
+            get: { navState.current },
+            set: { navState.navigate(to: $0) }
+        )) {
+            themed { HomeView { navState.navigate(to: .search) } }
                 .tabItem { Label(AppDestination.home.title, systemImage: AppDestination.home.symbol) }
-                .tag(AppDestination.home as AppDestination?)
+                .tag(AppDestination.home)
 
             themed {
                 SearchView(
@@ -107,15 +87,15 @@ struct RootView: View {
                 )
             }
             .tabItem { Label(AppDestination.search.title, systemImage: AppDestination.search.symbol) }
-            .tag(AppDestination.search as AppDestination?)
+            .tag(AppDestination.search)
 
             themed { LibraryView(library: environment.library, onPlay: environment.play) }
                 .tabItem { Label(AppDestination.library.title, systemImage: AppDestination.library.symbol) }
-                .tag(AppDestination.library as AppDestination?)
+                .tag(AppDestination.library)
 
             themed { PlaylistsView(library: environment.library, onPlay: environment.play) }
                 .tabItem { Label(AppDestination.playlists.title, systemImage: AppDestination.playlists.symbol) }
-                .tag(AppDestination.playlists as AppDestination?)
+                .tag(AppDestination.playlists)
 
             themed {
                 SettingsView(
@@ -125,12 +105,10 @@ struct RootView: View {
                 )
             }
             .tabItem { Label(AppDestination.settings.title, systemImage: AppDestination.settings.symbol) }
-            .tag(AppDestination.settings as AppDestination?)
+            .tag(AppDestination.settings)
         }
     }
 
-    /// Envuelve el contenido de una pestaña en el fondo de la app para mantener
-    /// la estética uniforme (fondo claro) dentro de la `TabView`.
     private func themed<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         ZStack {
             DiegoTheme.background.ignoresSafeArea()
@@ -141,8 +119,8 @@ struct RootView: View {
     @ViewBuilder
     private func destinationView(_ destination: AppDestination) -> some View {
         switch destination {
-        case .home:
-            HomeView { selection = .search }
+        case .home, .browse, .radio:
+            HomeView { navState.navigate(to: .search) }
         case .search:
             SearchView(
                 service: environment.youtubeService,
@@ -154,6 +132,12 @@ struct RootView: View {
             LibraryView(library: environment.library, onPlay: environment.play)
         case .playlists:
             PlaylistsView(library: environment.library, onPlay: environment.play)
+        case .songs:
+            SongsView(library: environment.library, query: "", onPlay: environment.play)
+        case .albums:
+            AlbumsView(library: environment.library, query: "", onPlay: environment.play)
+        case .artists:
+            ArtistsView(library: environment.library, query: "", onPlay: environment.play)
         case .settings:
             SettingsView(
                 playbackSettings: environment.playbackSettings,
@@ -161,5 +145,187 @@ struct RootView: View {
                 resolverConfigured: environment.resolverConfigured
             )
         }
+    }
+}
+
+// MARK: - Sidebar Component (Apple Music Web style)
+
+struct SidebarView: View {
+    @ObservedObject var navState: NavigationState
+    @State private var sidebarSearchText = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            // Header Logo
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(DiegoTheme.accent)
+                        .frame(width: 30, height: 30)
+                    Image(systemName: "music.note")
+                        .font(.callout.bold())
+                        .foregroundStyle(.white)
+                }
+                Text("Music")
+                    .font(.title3.bold())
+                    .foregroundStyle(DiegoTheme.textPrimary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+
+            // Search Bar in Sidebar
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.caption)
+                    .foregroundStyle(DiegoTheme.textSecondary)
+                TextField("Search", text: $sidebarSearchText)
+                    .font(.subheadline)
+                    .textFieldStyle(.plain)
+                    .onSubmit {
+                        if !sidebarSearchText.isEmpty {
+                            navState.navigate(to: .search)
+                        }
+                    }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(DiegoTheme.background)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .padding(.horizontal, 14)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Main Menu Section
+                    VStack(alignment: .leading, spacing: 4) {
+                        sidebarItem(.home, icon: "play.circle.fill", title: "Listen Now")
+                        sidebarItem(.browse, icon: "grid", title: "Browse")
+                        sidebarItem(.radio, icon: "radiowaves.left.and.right", title: "Radio")
+                    }
+
+                    // Library Section
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Library")
+                            .font(.caption.bold())
+                            .foregroundStyle(DiegoTheme.textSecondary)
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 2)
+
+                        sidebarItem(.playlists, icon: "music.note.list", title: "Playlists")
+                        sidebarItem(.songs, icon: "music.note", title: "Songs")
+                        sidebarItem(.albums, icon: "square.stack", title: "Albums")
+                        sidebarItem(.artists, icon: "music.mic", title: "Artists")
+                    }
+
+                    // Settings Section
+                    VStack(alignment: .leading, spacing: 4) {
+                        sidebarItem(.settings, icon: "gearshape", title: "Settings")
+                    }
+                }
+                .padding(.horizontal, 10)
+            }
+        }
+    }
+
+    private func sidebarItem(_ destination: AppDestination, icon: String, title: String) -> some View {
+        let isSelected = navState.current == destination
+        return Button {
+            navState.navigate(to: destination)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.body)
+                    .foregroundStyle(isSelected ? .white : DiegoTheme.accent)
+                    .frame(width: 22)
+                Text(title)
+                    .font(.subheadline.weight(isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? .white : DiegoTheme.textPrimary)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(isSelected ? DiegoTheme.accent : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Header Component (Apple Music Web style with Back < and Forward >)
+
+struct HeaderView: View {
+    @ObservedObject var navState: NavigationState
+    @Binding var searchText: String
+    let onSearchSubmit: () -> Void
+
+    var body: some View {
+        HStack(spacing: 16) {
+            // Navigation History Buttons (< >)
+            HStack(spacing: 6) {
+                Button {
+                    navState.goBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(navState.canGoBack ? DiegoTheme.textPrimary : DiegoTheme.textSecondary.opacity(0.4))
+                        .frame(width: 32, height: 32)
+                        .background(DiegoTheme.surface)
+                        .clipShape(Circle())
+                }
+                .disabled(!navState.canGoBack)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Go back")
+
+                Button {
+                    navState.goForward()
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(navState.canGoForward ? DiegoTheme.textPrimary : DiegoTheme.textSecondary.opacity(0.4))
+                        .frame(width: 32, height: 32)
+                        .background(DiegoTheme.surface)
+                        .clipShape(Circle())
+                }
+                .disabled(!navState.canGoForward)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Go forward")
+            }
+
+            Text(navState.current.title)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(DiegoTheme.textPrimary)
+
+            Spacer()
+
+            // Header Search Input
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.caption)
+                    .foregroundStyle(DiegoTheme.textSecondary)
+                TextField("Search music...", text: $searchText)
+                    .font(.subheadline)
+                    .textFieldStyle(.plain)
+                    .onSubmit(onSearchSubmit)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(width: 220)
+            .background(DiegoTheme.surface)
+            .clipShape(Capsule())
+
+            // Sign In / Profile Accent Button
+            Button {
+                navState.navigate(to: .settings)
+            } label: {
+                Text("Sign In")
+                    .font(.caption.bold())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(DiegoTheme.accent)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 20)
     }
 }

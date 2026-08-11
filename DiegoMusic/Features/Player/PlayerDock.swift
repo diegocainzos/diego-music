@@ -3,50 +3,493 @@ import SwiftUI
 struct PlayerDock: View {
     @ObservedObject var player: AudioPlayerCoordinator
     @ObservedObject var queue: PlaybackQueue
+    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Proveedor de letras inyectable (seam con el cambio `lyrics`).
-    /// Por defecto usa el proveedor local/experimental; una app real lo sustituye
-    /// por un `LyricsProviding` legítimo.
+
     private let lyricsService: LyricsService
     @State private var expanded = false
     @State private var showLyrics = false
+    @State private var showQueue = false
 
-    init(player: AudioPlayerCoordinator, queue: PlaybackQueue, lyricsService: LyricsService = LyricsService()) {
+    init(
+        player: AudioPlayerCoordinator,
+        queue: PlaybackQueue,
+        lyricsService: LyricsService = LyricsService()
+    ) {
         self.player = player
         self.queue = queue
         self.lyricsService = lyricsService
     }
 
+    private var isCompact: Bool { horizontalSizeClass == .compact }
+
     var body: some View {
         Group {
             if let current = queue.current {
-                VStack(spacing: expanded ? 18 : 10) {
-                    if expanded {
-                        expandedPlayer(current)
-                    } else {
-                        compactPlayer(current)
-                    }
-
+                VStack(spacing: 0) {
                     if let error = player.errorMessage {
                         errorBanner(error)
                     }
+
+                    playerBar(current)
                 }
-                .padding(expanded ? 20 : 10)
-                .frame(maxWidth: expanded ? 980 : .infinity)
+                .background(.thinMaterial)
                 .background(ambientBackground)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: DiegoTheme.cornerRadius, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: DiegoTheme.cornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                .overlay(alignment: .top) {
+                    Divider()
+                        .opacity(0.15)
                 }
-                .shadow(color: Color.black.opacity(0.08), radius: 20, y: 8)
+                .shadow(color: Color.black.opacity(0.12), radius: 12, y: -4)
+                .sheet(isPresented: $expanded) {
+                    expandedPlayerSheet(current)
+                }
+                .sheet(isPresented: $showLyrics) {
+                    lyricsSheet(current)
+                }
+                .sheet(isPresented: $showQueue) {
+                    queueSheet
+                }
             }
         }
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Fondo ambiental derivado de la carátula
+    // MARK: - Player Bar Principal (Estilo Apple Music Web)
+
+    private func playerBar(_ current: MediaItem) -> some View {
+        HStack(spacing: 16) {
+            // Sección Izquierda: Carátula, Info y Favorito
+            leftSection(current)
+                .frame(maxWidth: isCompact ? .infinity : 280, alignment: .leading)
+
+            // Sección Central: Scrubber y Controles principales
+            if !isCompact {
+                centerSection
+                    .frame(maxWidth: .infinity)
+            }
+
+            // Sección Derecha: Modos, Volumen, Letras, Cola y Expandir
+            rightSection
+                .frame(alignment: .trailing)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    // MARK: - Sección Izquierda
+
+    private func leftSection(_ current: MediaItem) -> some View {
+        HStack(spacing: 12) {
+            Button { expanded = true } label: {
+                TrackArtwork(url: current.thumbnailURL)
+                    .frame(width: 48, height: 48)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .shadow(color: Color.black.opacity(0.12), radius: 4, y: 2)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Abrir reproducción en pantalla completa")
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(current.title)
+                    .font(.system(.subheadline, design: .default, weight: .semibold))
+                    .foregroundStyle(DiegoTheme.textPrimary)
+                    .lineLimit(1)
+
+                Text(current.channelTitle)
+                    .font(.caption)
+                    .foregroundStyle(DiegoTheme.textSecondary)
+                    .lineLimit(1)
+            }
+
+            Button {
+                try? environment.library.toggleFavorite(current)
+            } label: {
+                Image(systemName: environment.library.isFavorite(current) ? "heart.fill" : "heart")
+                    .font(.subheadline)
+                    .foregroundStyle(environment.library.isFavorite(current) ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(environment.library.isFavorite(current) ? "Quitar de favoritos" : "Añadir a favoritos")
+        }
+    }
+
+    // MARK: - Sección Central (Scrubber y Controles)
+
+    private var centerSection: some View {
+        VStack(spacing: 4) {
+            // Scrubber Bar Interactivo
+            scrubberBar
+
+            // Botones Anterior, Play/Pausa, Siguiente
+            HStack(spacing: 24) {
+                Button(action: { player.previous() }) {
+                    Image(systemName: "backward.fill")
+                        .font(.body)
+                }
+                .disabled(!queue.canRetreat && player.currentTime < 1)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Anterior")
+
+                Button(action: { player.togglePlayback() }) {
+                    Group {
+                        if player.isLoading {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(DiegoTheme.textPrimary)
+                        } else {
+                            Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.title3)
+                        }
+                    }
+                    .frame(width: 36, height: 36)
+                    .contentShape(Circle())
+                }
+                .disabled(player.playbackState == .resolving)
+                .buttonStyle(.plain)
+                .accessibilityLabel(player.isPlaying ? "Pausar" : "Reproducir")
+
+                Button(action: { player.next() }) {
+                    Image(systemName: "forward.fill")
+                        .font(.body)
+                }
+                .disabled(!queue.canAdvance)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Siguiente")
+            }
+            .foregroundStyle(DiegoTheme.textPrimary)
+        }
+    }
+
+    // MARK: - Sección Derecha (Barajar, Repetir, Volumen, Letras, Cola)
+
+    private var rightSection: some View {
+        HStack(spacing: isCompact ? 10 : 14) {
+            if !isCompact {
+                // Barajar
+                Button(action: { player.toggleShuffle() }) {
+                    Image(systemName: "shuffle")
+                        .font(.subheadline)
+                        .foregroundStyle(player.shuffleEnabled ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Barajar")
+
+                // Repetir
+                Button(action: { player.cycleRepeat() }) {
+                    Image(systemName: repeatSymbol)
+                        .font(.subheadline)
+                        .foregroundStyle(player.repeatMode == .off ? DiegoTheme.textSecondary : DiegoTheme.accent)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Repetir")
+
+                // Slider de Volumen
+                HStack(spacing: 6) {
+                    Image(systemName: "speaker.fill")
+                        .font(.caption2)
+                        .foregroundStyle(DiegoTheme.textSecondary)
+
+                    Slider(value: $player.volume, in: 0...1)
+                        .frame(width: 80)
+                        .tint(DiegoTheme.accent)
+
+                    Image(systemName: "speaker.wave.3.fill")
+                        .font(.caption2)
+                        .foregroundStyle(DiegoTheme.textSecondary)
+                }
+            }
+
+            // Play/Pause compacto en iPhone
+            if isCompact {
+                Button(action: { player.togglePlayback() }) {
+                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.title3)
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Letras
+            Button { showLyrics = true } label: {
+                Image(systemName: "quote.bubble")
+                    .font(.subheadline)
+                    .foregroundStyle(DiegoTheme.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Letras de la canción")
+
+            // Cola de reproducción
+            Button { showQueue = true } label: {
+                Image(systemName: "list.bullet")
+                    .font(.subheadline)
+                    .foregroundStyle(DiegoTheme.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Cola de reproducción")
+
+            // Expandir a reproductor completo
+            Button { expanded = true } label: {
+                Image(systemName: "chevron.up")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DiegoTheme.textPrimary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Expandir reproductor")
+        }
+    }
+
+    // MARK: - Scrubber Bar (Tiempo actual / Duración)
+
+    private var scrubberBar: some View {
+        HStack(spacing: 8) {
+            Text(format(player.currentTime))
+                .monospacedDigit()
+                .font(.caption2)
+                .foregroundStyle(DiegoTheme.textSecondary)
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(DiegoTheme.textPrimary.opacity(0.12))
+                        .frame(height: 4)
+
+                    Capsule()
+                        .fill(DiegoTheme.accent)
+                        .frame(width: max(4, geo.size.width * player.progress), height: 4)
+                }
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onEnded { value in
+                            guard geo.size.width > 0 else { return }
+                            let fraction = min(max(value.location.x / geo.size.width, 0), 1)
+                            player.seek(to: fraction)
+                        }
+                )
+            }
+            .frame(height: 14)
+
+            Text(format(player.duration))
+                .monospacedDigit()
+                .font(.caption2)
+                .foregroundStyle(DiegoTheme.textSecondary)
+        }
+    }
+
+    // MARK: - Reproductor Desplegable (Now Playing Sheet)
+
+    private func expandedPlayerSheet(_ current: MediaItem) -> some View {
+        NavigationStack {
+            ZStack {
+                ambientBackground
+
+                VStack(spacing: 24) {
+                    Spacer()
+
+                    // Carátula Grande
+                    TrackArtwork(url: current.thumbnailURL)
+                        .frame(width: 260, height: 260)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.25), radius: 20, y: 10)
+
+                    // Información del Tema
+                    VStack(spacing: 6) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(current.title)
+                                    .font(.title2.bold())
+                                    .foregroundStyle(DiegoTheme.textPrimary)
+                                    .lineLimit(2)
+
+                                Text(current.channelTitle)
+                                    .font(.headline)
+                                    .foregroundStyle(DiegoTheme.textSecondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+
+                            Button {
+                                try? environment.library.toggleFavorite(current)
+                            } label: {
+                                Image(systemName: environment.library.isFavorite(current) ? "heart.fill" : "heart")
+                                    .font(.title2)
+                                    .foregroundStyle(environment.library.isFavorite(current) ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+
+                    // Scrubber Bar Grande
+                    VStack(spacing: 6) {
+                        scrubberBar
+                    }
+                    .padding(.horizontal, 24)
+
+                    // Controles de Reproducción Completos
+                    HStack(spacing: 32) {
+                        Button(action: { player.toggleShuffle() }) {
+                            Image(systemName: "shuffle")
+                                .font(.title3)
+                                .foregroundStyle(player.shuffleEnabled ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(action: { player.previous() }) {
+                            Image(systemName: "backward.fill")
+                                .font(.title)
+                                .foregroundStyle(DiegoTheme.textPrimary)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(action: { player.togglePlayback() }) {
+                            Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                .font(.system(size: 64))
+                                .foregroundStyle(DiegoTheme.accent)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(action: { player.next() }) {
+                            Image(systemName: "forward.fill")
+                                .font(.title)
+                                .foregroundStyle(DiegoTheme.textPrimary)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(action: { player.cycleRepeat() }) {
+                            Image(systemName: repeatSymbol)
+                                .font(.title3)
+                                .foregroundStyle(player.repeatMode == .off ? DiegoTheme.textSecondary : DiegoTheme.accent)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Acciones Inferiores: Letras y Cola
+                    HStack(spacing: 24) {
+                        Button {
+                            expanded = false
+                            showLyrics = true
+                        } label: {
+                            Label("Letras", systemImage: "quote.bubble")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+
+                        Button {
+                            expanded = false
+                            showQueue = true
+                        } label: {
+                            Label("Cola", systemImage: "list.bullet")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                    }
+                    .padding(.horizontal, 24)
+
+                    Spacer()
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cerrar") { expanded = false }
+                }
+            }
+        }
+        .tint(DiegoTheme.accent)
+    }
+
+    // MARK: - Sheet de Letras
+
+    private func lyricsSheet(_ current: MediaItem) -> some View {
+        NavigationStack {
+            LyricsView(
+                service: lyricsService,
+                item: current,
+                currentTime: player.currentTime
+            )
+            .padding(20)
+            .background(DiegoTheme.background.ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cerrar") { showLyrics = false }
+                }
+            }
+        }
+        .tint(DiegoTheme.accent)
+    }
+
+    // MARK: - Sheet de Cola de Reproducción
+
+    private var queueSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("A continuación (\(queue.items.count))")
+                        .font(.headline)
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                    Spacer()
+                    Button("Vaciar") { player.clearQueue() }
+                        .font(.subheadline.bold())
+                        .disabled(queue.items.isEmpty)
+                }
+
+                List {
+                    ForEach(Array(queue.items.enumerated()), id: \.element.id) { index, item in
+                        HStack(spacing: 12) {
+                            TrackArtwork(url: item.thumbnailURL)
+                                .frame(width: 40, height: 40)
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(item.id == queue.current?.id ? DiegoTheme.accent : DiegoTheme.textPrimary)
+                                    .lineLimit(1)
+
+                                Text(item.channelTitle)
+                                    .font(.caption)
+                                    .foregroundStyle(DiegoTheme.textSecondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+
+                            if item.id == queue.current?.id {
+                                Image(systemName: "speaker.wave.2.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(DiegoTheme.accent)
+                            }
+
+                            Button { player.removeFromQueue(id: item.id) } label: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(DiegoTheme.textSecondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture { player.select(item) }
+                    }
+                    .onMove { source, destination in
+                        queue.move(from: source, to: destination)
+                    }
+                }
+                .listStyle(.plain)
+            }
+            .padding(16)
+            .background(DiegoTheme.background.ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cerrar") { showQueue = false }
+                }
+            }
+        }
+        .tint(DiegoTheme.accent)
+    }
+
+    // MARK: - Fondo Ambiental
 
     @ViewBuilder
     private var ambientBackground: some View {
@@ -64,159 +507,18 @@ struct PlayerDock: View {
         .ignoresSafeArea()
     }
 
-    // MARK: - Compacto
+    // MARK: - Helpers de Formato y Símbolos
 
-    private func compactPlayer(_ current: MediaItem) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                artwork(current, size: 60)
-                compactMetadata(current)
-                controls
-                expandButton
-            }
-
-            VStack(spacing: 9) {
-                HStack(spacing: 10) {
-                    artwork(current, size: 54)
-                    compactMetadata(current)
-                    expandButton
-                }
-                controls
-            }
+    private var repeatSymbol: String {
+        switch player.repeatMode {
+        case .one: return "repeat.1"
+        case .all, .off: return "repeat"
         }
     }
 
-    private func compactMetadata(_ current: MediaItem) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(current.title).font(.headline).lineLimit(1)
-            Text(current.channelTitle)
-                .font(.caption)
-                .foregroundStyle(DiegoTheme.textSecondary)
-                .lineLimit(1)
-            stateLabel
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: - Ampliado
-
-    private func expandedPlayer(_ current: MediaItem) -> some View {
-        VStack(spacing: 16) {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 22) {
-                    artwork(current, size: 190)
-                        .gesture(expandedSwipeGesture)
-                    expandedMetadata(current)
-                }
-                VStack(spacing: 14) {
-                    artwork(current, size: 170)
-                        .gesture(expandedSwipeGesture)
-                    expandedMetadata(current)
-                }
-            }
-            queueEditor
-
-            Button { showLyrics = true } label: {
-                Label("Letras", systemImage: "text.quote")
-                    .font(.callout.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .accessibilityLabel("Ver letras")
-        }
-        .contentShape(Rectangle())
-        .gesture(expandedDismissGesture)
-        .sheet(isPresented: $showLyrics) {
-            if let current = queue.current {
-                LyricsView(
-                    service: lyricsService,
-                    item: current,
-                    currentTime: player.currentTime
-                )
-                .padding(20)
-                .background(DiegoTheme.background.ignoresSafeArea())
-                .preferredColorScheme(.light)
-            }
-        }
-    }
-
-    // MARK: - Gestos del ampliado
-
-    private var expandedSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 30)
-            .onEnded { value in
-                let horizontal = value.translation.width
-                if horizontal < -60 {
-                    player.next()
-                } else if horizontal > 60 {
-                    player.previous()
-                }
-            }
-    }
-
-    private var expandedDismissGesture: some Gesture {
-        DragGesture(minimumDistance: 30)
-            .onEnded { value in
-                guard value.translation.height > 80 else { return }
-                withAnimation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.78)) {
-                    expanded = false
-                }
-            }
-    }
-
-    private func expandedMetadata(_ current: MediaItem) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(current.title).font(.title2.bold()).lineLimit(2)
-            Text(current.channelTitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            stateLabel
-            progressControl
-            HStack(spacing: 20) {
-                controls
-                Spacer(minLength: 8)
-                expandButton
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: - Carátula (vía caché compartida)
-
-    private func artwork(_ item: MediaItem, size: CGFloat) -> some View {
-        TrackArtwork(url: item.thumbnailURL)
-            .frame(width: size, height: size)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .shadow(color: Color.black.opacity(0.15), radius: 10, y: 4)
-            .accessibilityHidden(true)
-    }
-
-    // MARK: - Estado / errores
-
-    @ViewBuilder
-    private var stateLabel: some View {
-        switch player.playbackState {
-        case .idle:
-            Label("Preparado", systemImage: "circle")
-        case .resolving:
-            Label("Resolviendo en tu VPS…", systemImage: "network")
-                .foregroundStyle(DiegoTheme.accent)
-        case .buffering:
-            Label("Cargando audio…", systemImage: "waveform")
-                .foregroundStyle(DiegoTheme.accent)
-        case .playing:
-            Label("Reproduciendo", systemImage: "speaker.wave.2.fill")
-                .foregroundStyle(DiegoTheme.green)
-        case .paused:
-            Label("En pausa", systemImage: "pause.circle.fill")
-        case .ended:
-            Label("Finalizada", systemImage: "checkmark.circle.fill")
-        case .failed:
-            Label("No disponible", systemImage: "exclamationmark.circle.fill")
-                .foregroundStyle(DiegoTheme.red)
-        }
+    private func format(_ seconds: Double) -> String {
+        guard seconds.isFinite else { return "0:00" }
+        return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
     }
 
     private func errorBanner(_ error: String) -> some View {
@@ -229,205 +531,12 @@ struct PlayerDock: View {
                 .font(.caption.bold())
                 .buttonStyle(PrimaryButtonStyle())
         }
-    }
-
-    // MARK: - Controles (SF Symbols, sin bordes de 2px)
-
-    private var controls: some View {
-        HStack(spacing: 20) {
-            Button(action: { player.toggleShuffle() }) {
-                Image(systemName: "shuffle")
-                    .font(.title3)
-                    .foregroundStyle(player.shuffleEnabled ? DiegoTheme.accent : DiegoTheme.textSecondary)
-            }
-            .buttonStyle(.plain)
-            .frame(minWidth: 44, minHeight: 44)
-            .accessibilityLabel("Barajar")
-            .accessibilityValue(player.shuffleEnabled ? "Activado" : "Desactivado")
-
-            Button(action: { player.previous() }) {
-                Image(systemName: "backward.fill").font(.title2)
-            }
-            .disabled(!queue.canRetreat && player.currentTime < 1)
-            .accessibilityLabel("Anterior")
-
-            Button(action: { player.togglePlayback() }) {
-                Group {
-                    if player.isLoading {
-                        ProgressView().controlSize(.small).tint(.white)
-                    } else {
-                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.title2)
-                    }
-                }
-                .frame(width: 56, height: 56)
-                .background(DiegoTheme.accent)
-                .foregroundStyle(.white)
-                .clipShape(Circle())
-                .shadow(color: DiegoTheme.accent.opacity(0.35), radius: 8, y: 4)
-            }
-            .disabled(player.playbackState == .resolving)
-            .accessibilityLabel(player.isPlaying ? "Pausar" : "Reproducir")
-
-            Button(action: { player.next() }) {
-                Image(systemName: "forward.fill").font(.title2)
-            }
-            .disabled(!queue.canAdvance)
-            .accessibilityLabel("Siguiente")
-
-            Button(action: { player.cycleRepeat() }) {
-                Image(systemName: repeatSymbol)
-                    .font(.title3)
-                    .foregroundStyle(player.repeatMode == .off ? DiegoTheme.textSecondary : DiegoTheme.accent)
-            }
-            .buttonStyle(.plain)
-            .frame(minWidth: 44, minHeight: 44)
-            .accessibilityLabel("Repetir")
-            .accessibilityValue(repeatValue)
-        }
-        .foregroundStyle(DiegoTheme.textPrimary)
-        .animation(reduceMotion ? nil : .default, value: player.isPlaying)
-    }
-
-    private var repeatSymbol: String {
-        switch player.repeatMode {
-        case .one: return "repeat.1"
-        case .all, .off: return "repeat"
-        }
-    }
-
-    private var repeatValue: String {
-        switch player.repeatMode {
-        case .off: return "Desactivado"
-        case .all: return "Repetir lista"
-        case .one: return "Repetir una"
-        }
-    }
-
-    private var expandButton: some View {
-        Button {
-            withAnimation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.78)) {
-                expanded.toggle()
-            }
-        } label: {
-            Image(systemName: expanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                .font(.body)
-                .frame(width: 34, height: 34)
-                .foregroundStyle(DiegoTheme.textPrimary)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(expanded ? "Contraer reproductor" : "Ampliar reproductor")
-    }
-
-    // MARK: - Progreso fino
-
-    private var progressControl: some View {
-        HStack(spacing: 8) {
-            Text(format(player.currentTime)).monospacedDigit().font(.caption)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(DiegoTheme.textPrimary.opacity(0.12))
-                        .frame(height: 4)
-                    Capsule()
-                        .fill(DiegoTheme.accent)
-                        .frame(width: max(4, geo.size.width * player.progress), height: 4)
-                }
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onEnded { value in
-                            guard geo.size.width > 0 else { return }
-                            let fraction = min(max(value.location.x / geo.size.width, 0), 1)
-                            player.seek(to: fraction)
-                        }
-                )
-            }
-            .frame(height: 22)
-            .accessibilityElement()
-            .accessibilityLabel("Posición de reproducción")
-            .accessibilityValue("\(format(player.currentTime)) de \(format(player.duration))")
-            .accessibilityAdjustableAction { direction in
-                switch direction {
-                case .increment:
-                    player.seek(to: min(player.progress + 0.05, 1))
-                case .decrement:
-                    player.seek(to: max(player.progress - 0.05, 0))
-                @unknown default:
-                    break
-                }
-            }
-            Text(format(player.duration)).monospacedDigit().font(.caption)
-        }
-        .font(.caption)
-    }
-
-    // MARK: - Editor de cola
-
-    private var queueEditor: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("COLA · \(queue.items.count)")
-                    .font(.caption.bold())
-                    .tracking(1.5)
-                    .foregroundStyle(DiegoTheme.textPrimary)
-                Spacer()
-                Button("Vaciar") { player.clearQueue() }
-                    .font(.caption.bold())
-                    .disabled(queue.items.isEmpty)
-            }
-            List {
-                ForEach(Array(queue.items.enumerated()), id: \.element.id) { index, item in
-                    HStack(spacing: 8) {
-                        Button { player.select(item) } label: {
-                            HStack {
-                                Circle()
-                                    .fill(item.id == queue.current?.id ? DiegoTheme.accent : DiegoTheme.textSecondary.opacity(0.6))
-                                    .frame(width: 9, height: 9)
-                                Text(item.title).lineLimit(1)
-                                    .foregroundStyle(DiegoTheme.textPrimary)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .buttonStyle(.plain)
-                        Button { queue.move(id: item.id, by: -1) } label: { Image(systemName: "arrow.up") }
-                            .disabled(index == 0)
-                            .accessibilityLabel("Subir en la cola")
-                        Button { queue.move(id: item.id, by: 1) } label: { Image(systemName: "arrow.down") }
-                            .disabled(index == queue.items.count - 1)
-                            .accessibilityLabel("Bajar en la cola")
-                        Button { player.removeFromQueue(id: item.id) } label: { Image(systemName: "trash") }
-                            .accessibilityLabel("Eliminar de la cola")
-                    }
-                    .font(.callout)
-                    .foregroundStyle(DiegoTheme.textPrimary)
-                }
-                .onMove { source, destination in
-                    queue.move(from: source, to: destination)
-                }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            #if os(iOS)
-            .environment(\.editMode, .constant(.active))
-            #endif
-            .frame(maxHeight: 150)
-        }
-        .padding(12)
-        .background(DiegoTheme.surface.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    private func format(_ seconds: Double) -> String {
-        guard seconds.isFinite else { return "0:00" }
-        return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 }
 
-/// Carga la carátula a través de `ArtworkCache` (la misma caché compartida que
-/// publica Now Playing), en lugar de `AsyncImage`, para reutilizar la imagen y
-/// evitar descargas duplicadas. Mantiene un placeholder ante fallo de red.
+/// Carga la carátula a través de `ArtworkCache` compartida.
 struct TrackArtwork: View {
     let url: URL?
     @State private var image: CGImage?
@@ -453,7 +562,7 @@ struct TrackArtwork: View {
         ZStack {
             DiegoTheme.surface
             Image(systemName: "music.note")
-                .font(.title)
+                .font(.title3)
                 .foregroundStyle(DiegoTheme.accent.opacity(0.6))
         }
     }
