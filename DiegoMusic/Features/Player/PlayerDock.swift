@@ -409,17 +409,16 @@ struct PlayerDock: View {
             LyricsView(
                 service: lyricsService,
                 item: current,
-                currentTime: player.currentTime
+                player: player
             )
-            .padding(20)
-            .background(DiegoTheme.background.ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cerrar") { showLyrics = false }
+                        .foregroundStyle(.white)
                 }
             }
         }
-        .tint(DiegoTheme.accent)
+        .tint(.white)
     }
 
     // MARK: - Sheet de Cola de Reproducción

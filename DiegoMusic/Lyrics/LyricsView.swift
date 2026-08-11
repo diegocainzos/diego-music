@@ -1,115 +1,316 @@
 import SwiftUI
 
-/// Vista de letras sincronizadas con auto-scroll.
-///
-/// Consume un `LyricsProviding` y el tiempo de reproducción actual para
-/// resaltar y desplazar la línea activa. Degrada con elegancia (estado vacío)
-/// cuando no hay letra o proveedor, sin interrumpir la reproducción.
+// MARK: - Lyrics Display State
+
+enum LyricsDisplayState: Equatable {
+    case loading
+    case synced([LyricsLine])
+    case plain(String)
+    case instrumental
+    case notFound
+    case error(String)
+}
+
+// MARK: - Live Lyrics View (Apple Music Style)
+
+/// Vista de letras sincronizadas estilo Apple Music con autoscroll,
+/// línea activa brillante, tap-to-seek y fondo glassmorphism.
 struct LyricsView: View {
     let service: LyricsService
     let item: MediaItem
-    let currentTime: Double
+    @ObservedObject var player: AudioPlayerCoordinator
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var segments: [LyricSegment]?
-    @State private var loaded = false
+    @State private var displayState: LyricsDisplayState = .loading
 
     var body: some View {
-        Group {
-            if loaded {
-                if let segments, !segments.isEmpty {
-                    lyricsList(segments)
-                } else {
-                    emptyState
-                }
-            } else {
-                ProgressView()
-                    .tint(DiegoTheme.accent)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack {
+            // Fondo glassmorphism con portada difuminada
+            lyricsBackground
+
+            // Contenido según estado
+            switch displayState {
+            case .loading:
+                loadingView
+            case .synced(let lines):
+                SyncedLyricsContent(
+                    lines: lines,
+                    player: player,
+                    reduceMotion: reduceMotion
+                )
+            case .plain(let text):
+                plainLyricsView(text)
+            case .instrumental:
+                instrumentalView
+            case .notFound:
+                notFoundView
+            case .error(let message):
+                errorView(message)
             }
         }
         .task(id: item.id) {
-            segments = await service.lyrics(for: item, at: currentTime)
-            loaded = true
+            displayState = .loading
+            let result = await service.fetchResult(for: item)
+            switch result {
+            case .synced(let lines):
+                displayState = .synced(lines)
+            case .plain(let text):
+                displayState = .plain(text)
+            case .instrumental:
+                displayState = .instrumental
+            case .notFound:
+                displayState = .notFound
+            }
         }
     }
 
-    private var allLines: [LyricsLine] {
-        (segments ?? []).flatMap(\.lines)
+    // MARK: - Background
+
+    private var lyricsBackground: some View {
+        ZStack {
+            Color.black
+
+            TrackArtwork(url: item.thumbnailURL)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .blur(radius: 60)
+                .brightness(-0.3)
+                .saturation(1.4)
+                .scaleEffect(1.2)
+                .clipped()
+
+            Color.black.opacity(0.4)
+        }
+        .ignoresSafeArea()
     }
+
+    // MARK: - Loading
+
+    private var loadingView: some View {
+        ProgressView()
+            .tint(.white)
+            .scaleEffect(1.2)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Plain Lyrics
+
+    private func plainLyricsView(_ text: String) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Image(systemName: "text.quote")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+                Text("Letras sin sincronización")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+
+            ScrollView {
+                Text(text)
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 32)
+            }
+        }
+    }
+
+    // MARK: - Instrumental
+
+    private var instrumentalView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "music.quarternote.3")
+                .font(.system(size: 48))
+                .foregroundStyle(.white.opacity(0.5))
+            Text("Instrumental")
+                .font(.title2.bold())
+                .foregroundStyle(.white.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Not Found
+
+    private var notFoundView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "music.note")
+                .font(.system(size: 48))
+                .foregroundStyle(.white.opacity(0.4))
+            Text("Letra no disponible")
+                .font(.title2.bold())
+                .foregroundStyle(.white.opacity(0.7))
+            Text("No se encontraron letras para esta canción")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.4))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(32)
+    }
+
+    // MARK: - Error
+
+    private func errorView(_ message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 48))
+                .foregroundStyle(.white.opacity(0.4))
+            Text("Error al cargar letras")
+                .font(.title2.bold())
+                .foregroundStyle(.white.opacity(0.7))
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.4))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(32)
+    }
+}
+
+private struct ContainerHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 800
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+// MARK: - Synced Lyrics Content (Extracted for performance)
+
+private struct SyncedLyricsContent: View {
+    let lines: [LyricsLine]
+    @ObservedObject var player: AudioPlayerCoordinator
+    let reduceMotion: Bool
+
+    @State private var userScrolling = false
+    @State private var scrollResetTask: Task<Void, Never>?
+    @State private var containerHeight: CGFloat = 800
 
     private var activeIndex: Int? {
-        let lines = allLines
-        // Última línea cuyo inicio ya fue alcanzado y aún no superado su final.
-        // Con líneas sin marcas temporales (startTime == nil) devolvemos nil
-        // para desactivar el auto-scroll.
-        let timed = lines.enumerated().filter { $0.element.startTime != nil }
-        guard let last = timed.last(where: {
-            let start = $0.element.startTime ?? 0
-            let end = $0.element.endTime ?? .greatestFiniteMagnitude
-            return currentTime >= start && currentTime < end
-        }) else {
-            return timed.last(where: { ($0.element.startTime ?? 0) <= currentTime })?.offset
+        let currentTime = player.currentTime
+        // Find the last line whose startTime <= currentTime
+        var result: Int?
+        for (index, line) in lines.enumerated() {
+            guard let start = line.startTime else { continue }
+            if start <= currentTime {
+                result = index
+            } else {
+                break // Lines are sorted by time
+            }
         }
-        return last.offset
+        return result
     }
 
-    private func lyricsList(_ segments: [LyricSegment]) -> some View {
+    var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(Array(allLines.enumerated()), id: \.element.id) { index, line in
-                        Text(line.text)
-                            .font(.title3.weight(isActive(index) ? .semibold : .regular))
-                            .foregroundStyle(isActive(index) ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .id(line.id)
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    // Top spacer for centering first line
+                    Spacer()
+                        .frame(height: containerHeight * 0.4)
+
+                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                        lyricsLineView(line: line, index: index)
+                            .id(index)
                     }
+
+                    // Bottom spacer for centering last line
+                    Spacer()
+                        .frame(height: containerHeight * 0.4)
                 }
-                .padding(.vertical, 24)
+                .padding(.horizontal, 24)
             }
-            .onChange(of: activeIndex) { index in
-                guard let index, allLines.indices.contains(index) else { return }
-                let lineID = allLines[index].id
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(key: ContainerHeightKey.self, value: geo.size.height)
+                }
+            )
+            .onPreferenceChange(ContainerHeightKey.self) { height in
+                containerHeight = height
+            }
+            .scrollIndicators(.hidden)
+            .onChange(of: activeIndex) { _, newIndex in
+                guard let newIndex, !userScrolling else { return }
                 if reduceMotion {
-                    proxy.scrollTo(lineID, anchor: .center)
+                    proxy.scrollTo(newIndex, anchor: .center)
                 } else {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        proxy.scrollTo(lineID, anchor: .center)
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        proxy.scrollTo(newIndex, anchor: .center)
                     }
                 }
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Letras")
-            .accessibilityValue(activeLineText ?? "Letra no disponible")
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 5)
+                    .onChanged { _ in
+                        userScrolling = true
+                        scrollResetTask?.cancel()
+                    }
+                    .onEnded { _ in
+                        scrollResetTask?.cancel()
+                        scrollResetTask = Task {
+                            try? await Task.sleep(for: .seconds(3))
+                            guard !Task.isCancelled else { return }
+                            await MainActor.run {
+                                userScrolling = false
+                            }
+                        }
+                    }
+            )
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Letras sincronizadas")
+        .accessibilityValue(activeLineText ?? "")
     }
 
-    private func isActive(_ index: Int) -> Bool {
-        activeIndex == index
+    @ViewBuilder
+    private func lyricsLineView(line: LyricsLine, index: Int) -> some View {
+        let isActive = activeIndex == index
+        let isPast = {
+            guard let active = activeIndex else { return false }
+            return index < active
+        }()
+        let isEmpty = line.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        if isEmpty {
+            // Instrumental break / empty line — render as spacing
+            Rectangle()
+                .fill(Color.clear)
+                .frame(height: 24)
+                .id(index)
+        } else {
+            Button {
+                if let time = line.startTime {
+                    player.seek(toSeconds: time)
+                }
+            } label: {
+                Text(line.text)
+                    .font(isActive ? .title.bold() : .title3.weight(.medium))
+                    .foregroundStyle(.white.opacity(isActive ? 1.0 : 0.35))
+                    .shadow(
+                        color: isActive ? .white.opacity(0.6) : .clear,
+                        radius: isActive ? 8 : 0
+                    )
+                    .shadow(
+                        color: isActive ? .white.opacity(0.3) : .clear,
+                        radius: isActive ? 16 : 0
+                    )
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                    .animation(.easeInOut(duration: 0.3), value: isActive)
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isActive ? .isSelected : [])
+        }
     }
 
     private var activeLineText: String? {
-        guard let activeIndex, allLines.indices.contains(activeIndex) else { return nil }
-        return allLines[activeIndex].text
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "text.quote")
-                .font(.largeTitle)
-                .foregroundStyle(DiegoTheme.textSecondary)
-            Text("Letra no disponible")
-                .font(.headline)
-                .foregroundStyle(DiegoTheme.textPrimary)
-            Text("La letra es opcional y best-effort; sin proveedor configurado no se muestra.")
-                .font(.callout)
-                .foregroundStyle(DiegoTheme.textSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(24)
-        .accessibilityElement(children: .combine)
+        guard let index = activeIndex, lines.indices.contains(index) else { return nil }
+        return lines[index].text
     }
 }
