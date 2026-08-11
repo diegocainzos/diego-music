@@ -173,13 +173,6 @@ struct LyricsView: View {
     }
 }
 
-private struct ContainerHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 800
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 // MARK: - Synced Lyrics Content (Extracted for performance)
 
 private struct SyncedLyricsContent: View {
@@ -189,7 +182,6 @@ private struct SyncedLyricsContent: View {
 
     @State private var userScrolling = false
     @State private var scrollResetTask: Task<Void, Never>?
-    @State private var containerHeight: CGFloat = 800
 
     private var activeIndex: Int? {
         let currentTime = player.currentTime
@@ -207,60 +199,56 @@ private struct SyncedLyricsContent: View {
     }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
-                    // Top spacer for centering first line
-                    Spacer()
-                        .frame(height: containerHeight * 0.4)
+        GeometryReader { outerGeo in
+            let viewportHeight = outerGeo.size.height
 
-                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                        lyricsLineView(line: line, index: index)
-                            .id(index)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        // Top spacer for centering first line (35% of visible viewport height)
+                        Spacer()
+                            .frame(height: max(80, viewportHeight * 0.35))
+
+                        ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                            lyricsLineView(line: line, index: index)
+                                .id(index)
+                        }
+
+                        // Bottom spacer for centering last line (35% of visible viewport height)
+                        Spacer()
+                            .frame(height: max(80, viewportHeight * 0.35))
                     }
-
-                    // Bottom spacer for centering last line
-                    Spacer()
-                        .frame(height: containerHeight * 0.4)
+                    .padding(.horizontal, 24)
                 }
-                .padding(.horizontal, 24)
-            }
-            .background(
-                GeometryReader { geo in
-                    Color.clear.preference(key: ContainerHeightKey.self, value: geo.size.height)
-                }
-            )
-            .onPreferenceChange(ContainerHeightKey.self) { height in
-                containerHeight = height
-            }
-            .scrollIndicators(.hidden)
-            .onChange(of: activeIndex) { _, newIndex in
-                guard let newIndex, !userScrolling else { return }
-                if reduceMotion {
-                    proxy.scrollTo(newIndex, anchor: .center)
-                } else {
-                    withAnimation(.easeInOut(duration: 0.4)) {
+                .scrollIndicators(.hidden)
+                .onChange(of: activeIndex) { _, newIndex in
+                    guard let newIndex, !userScrolling else { return }
+                    if reduceMotion {
                         proxy.scrollTo(newIndex, anchor: .center)
-                    }
-                }
-            }
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 5)
-                    .onChanged { _ in
-                        userScrolling = true
-                        scrollResetTask?.cancel()
-                    }
-                    .onEnded { _ in
-                        scrollResetTask?.cancel()
-                        scrollResetTask = Task {
-                            try? await Task.sleep(for: .seconds(3))
-                            guard !Task.isCancelled else { return }
-                            await MainActor.run {
-                                userScrolling = false
-                            }
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            proxy.scrollTo(newIndex, anchor: .center)
                         }
                     }
-            )
+                }
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 5)
+                        .onChanged { _ in
+                            userScrolling = true
+                            scrollResetTask?.cancel()
+                        }
+                        .onEnded { _ in
+                            scrollResetTask?.cancel()
+                            scrollResetTask = Task {
+                                try? await Task.sleep(for: .seconds(3))
+                                guard !Task.isCancelled else { return }
+                                await MainActor.run {
+                                    userScrolling = false
+                                }
+                            }
+                        }
+                )
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Letras sincronizadas")
@@ -270,10 +258,6 @@ private struct SyncedLyricsContent: View {
     @ViewBuilder
     private func lyricsLineView(line: LyricsLine, index: Int) -> some View {
         let isActive = activeIndex == index
-        let isPast = {
-            guard let active = activeIndex else { return false }
-            return index < active
-        }()
         let isEmpty = line.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
         if isEmpty {
@@ -300,6 +284,7 @@ private struct SyncedLyricsContent: View {
                         radius: isActive ? 16 : 0
                     )
                     .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 4)
                     .animation(.easeInOut(duration: 0.3), value: isActive)

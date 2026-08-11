@@ -2,10 +2,10 @@
   "version": 1,
   "receipts": [
     {
-      "createdAt": "2026-08-11T14:43:05.195Z",
+      "createdAt": "2026-08-11T14:44:35.791Z",
       "bankId": "pi-coding",
       "documentId": "pi-session:171625fc204b6e91",
-      "queueJobId": "6b76d19a-8c38-4ce8-9252-c97d793b987f",
+      "queueJobId": "ac7d3100-ca1a-4e22-a3fc-5a15873e2246",
       "updateMode": "append",
       "source": "queue",
       "context": "Pi coding session for repo \"youtube-music\", session 2026-08-11T14-36-58-908Z_019ff141-569c-7d3c-b804-30e55a08e30b.jsonl",

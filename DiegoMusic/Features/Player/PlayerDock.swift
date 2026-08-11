@@ -417,6 +417,9 @@ struct PlayerDock: View {
                         .foregroundStyle(.white)
                 }
             }
+            #if os(iOS)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            #endif
         }
         .tint(.white)
     }
