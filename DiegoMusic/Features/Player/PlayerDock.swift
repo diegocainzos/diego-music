@@ -92,10 +92,14 @@ struct PlayerDock: View {
             .accessibilityLabel("Abrir reproducción en pantalla completa")
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(current.title)
-                    .font(.system(.subheadline, design: .default, weight: .semibold))
-                    .foregroundStyle(DiegoTheme.textPrimary)
-                    .lineLimit(1)
+                Button { expanded = true } label: {
+                    Text(current.title)
+                        .font(.system(.subheadline, design: .default, weight: .semibold))
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Abrir reproductor en pantalla completa")
 
                 Button {
                     navState.navigate(to: .artistDetail(id: current.channelTitle, name: current.channelTitle))
