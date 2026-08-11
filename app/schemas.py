@@ -150,9 +150,18 @@ class PlaylistCreate(BaseModel):
     cover_url: Optional[str] = None
     is_public: bool = False
 
+class PlaylistUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    cover_url: Optional[str] = None
+    is_public: Optional[bool] = None
+
 class PlaylistTrackAdd(BaseModel):
     track_id: int
     order: Optional[int] = 0
+
+class PlaylistTrackReorder(BaseModel):
+    track_ids: List[int]
 
 class PlaylistTrackResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

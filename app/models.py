@@ -143,6 +143,10 @@ class Playlist(Base):
     user: Mapped["User"] = relationship("User", back_populates="playlists")
     playlist_tracks: Mapped[List["PlaylistTrack"]] = relationship("PlaylistTrack", back_populates="playlist", cascade="all, delete-orphan", order_by="PlaylistTrack.order")
 
+    @property
+    def tracks(self) -> List["PlaylistTrack"]:
+        return self.playlist_tracks
+
 
 class PlaylistTrack(Base):
     __tablename__ = "playlist_tracks"

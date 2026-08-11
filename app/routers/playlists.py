@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
 from ..models import User, Playlist, PlaylistTrack, Track
-from ..schemas import PlaylistCreate, PlaylistResponse, PlaylistTrackAdd
+from ..schemas import PlaylistCreate, PlaylistUpdate, PlaylistResponse, PlaylistTrackAdd, PlaylistTrackReorder
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/playlists", tags=["Listas de Reproducción (Playlists)"])
@@ -44,6 +44,28 @@ def get_playlist_by_id(playlist_id: int, current_user: User = Depends(get_curren
 
     return playlist
 
+@router.put("/{playlist_id}", response_model=PlaylistResponse)
+def update_playlist(
+    playlist_id: int,
+    playlist_in: PlaylistUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Actualiza metadatos (nombre, descripción, portada, visibilidad) de una playlist."""
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist no encontrada")
+    if playlist.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permisos para modificar esta playlist")
+
+    update_data = playlist_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(playlist, field, value)
+
+    db.commit()
+    db.refresh(playlist)
+    return playlist
+
 @router.post("/{playlist_id}/tracks", response_model=PlaylistResponse)
 def add_track_to_playlist(
     playlist_id: int,
@@ -74,6 +96,31 @@ def add_track_to_playlist(
         db.add(pt)
         db.commit()
 
+    db.refresh(playlist)
+    return playlist
+
+@router.put("/{playlist_id}/tracks/reorder", response_model=PlaylistResponse)
+def reorder_playlist_tracks(
+    playlist_id: int,
+    reorder_in: PlaylistTrackReorder,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Reordena la lista de canciones en la playlist según la lista de IDs proporcionada."""
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist no encontrada")
+    if playlist.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permisos para modificar esta playlist")
+
+    pts = db.query(PlaylistTrack).filter(PlaylistTrack.playlist_id == playlist_id).all()
+    pt_map = {pt.track_id: pt for pt in pts}
+
+    for index, track_id in enumerate(reorder_in.track_ids):
+        if track_id in pt_map:
+            pt_map[track_id].order = index
+
+    db.commit()
     db.refresh(playlist)
     return playlist
 

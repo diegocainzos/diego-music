@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CreatePlaylistSheet: View {
+    @EnvironmentObject private var environment: AppEnvironment
     @ObservedObject var library: LibraryStore
     @Environment(\.dismiss) private var dismiss
     @State private var name: String = ""
@@ -43,6 +44,7 @@ struct CreatePlaylistSheet: View {
         guard !trimmed.isEmpty else { return }
         do {
             let newPlaylist = try library.createPlaylist(named: trimmed)
+            environment.createPlaylistInBackend(name: trimmed, description: descriptionText.isEmpty ? nil : descriptionText)
             onCreate?(newPlaylist)
             dismiss()
         } catch {
@@ -52,6 +54,7 @@ struct CreatePlaylistSheet: View {
 }
 
 struct PlaylistsView: View {
+    @EnvironmentObject private var environment: AppEnvironment
     @ObservedObject var library: LibraryStore
     @State private var newName = ""
     @State private var expandedPlaylists: Set<UUID> = []
@@ -116,6 +119,18 @@ struct PlaylistsView: View {
                                             .font(.callout)
                                             .foregroundStyle(.secondary)
                                             .frame(maxWidth: .infinity, alignment: .leading)
+                                    } else {
+                                        HStack {
+                                            Button {
+                                                downloadPlaylist(playlist)
+                                            } label: {
+                                                Label("Descargar Playlist", systemImage: "arrow.down.circle.fill")
+                                                    .font(.subheadline.weight(.semibold))
+                                            }
+                                            .buttonStyle(PrimaryButtonStyle())
+                                            Spacer()
+                                        }
+                                        .padding(.bottom, 4)
                                     }
                                     let sortedEntries = playlist.entries.sorted(by: { $0.position < $1.position })
                                     ForEach(Array(sortedEntries.enumerated()), id: \.element.id) { index, entry in
@@ -155,6 +170,17 @@ struct PlaylistsView: View {
                                         Text("\(playlist.entries.count) elementos").font(.caption).foregroundStyle(.secondary)
                                     }
                                     Spacer()
+                                    Button {
+                                        downloadPlaylist(playlist)
+                                    } label: {
+                                        Image(systemName: "arrow.down.circle")
+                                            .font(.title3)
+                                            .foregroundStyle(DiegoTheme.accent)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Descargar playlist")
+                                    .disabled(playlist.entries.isEmpty)
+
                                     Button { delete(playlist) } label: { Image(systemName: "trash") }
                                         .buttonStyle(.plain)
                                         .accessibilityLabel("Eliminar playlist")
@@ -195,6 +221,8 @@ struct PlaylistsView: View {
         guard !name.isEmpty else { return }
         do {
             _ = try library.createPlaylist(named: name)
+            environment.createPlaylistInBackend(name: name)
+            TelemetryLogger.shared.recordEvent(type: "playlist_create", data: ["name": name])
             newName = ""
             errorMessage = nil
         } catch {
@@ -203,17 +231,36 @@ struct PlaylistsView: View {
     }
 
     private func remove(_ entry: PlaylistEntry, from playlist: LocalPlaylist) {
-        do { try library.remove(entry, from: playlist); errorMessage = nil }
+        do {
+            try library.remove(entry, from: playlist)
+            TelemetryLogger.shared.recordEvent(type: "playlist_remove_track", data: ["playlist_name": playlist.name, "track_title": entry.title])
+            errorMessage = nil
+        }
         catch { errorMessage = "No se pudo eliminar el elemento." }
     }
 
     private func move(_ entry: PlaylistEntry, in playlist: LocalPlaylist, by offset: Int) {
-        do { try library.move(entry, in: playlist, by: offset); errorMessage = nil }
+        do {
+            try library.move(entry, in: playlist, by: offset)
+            TelemetryLogger.shared.recordEvent(type: "playlist_reorder", data: ["playlist_name": playlist.name])
+            errorMessage = nil
+        }
         catch { errorMessage = "No se pudo reordenar la playlist." }
     }
 
     private func delete(_ playlist: LocalPlaylist) {
-        do { try library.delete(playlist); errorMessage = nil }
+        do {
+            try library.delete(playlist)
+            TelemetryLogger.shared.recordEvent(type: "playlist_delete", data: ["playlist_name": playlist.name])
+            errorMessage = nil
+        }
         catch { errorMessage = "No se pudo eliminar la playlist." }
+    }
+
+    private func downloadPlaylist(_ playlist: LocalPlaylist) {
+        guard let resolver = environment.player.resolverClient else { return }
+        let items = playlist.entries.sorted(by: { $0.position < $1.position }).map(\.mediaItem)
+        guard !items.isEmpty else { return }
+        environment.downloadManager.enqueueBatch(items, resolver: resolver)
     }
 }

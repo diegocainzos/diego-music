@@ -20,12 +20,14 @@ final class AppEnvironment: ObservableObject {
     let downloadManager: OfflineDownloadManager
     let networkMonitor: NetworkMonitor
     let authClient: any AuthClientProtocol
+    let backendClient: any BackendAPIClientProtocol
     let tokenManager: any TokenManaging
 
     init(
         modelContext: NSManagedObjectContext,
         transport: any HTTPTransport = URLSessionTransport(),
         authClient: (any AuthClientProtocol)? = nil,
+        backendClient: (any BackendAPIClientProtocol)? = nil,
         tokenManager: (any TokenManaging)? = nil
     ) {
         let library = LibraryStore(context: modelContext)
@@ -46,6 +48,8 @@ final class AppEnvironment: ObservableObject {
         let manager = tokenManager ?? KeychainTokenManager()
         self.tokenManager = manager
         self.authClient = authClient ?? AuthClient(baseURL: baseURL, transport: transport)
+        self.backendClient = backendClient ?? BackendAPIClient(baseURL: baseURL, transport: transport)
+        TelemetryLogger.shared.configure(baseURL: baseURL, tokenManager: manager)
 
         self.library = library
         self.queue = queue
@@ -77,6 +81,7 @@ final class AppEnvironment: ObservableObject {
         if playbackSettings.historyEnabled {
             try? library.addHistory(item)
         }
+        TelemetryLogger.shared.recordEvent(type: "track_play", data: ["title": item.title, "artist": item.channelTitle, "video_id": item.id])
     }
 
     /// Reemplaza la cola activa por la lista completa dada y comienza la reproducción en `index`.
@@ -89,7 +94,7 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
-    // MARK: - Autenticación
+    // MARK: - Autenticación y Sincronización Backend
 
     func checkInitialAuthState() async {
         guard let token = tokenManager.getToken(), !token.isEmpty else {
@@ -100,6 +105,7 @@ final class AppEnvironment: ObservableObject {
         do {
             let user = try await authClient.fetchMe(token: token)
             authState = .authenticated(user)
+            await syncPlaylistsWithBackend()
         } catch {
             tokenManager.deleteToken()
             authState = .unauthenticated
@@ -113,6 +119,8 @@ final class AppEnvironment: ObservableObject {
             try tokenManager.saveToken(response.accessToken)
             let user = try await authClient.fetchMe(token: response.accessToken)
             authState = .authenticated(user)
+            TelemetryLogger.shared.recordEvent(type: "login", data: ["email": email])
+            await syncPlaylistsWithBackend()
         } catch {
             authState = .unauthenticated
             throw error
@@ -126,6 +134,8 @@ final class AppEnvironment: ObservableObject {
             try tokenManager.saveToken(response.accessToken)
             let user = try await authClient.fetchMe(token: response.accessToken)
             authState = .authenticated(user)
+            TelemetryLogger.shared.recordEvent(type: "register", data: ["email": email, "full_name": fullName ?? ""])
+            await syncPlaylistsWithBackend()
         } catch {
             authState = .unauthenticated
             throw error
@@ -133,7 +143,31 @@ final class AppEnvironment: ObservableObject {
     }
 
     func logout() {
+        TelemetryLogger.shared.recordEvent(type: "logout", data: nil)
         tokenManager.deleteToken()
         authState = .unauthenticated
+    }
+
+    // MARK: - Sincronización de Playlists
+
+    func syncPlaylistsWithBackend() async {
+        guard let token = tokenManager.getToken(), authState.isAuthenticated else { return }
+        do {
+            let remotePlaylists = try await backendClient.fetchMyPlaylists(token: token)
+            for remote in remotePlaylists {
+                if !library.playlists.contains(where: { $0.name == remote.name }) {
+                    _ = try? library.createPlaylist(named: remote.name)
+                }
+            }
+        } catch {
+            print("Sincronización de playlists omitida: \(error)")
+        }
+    }
+
+    func createPlaylistInBackend(name: String, description: String? = nil) {
+        guard let token = tokenManager.getToken(), authState.isAuthenticated else { return }
+        Task {
+            _ = try? await backendClient.createPlaylist(token: token, name: name, description: description, isPublic: false)
+        }
     }
 }
