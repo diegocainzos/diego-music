@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-from app.config import settings
+from .config import settings
 
 # Configuración del Engine SQLite
 connect_args = {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}

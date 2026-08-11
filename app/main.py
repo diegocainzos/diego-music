@@ -2,10 +2,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import settings
-from app.database import engine, Base, SessionLocal
-from app.seed import seed_database
-from app.routers import auth, users, telemetry, catalog, playlists
+from .config import settings
+from .database import engine, Base, SessionLocal
+from .seed import seed_database
+from .routers import auth, users, telemetry, catalog, playlists
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

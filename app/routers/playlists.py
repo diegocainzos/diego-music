@@ -2,10 +2,10 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
-from app.database import get_db
-from app.models import User, Playlist, PlaylistTrack, Track
-from app.schemas import PlaylistCreate, PlaylistResponse, PlaylistTrackAdd
-from app.auth import get_current_user
+from ..database import get_db
+from ..models import User, Playlist, PlaylistTrack, Track
+from ..schemas import PlaylistCreate, PlaylistResponse, PlaylistTrackAdd
+from ..auth import get_current_user
 
 router = APIRouter(prefix="/playlists", tags=["Listas de Reproducción (Playlists)"])
 

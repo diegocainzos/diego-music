@@ -4,7 +4,7 @@ from sqlalchemy import (
     String, Integer, Float, Boolean, DateTime, ForeignKey, Text, UniqueConstraint, PrimaryKeyConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.database import Base
+from .database import Base
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)

@@ -2,10 +2,10 @@ import json
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import User, UserActivityLog
-from app.schemas import TelemetryEventCreate, TelemetryEventResponse
-from app.auth import get_current_user
+from ..database import get_db
+from ..models import User, UserActivityLog
+from ..schemas import TelemetryEventCreate, TelemetryEventResponse
+from ..auth import get_current_user
 
 router = APIRouter(prefix="/telemetry", tags=["Telemetría y Registro de Uso"])
 

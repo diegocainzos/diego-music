@@ -3,17 +3,17 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.models import (
+from ..database import get_db
+from ..models import (
     User, UserSettings, UserPlayerState, PlayHistory, UserFavorite, UserFollow, Artist
 )
-from app.schemas import (
+from ..schemas import (
     UserSettingsResponse, UserSettingsUpdate,
     UserPlayerStateResponse, UserPlayerStateUpdate,
     PlayHistoryCreate, PlayHistoryResponse,
     FavoriteCreate, FavoriteResponse, ArtistResponse
 )
-from app.auth import get_current_user
+from ..auth import get_current_user
 
 router = APIRouter(prefix="/users/me", tags=["Usuario, Preferencias y Reproductor"])
 

@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 
-from app.database import get_db
-from app.models import Artist, Album, Track
-from app.schemas import ArtistResponse, AlbumResponse, TrackResponse
+from ..database import get_db
+from ..models import Artist, Album, Track
+from ..schemas import ArtistResponse, AlbumResponse, TrackResponse
 
 router = APIRouter(prefix="/catalog", tags=["Catálogo Musical"])
 

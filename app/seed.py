@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from app.models import User, UserSettings, UserPlayerState, Artist, Album, Track
-from app.auth import hash_password
+from .models import User, UserSettings, UserPlayerState, Artist, Album, Track
+from .auth import hash_password
 
 def seed_database(db: Session):
     """Inicializa la base de datos con datos semilla si está vacía."""
