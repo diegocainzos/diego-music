@@ -634,6 +634,9 @@ final class AudioPlayerCoordinator: ObservableObject {
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
         ]
         if duration > 0 { information[MPMediaItemPropertyPlaybackDuration] = duration }
+        if let existingArtwork = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPMediaItemPropertyArtwork] {
+            information[MPMediaItemPropertyArtwork] = existingArtwork
+        }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = information
         publishArtwork(for: item)
 
@@ -648,7 +651,8 @@ final class AudioPlayerCoordinator: ObservableObject {
     /// está lista, sin bloquear el hilo principal. Los metadatos de texto ya se
     /// han publicado en `updateNowPlayingInfo`; aquí solo se añade la portada.
     private func publishArtwork(for item: MediaItem) {
-        guard item.id != artworkItemID else { return }
+        let hasArtworkAlready = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPMediaItemPropertyArtwork] != nil
+        guard item.id != artworkItemID || !hasArtworkAlready else { return }
         artworkItemID = item.id
         artworkTask?.cancel()
         guard let url = item.thumbnailURL else { return }

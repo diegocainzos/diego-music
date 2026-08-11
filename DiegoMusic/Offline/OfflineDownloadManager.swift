@@ -48,6 +48,7 @@ final class OfflineDownloadManager: ObservableObject {
 
     private let context: NSManagedObjectContext
     private var downloadQueue: [String] = []
+    private var mediaItemMap: [String: MediaItem] = [:]
     private var activeDownloadTask: Task<Void, Never>?
     private var activeVideoID: String?
     private let maxRetries = 2
@@ -73,14 +74,15 @@ final class OfflineDownloadManager: ObservableObject {
     func enqueue(_ item: MediaItem, resolver: any AudioStreamResolving) {
         let id = item.id
         guard states[id] != .downloaded,
-              states[id] != .queued,
-              states[id] != .downloading(progress: 0) // aproximación: no re-encolar si está en progreso
+              states[id] != .queued
         else { return }
-        // Verificar que no esté en descarga activa
         if case .downloading = states[id] { return }
         states[id] = .queued
-        downloadQueue.append(id)
-        startNextIfIdle(item: item, resolver: resolver)
+        mediaItemMap[id] = item
+        if !downloadQueue.contains(id) {
+            downloadQueue.append(id)
+        }
+        processNextInQueue(resolver: resolver)
     }
 
     /// Encola todas las pistas de una playlist/álbum.
@@ -92,12 +94,12 @@ final class OfflineDownloadManager: ObservableObject {
             else { continue }
             if case .downloading = states[id] { continue }
             states[id] = .queued
-            downloadQueue.append(id)
+            mediaItemMap[id] = item
+            if !downloadQueue.contains(id) {
+                downloadQueue.append(id)
+            }
         }
-        // Arrancar con el primer item que no esté en curso
-        if let first = items.first(where: { downloadQueue.contains($0.id) }) {
-            startNextIfIdle(item: first, resolver: resolver)
-        }
+        processNextInQueue(resolver: resolver)
     }
 
     /// Elimina la descarga de una pista (fichero + Core Data).
@@ -144,23 +146,17 @@ final class OfflineDownloadManager: ObservableObject {
 
     // MARK: - Privado: cola de descargas
 
-    private func startNextIfIdle(item: MediaItem, resolver: any AudioStreamResolving) {
+    private func processNextInQueue(resolver: any AudioStreamResolving) {
         guard activeDownloadTask == nil || activeDownloadTask!.isCancelled else { return }
         guard !downloadQueue.isEmpty else { return }
-        guard let videoID = downloadQueue.first else { return }
-        activeVideoID = videoID
-        // Necesitamos el MediaItem correspondiente al videoID en la cola
-        // Si el item pasado coincide, usamos ese; si no, buscamos en los registros
-        let targetItem: MediaItem
-        if item.id == videoID {
-            targetItem = item
-        } else {
-            // Para batch: el item puede no coincidir con el primero en cola.
-            // En ese caso construimos un MediaItem mínimo desde Core Data si está guardado.
-            targetItem = item
+        let videoID = downloadQueue.removeFirst()
+        guard let item = mediaItemMap[videoID] else {
+            processNextInQueue(resolver: resolver)
+            return
         }
+        activeVideoID = videoID
         activeDownloadTask = Task { [weak self] in
-            await self?.performDownload(item: targetItem, resolver: resolver, retryCount: 0)
+            await self?.performDownload(item: item, resolver: resolver, retryCount: 0)
         }
     }
 
@@ -222,14 +218,10 @@ final class OfflineDownloadManager: ObservableObject {
         }
 
         // Siguiente en cola
-        if let idx = downloadQueue.firstIndex(of: videoID) {
-            downloadQueue.remove(at: idx)
-        }
         activeDownloadTask = nil
         activeVideoID = nil
-        // No podemos arrancar la siguiente sin el MediaItem: la cola continúa
-        // en el próximo `enqueue` o `enqueueBatch`. Para descargas en lote,
-        // el caller debe pasar todos los items; ver `downloadBatch`.
+        mediaItemMap.removeValue(forKey: videoID)
+        processNextInQueue(resolver: resolver)
     }
 
     /// Descarga con seguimiento de progreso usando URLSession async delegate.

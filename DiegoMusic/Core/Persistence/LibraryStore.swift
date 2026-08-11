@@ -210,6 +210,7 @@ final class LibraryStore: ObservableObject {
         record.videoID = item.id
         record.title = item.title
         record.channelTitle = item.channelTitle
+        record.thumbnailURLString = item.thumbnailURL?.absoluteString
         record.playedAt = .now
         try saveAndReload()
     }
@@ -256,7 +257,7 @@ final class LibraryStore: ObservableObject {
                     videoID: $0.videoID,
                     title: $0.title,
                     channelTitle: $0.channelTitle,
-                    thumbnailURLString: nil,
+                    thumbnailURLString: $0.thumbnailURLString,
                     savedAt: $0.playedAt
                 )
             }

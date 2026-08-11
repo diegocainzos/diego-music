@@ -133,6 +133,7 @@ final class PlaybackHistoryRecord: NSManagedObject {
     @NSManaged var videoID: String
     @NSManaged var title: String
     @NSManaged var channelTitle: String
+    @NSManaged var thumbnailURLString: String?
     @NSManaged var playedAt: Date
 }
 
