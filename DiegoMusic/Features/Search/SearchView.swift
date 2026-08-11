@@ -17,6 +17,7 @@ struct SearchView: View {
     @ObservedObject var library: LibraryStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var environment: AppEnvironment
+    @EnvironmentObject private var navState: NavigationState
 
     let service: any YouTubeDataServicing
     let onPlay: (MediaItem) -> Void
@@ -220,10 +221,10 @@ struct SearchView: View {
                                 showToast("Añadida a continuación")
                             },
                             onSelectArtist: { id, title in
-                                activeDestination = .artist(id: id, title: title)
+                                navState.navigate(to: .artistDetail(id: id, name: title))
                             },
                             onSelectAlbum: { playlistID in
-                                activeDestination = .album(id: playlistID)
+                                navState.navigate(to: .albumDetail(id: playlistID, title: playlistID))
                             }
                         )
                     }

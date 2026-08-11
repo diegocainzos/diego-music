@@ -1,7 +1,7 @@
 import Combine
 import SwiftUI
 
-enum DiegoAppDestination: String, CaseIterable, Identifiable {
+enum DiegoAppDestination: Hashable, Identifiable {
     case home
     case browse
     case radio
@@ -12,8 +12,16 @@ enum DiegoAppDestination: String, CaseIterable, Identifiable {
     case albums
     case artists
     case settings
+    case artistDetail(id: String, name: String)
+    case albumDetail(id: String, title: String)
 
-    var id: String { rawValue }
+    var id: String {
+        switch self {
+        case let .artistDetail(id, name): return "artist_\(id)_\(name)"
+        case let .albumDetail(id, title): return "album_\(id)_\(title)"
+        default: return String(describing: self)
+        }
+    }
 
     var title: String {
         switch self {
@@ -27,6 +35,8 @@ enum DiegoAppDestination: String, CaseIterable, Identifiable {
         case .albums: return "Álbumes"
         case .artists: return "Artistas"
         case .settings: return "Ajustes"
+        case let .artistDetail(_, name): return name
+        case let .albumDetail(_, title): return title
         }
     }
 
@@ -39,17 +49,14 @@ enum DiegoAppDestination: String, CaseIterable, Identifiable {
         case .library: return "square.stack.3d.up"
         case .playlists: return "music.note.list"
         case .songs: return "music.note"
-        case .albums: return "square.stack"
-        case .artists: return "music.mic"
+        case .albums, .albumDetail: return "square.stack"
+        case .artists, .artistDetail: return "music.mic"
         case .settings: return "gearshape"
         }
     }
 
     var accentColor: Color {
-        switch self {
-        case .home, .browse, .radio, .search, .library, .songs, .albums, .artists, .settings, .playlists:
-            return DiegoTheme.accent
-        }
+        DiegoTheme.accent
     }
 }
 

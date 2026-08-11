@@ -4,6 +4,7 @@ struct PlayerDock: View {
     @ObservedObject var player: AudioPlayerCoordinator
     @ObservedObject var queue: PlaybackQueue
     @EnvironmentObject private var environment: AppEnvironment
+    @EnvironmentObject private var navState: NavigationState
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -96,10 +97,15 @@ struct PlayerDock: View {
                     .foregroundStyle(DiegoTheme.textPrimary)
                     .lineLimit(1)
 
-                Text(current.channelTitle)
-                    .font(.caption)
-                    .foregroundStyle(DiegoTheme.textSecondary)
-                    .lineLimit(1)
+                Button {
+                    navState.navigate(to: .artistDetail(id: current.channelTitle, name: current.channelTitle))
+                } label: {
+                    Text(current.channelTitle)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(DiegoTheme.accent)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
             }
 
             Button {
@@ -305,10 +311,16 @@ struct PlayerDock: View {
                                     .foregroundStyle(DiegoTheme.textPrimary)
                                     .lineLimit(2)
 
-                                Text(current.channelTitle)
-                                    .font(.headline)
-                                    .foregroundStyle(DiegoTheme.textSecondary)
-                                    .lineLimit(1)
+                                Button {
+                                    expanded = false
+                                    navState.navigate(to: .artistDetail(id: current.channelTitle, name: current.channelTitle))
+                                } label: {
+                                    Text(current.channelTitle)
+                                        .font(.headline)
+                                        .foregroundStyle(DiegoTheme.accent)
+                                        .lineLimit(1)
+                                }
+                                .buttonStyle(.plain)
                             }
                             Spacer()
 

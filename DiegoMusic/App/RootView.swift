@@ -25,6 +25,7 @@ struct RootView: View {
         }
         .tint(DiegoTheme.accent)
         .preferredColorScheme(environment.playbackSettings.themeMode.colorScheme)
+        .environmentObject(navState)
     }
 
     // MARK: - Rama Desktop / Regular (Apple Music Web Split Layout)
@@ -148,6 +149,19 @@ struct RootView: View {
                 library: environment.library,
                 resolverConfigured: environment.resolverConfigured,
                 downloadManager: environment.downloadManager
+            )
+        case let .artistDetail(id, name):
+            ArtistView(
+                artistID: id,
+                artistTitle: name,
+                service: environment.youtubeService,
+                onPlay: environment.play
+            )
+        case let .albumDetail(id, title):
+            AlbumView(
+                playlistID: id,
+                service: environment.youtubeService,
+                onPlay: environment.play
             )
         }
     }

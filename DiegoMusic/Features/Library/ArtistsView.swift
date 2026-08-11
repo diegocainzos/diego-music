@@ -1,10 +1,13 @@
 import SwiftUI
 
-/// Artistas de la biblioteca: rejilla de avatares circulares (160x160pt) al estilo Apple Music Web.
+/// Artistas de la biblioteca: rejilla de avatares circulares inspirada en Apple Music.
+/// Al hacer clic en un artista, navega a su página completa de artista en la app.
 struct ArtistsView: View {
     @ObservedObject var library: LibraryStore
     let query: String
     let onPlay: (MediaItem) -> Void
+
+    @EnvironmentObject private var navState: NavigationState
 
     private var artists: [LocalArtist] {
         library.artists.filter { artist in
@@ -14,67 +17,91 @@ struct ArtistsView: View {
     }
 
     private let columns = [
-        GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 20)
+        GridItem(.adaptive(minimum: 150, maximum: 190), spacing: 24)
     ]
 
     var body: some View {
         Group {
             if artists.isEmpty {
                 EmptyStateView(
-                    title: "Sin artistas",
+                    title: "Sin artistas en la biblioteca",
                     symbol: "music.mic",
-                    description: "Reproduce o guarda canciones para ver sus artistas aquí."
+                    description: "Guarda o reproduce canciones para organizarlas por artista automáticamente."
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 24) {
-                        ForEach(artists) { artist in
-                            artistAvatarCard(artist)
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Artistas guardados")
+                            .font(.title2.bold())
+                            .foregroundStyle(DiegoTheme.textPrimary)
+                            .padding(.top, 8)
+
+                        LazyVGrid(columns: columns, spacing: 28) {
+                            ForEach(artists) { artist in
+                                artistCard(artist)
+                            }
                         }
                     }
-                    .padding(.vertical, 16)
                     .responsiveHorizontalPadding()
+                    .padding(.vertical, 16)
                 }
                 .scrollBounceBehavior(.basedOnSize)
             }
         }
     }
 
-    private func artistAvatarCard(_ artist: LocalArtist) -> some View {
-        VStack(spacing: 10) {
-            Button {
-                if let firstTrack = artist.tracks.first {
-                    onPlay(firstTrack.mediaItem)
-                }
-            } label: {
-                ZStack {
+    private func artistCard(_ artist: LocalArtist) -> some View {
+        Button {
+            navState.navigate(to: .artistDetail(id: artist.name, name: artist.name))
+        } label: {
+            VStack(spacing: 12) {
+                ZStack(alignment: .bottomTrailing) {
                     TrackArtwork(url: artist.tracks.first?.mediaItem.thumbnailURL)
                         .aspectRatio(1, contentMode: .fill)
                         .frame(maxWidth: .infinity)
                         .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+                        .overlay(Circle().stroke(DiegoTheme.textPrimary.opacity(0.12), lineWidth: 1.5))
+                        .shadow(color: .black.opacity(0.25), radius: 10, x: 0, y: 5)
 
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(DiegoTheme.accent)
-                        .background(Circle().fill(.black.opacity(0.4)))
-                        .opacity(0.85)
+                    // Botón de reproducción rápida
+                    Button {
+                        if let firstTrack = artist.tracks.first {
+                            onPlay(firstTrack.mediaItem)
+                        }
+                    } label: {
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 34))
+                            .foregroundStyle(DiegoTheme.accent)
+                            .background(Circle().fill(DiegoTheme.background))
+                            .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: 4, y: 4)
+                    .accessibilityLabel("Reproducir canciones de \(artist.name)")
+                }
+
+                VStack(spacing: 3) {
+                    Text(artist.name)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.center)
+
+                    let count = artist.tracks.count
+                    Text(count == 1 ? "1 canción" : "\(count) canciones")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(DiegoTheme.textSecondary)
                 }
             }
-            .buttonStyle(.plain)
-
-            VStack(spacing: 2) {
-                Text(artist.name)
-                    .font(.system(.body, design: .default, weight: .bold))
-                    .foregroundStyle(DiegoTheme.textPrimary)
-                    .lineLimit(1)
-                    .multilineTextAlignment(.center)
-
-                Text("Artista")
-                    .font(.caption)
-                    .foregroundStyle(DiegoTheme.textSecondary)
+            .padding(12)
+            .background(DiegoTheme.surface.opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
             }
         }
+        .buttonStyle(.plain)
     }
 }

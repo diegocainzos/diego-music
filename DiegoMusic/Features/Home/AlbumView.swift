@@ -47,8 +47,8 @@ struct AlbumView: View {
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @EnvironmentObject private var environment: AppEnvironment
+    @EnvironmentObject private var navState: NavigationState
 
-    @State private var activeArtistSheet: (id: String, title: String)?
     @State private var toastMessage: String?
 
     init(playlistID: String, service: any YouTubeDataServicing, onPlay: @escaping (MediaItem) -> Void) {
@@ -58,43 +58,49 @@ struct AlbumView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                switch model.state {
-                case .loading:
-                    HStack(spacing: 12) {
-                        ProgressView().controlSize(.regular).tint(DiegoTheme.accent)
-                        Text("Cargando álbum…")
-                            .font(.callout.weight(.medium))
-                            .foregroundStyle(DiegoTheme.textSecondary)
-                    }
-                    .padding(.top, 40)
-                    .frame(maxWidth: .infinity, alignment: .center)
+        VStack(spacing: 0) {
+            // Barra de Navegación Superior con Botón de Atrás
+            topNavigationBar
 
-                case let .failed(message):
-                    VStack(spacing: 14) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundStyle(DiegoTheme.accent)
-                        Text(message)
-                            .font(.callout)
-                            .foregroundStyle(DiegoTheme.textSecondary)
-                        Button("Reintentar") { model.load() }
-                            .buttonStyle(PrimaryButtonStyle())
-                    }
-                    .padding(.top, 40)
-                    .frame(maxWidth: .infinity, alignment: .center)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    switch model.state {
+                    case .loading:
+                        HStack(spacing: 12) {
+                            ProgressView().controlSize(.regular).tint(DiegoTheme.accent)
+                            Text("Cargando álbum…")
+                                .font(.callout.weight(.medium))
+                                .foregroundStyle(DiegoTheme.textSecondary)
+                        }
+                        .padding(.top, 60)
+                        .frame(maxWidth: .infinity, alignment: .center)
 
-                case let .loaded(album):
-                    header(album)
-                    tracklistTable(album.tracks)
+                    case let .failed(message):
+                        VStack(spacing: 14) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.largeTitle)
+                                .foregroundStyle(DiegoTheme.accent)
+                            Text(message)
+                                .font(.callout)
+                                .foregroundStyle(DiegoTheme.textSecondary)
+                            Button("Reintentar") { model.load() }
+                                .buttonStyle(PrimaryButtonStyle())
+                        }
+                        .padding(.top, 60)
+                        .frame(maxWidth: .infinity, alignment: .center)
+
+                    case let .loaded(album):
+                        header(album)
+                        tracklistTable(album.tracks)
+                    }
                 }
+                .responsiveHorizontalPadding()
+                .padding(.vertical, 24)
+                .frame(maxWidth: 1000)
+                .frame(maxWidth: .infinity)
             }
-            .responsiveHorizontalPadding()
-            .padding(.vertical, 24)
-            .frame(maxWidth: 1000)
-            .frame(maxWidth: .infinity)
         }
+        .background(DiegoTheme.background.ignoresSafeArea())
         .task { model.load() }
         .overlay(alignment: .bottom) {
             if let toastMessage {
@@ -110,25 +116,48 @@ struct AlbumView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .sheet(item: Binding(
-            get: { activeArtistSheet.map { ArtistSheetItem(id: $0.id, title: $0.title) } },
-            set: { activeArtistSheet = $0.map { ($0.id, $0.title) } }
-        )) { item in
-            NavigationStack {
-                ArtistView(
-                    artistID: item.id,
-                    artistTitle: item.title,
-                    service: environment.youtubeService,
-                    onPlay: onPlay
-                )
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cerrar") { activeArtistSheet = nil }
+    }
+
+    // MARK: - Top Navigation Bar (Flecha arriba a la izquierda)
+
+    private var topNavigationBar: some View {
+        HStack {
+            if navState.canGoBack {
+                Button {
+                    navState.goBack()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.left")
+                            .font(.body.weight(.bold))
+                        Text("Atrás")
+                            .font(.subheadline.weight(.semibold))
                     }
+                    .foregroundStyle(DiegoTheme.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(DiegoTheme.surface)
+                    .clipShape(Capsule())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Volver atrás")
             }
-            .tint(DiegoTheme.accent)
+
+            Spacer()
+
+            Text("Álbum")
+                .font(.caption.bold())
+                .tracking(1.2)
+                .foregroundStyle(DiegoTheme.textSecondary)
+
+            Spacer()
+
+            if navState.canGoBack {
+                Color.clear.frame(width: 70, height: 32)
+            }
         }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
     }
 
     private func showToast(_ text: String) {
@@ -166,7 +195,7 @@ struct AlbumView: View {
 
                     if let channel = album.channelTitle {
                         Button {
-                            activeArtistSheet = (id: channel, title: channel)
+                            navState.navigate(to: .artistDetail(id: channel, name: channel))
                         } label: {
                             Text(channel)
                                 .font(.headline.weight(.semibold))
@@ -204,7 +233,7 @@ struct AlbumView: View {
 
                     if let channel = album.channelTitle {
                         Button {
-                            activeArtistSheet = (id: channel, title: channel)
+                            navState.navigate(to: .artistDetail(id: channel, name: channel))
                         } label: {
                             Text(channel)
                                 .font(.title3.weight(.semibold))
@@ -335,7 +364,7 @@ struct AlbumView: View {
                                     showToast("Añadida a continuación")
                                 },
                                 onSelectArtist: { artistName in
-                                    activeArtistSheet = (id: artistName, title: artistName)
+                                    navState.navigate(to: .artistDetail(id: artistName, name: artistName))
                                 }
                             )
                         }
@@ -350,13 +379,6 @@ struct AlbumView: View {
             }
         }
     }
-}
-
-// MARK: - Helper Item para Sheet de Artista
-
-private struct ArtistSheetItem: Identifiable {
-    let id: String
-    let title: String
 }
 
 // MARK: - Fila de Pista de Álbum (Estilo Tabla Apple Music Web)
