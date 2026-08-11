@@ -9,8 +9,13 @@ struct HomeView: View {
     let onStartSearch: () -> Void
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @StateObject private var model: HomeViewModel
     @State private var path: [DiscoveryRoute] = []
+
+    /// True en pantallas compactas (iPhone): reduce tipografías y espaciado para
+    /// aprovechar mejor la pantalla y mejorar la navegación.
+    private var isCompact: Bool { sizeClass == .compact }
 
     init(onStartSearch: @escaping () -> Void) {
         self.onStartSearch = onStartSearch
@@ -21,25 +26,23 @@ struct HomeView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 26) {
+                VStack(alignment: .leading, spacing: isCompact ? 22 : 26) {
                     SectionHeader(eyebrow: "Escucha privada", title: "Descubrir", color: DiegoTheme.accent)
 
                     hero
 
-                    HStack(alignment: .top, spacing: 18) {
-                        feature(title: "Explora", symbol: "waveform.path.ecg", text: "Busca música pública con metadatos de YouTube Data API.")
-                        feature(title: "Protege", symbol: "shield.lefthalf.filled", text: "Controla reglas locales y recupera la reproducción con un toque.")
-                        feature(title: "Colecciona", symbol: "square.stack.3d.up.fill", text: "Guarda favoritos y playlists solo en este dispositivo.")
-                    }
+                    features
 
                     discoverySection
                 }
-                .padding(.top, 28)
+                .padding(.top, isCompact ? 16 : 28)
                 .padding(.bottom, 28)
                 .responsiveHorizontalPadding()
                 .frame(maxWidth: 1100)
                 .frame(maxWidth: .infinity)
+                .frame(maxHeight: .infinity)
             }
+            .scrollBounceBehavior(.basedOnSize)
             .navigationDestination(for: DiscoveryRoute.self) { route in
                 destination(for: route)
             }
@@ -57,6 +60,25 @@ struct HomeView: View {
             ArtistView(artistID: id, artistTitle: title, service: environment.youtubeService, onPlay: environment.play)
         case let .album(id):
             AlbumView(playlistID: id, service: environment.youtubeService, onPlay: environment.play)
+        }
+    }
+
+    /// Las tres tarjetas de características se apilan verticalmente en compacto
+    /// (donde tres columnas son ilegibles) y en horizontal en pantallas amplias.
+    @ViewBuilder
+    private var features: some View {
+        if isCompact {
+            VStack(alignment: .leading, spacing: 12) {
+                feature(title: "Explora", symbol: "waveform.path.ecg", text: "Busca música pública con metadatos de YouTube Data API.")
+                feature(title: "Protege", symbol: "shield.lefthalf.filled", text: "Controla reglas locales y recupera la reproducción con un toque.")
+                feature(title: "Colecciona", symbol: "square.stack.3d.up.fill", text: "Guarda favoritos y playlists solo en este dispositivo.")
+            }
+        } else {
+            HStack(alignment: .top, spacing: 18) {
+                feature(title: "Explora", symbol: "waveform.path.ecg", text: "Busca música pública con metadatos de YouTube Data API.")
+                feature(title: "Protege", symbol: "shield.lefthalf.filled", text: "Controla reglas locales y recupera la reproducción con un toque.")
+                feature(title: "Colecciona", symbol: "square.stack.3d.up.fill", text: "Guarda favoritos y playlists solo en este dispositivo.")
+            }
         }
     }
 
@@ -110,14 +132,14 @@ struct HomeView: View {
                         } label: {
                             VStack(spacing: 8) {
                                 TrackArtwork(url: artist.thumbnailURL)
-                                    .frame(width: 84, height: 84)
+                                    .frame(width: isCompact ? 72 : 84, height: isCompact ? 72 : 84)
                                     .clipShape(Circle())
                                     .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
                                 Text(artist.title)
                                     .font(.caption)
                                     .lineLimit(2)
                                     .multilineTextAlignment(.center)
-                                    .frame(width: 84)
+                                    .frame(width: isCompact ? 72 : 84)
                                     .foregroundStyle(DiegoTheme.textPrimary)
                             }
                         }
@@ -130,7 +152,7 @@ struct HomeView: View {
     }
 
     private func novedadesGrid(_ items: [MediaItem]) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 16)], spacing: 16) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: isCompact ? 160 : 240), spacing: isCompact ? 12 : 16)], spacing: isCompact ? 12 : 16) {
             ForEach(items) { item in
                 Button {
                     withAnimation(reduceMotion ? nil : .default) {
@@ -139,12 +161,12 @@ struct HomeView: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 10) {
                         TrackArtwork(url: item.thumbnailURL)
-                            .frame(height: 140)
+                            .frame(height: isCompact ? 110 : 140)
                             .frame(maxWidth: .infinity)
                             .clipShape(RoundedRectangle(cornerRadius: DiegoTheme.cornerRadius, style: .continuous))
                             .clipped()
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(item.title).font(.headline).foregroundStyle(DiegoTheme.textPrimary).lineLimit(2)
+                            Text(item.title).font(isCompact ? .subheadline.bold() : .headline).foregroundStyle(DiegoTheme.textPrimary).lineLimit(2)
                             Text(item.channelTitle).font(.caption).foregroundStyle(DiegoTheme.textSecondary).lineLimit(1)
                         }
                     }
@@ -162,14 +184,14 @@ struct HomeView: View {
     }
 
     private var hero: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: isCompact ? 10 : 14) {
             Text("DIEGO\nMUSIC")
-                .font(.system(size: 58, weight: .black, design: .default))
+                .font(.system(size: isCompact ? 40 : 58, weight: .black, design: .default))
                 .tracking(-3)
                 .foregroundStyle(DiegoTheme.textPrimary)
-                .minimumScaleFactor(0.65)
+                .minimumScaleFactor(0.6)
             Text("Una máquina musical educativa, local y deliberadamente diferente.")
-                .font(.title3.weight(.semibold))
+                .font(isCompact ? .headline.weight(.semibold) : .title3.weight(.semibold))
                 .foregroundStyle(DiegoTheme.textSecondary)
                 .frame(maxWidth: 520, alignment: .leading)
             Button(action: onStartSearch) {
@@ -178,15 +200,21 @@ struct HomeView: View {
             .buttonStyle(PrimaryButtonStyle())
             .accessibilityHint("Abre la sección de búsqueda")
         }
-        .frame(maxWidth: .infinity, minHeight: 300, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: isCompact ? 190 : 300, alignment: .leading)
         .minimalCard()
     }
 
     private func feature(title: String, symbol: String, text: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: symbol).font(.title).foregroundStyle(DiegoTheme.accent)
-            Text(title).font(.title2.bold()).foregroundStyle(DiegoTheme.textPrimary)
-            Text(text).font(.callout).foregroundStyle(DiegoTheme.textSecondary)
+        VStack(alignment: .leading, spacing: isCompact ? 8 : 10) {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(isCompact ? .title3 : .title)
+                    .foregroundStyle(DiegoTheme.accent)
+                Text(title).font(isCompact ? .headline.bold() : .title2.bold()).foregroundStyle(DiegoTheme.textPrimary)
+            }
+            Text(text)
+                .font(isCompact ? .footnote : .callout)
+                .foregroundStyle(DiegoTheme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .minimalCard()

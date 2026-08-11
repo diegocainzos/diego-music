@@ -14,8 +14,12 @@
 
 - [x] 3.1 En `DiegoMusic/Features/Home/HomeView.swift`, sustituir el `.padding(28)` horizontal por `.responsiveHorizontalPadding()`, conservando el espaciado vertical.
 
-## 4. Validación
+## 4. Tipografías y espaciado compactos en Home
 
-- [x] 4.1 Regenerar el proyecto solo si cambian fuentes/recursos (no se espera) y ejecutar validaciones Swift (`./scripts/validate.sh` en máquina con Xcode).
-- [x] 4.2 Validar el cambio OpenSpec estricto (`openspec validate adaptive-iphone-layout --type change --strict`).
-- [ ] 4.3 Verificar en simulador/dispositivo iPhone que Inicio abre a pantalla completa con barra de pestañas y márgenes correctos, y que iPad/macOS conservan el split.
+- [x] 4.1 Añadir a `HomeView` el flag `isCompact` (lectura de `horizontalSizeClass`) y usarlo para reducir el logotipo/hero, apilar las tarjetas de características en vertical, estrechar la cuadrícula de novedades y reducir espaciados y tamaños de texto en iPhone.
+
+## 5. Validación
+
+- [x] 5.1 Regenerar el proyecto solo si cambian fuentes/recursos (no se espera) y ejecutar validaciones Swift (`./scripts/validate.sh` en máquina con Xcode).
+- [x] 5.2 Validar el cambio OpenSpec estricto (`openspec validate adaptive-iphone-layout --type change --strict`).
+- [ ] 5.3 Verificar en simulador/dispositivo iPhone que Inicio abre a pantalla completa con barra de pestañas, sin márgenes verticales excesivos y con texto legible, y que iPad/macOS conservan el split.

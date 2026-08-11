@@ -28,3 +28,20 @@ El contenido de las pantallas SHALL usar un margen horizontal adaptativo que var
 #### Scenario: Contenido en regular
 - **WHEN** una pantalla se renderiza en `horizontalSizeClass == .regular`
 - **THEN** su contenido usa 28pt de margen horizontal
+
+### Requirement: Tipografías y espaciado compactos en Home
+
+En `horizontalSizeClass == .compact`, la pantalla Inicio SHALL usar tipografías y espaciados reducidos para aprovechar la pantalla y mejorar la navegación: logotipo/hero más pequeño, tarjetas de características apiladas verticalmente, cuadrícula de novedades con columnas más estrechas y espaciado vertical contenido. En tamaño regular se conserva la versión amplia actual.
+
+#### Scenario: Hero compacto
+- **WHEN** la pantalla Inicio se renderiza en compacto
+- **THEN** el logotipo DIEGO MUSIC usa un tamaño menor que en regular
+- **AND** el bloque hero ocupa menos altura mínima
+
+#### Scenario: Características en compacto
+- **WHEN** la pantalla Inicio se renderiza en compacto
+- **THEN** las tres tarjetas de características se apilan verticalmente en lugar de en tres columnas ilegibles
+
+#### Scenario: Novedades en compacto
+- **WHEN** la pantalla Inicio se renderiza en compacto
+- **THEN** la cuadrícula usa columnas más estrechas y carátulas más bajas que en regular
