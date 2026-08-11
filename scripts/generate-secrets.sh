@@ -44,7 +44,7 @@ key = values.get("YOUTUBE_DATA_KEY", "")
 if not key:
     print("YOUTUBE_DATA_KEY no está declarada o está vacía en .env.", file=sys.stderr)
     raise SystemExit(1)
-if not re.fullmatch(r"[A-Za-z0-9_-]+", key):
+if not re.fullmatch(r"[A-Za-z0-9_,\s-]+", key):
     print("YOUTUBE_DATA_KEY contiene caracteres no válidos para xcconfig.", file=sys.stderr)
     raise SystemExit(1)
 
