@@ -23,9 +23,10 @@ final class AppEnvironment: ObservableObject {
         let queue = PlaybackQueue()
         let playbackSettings = PlaybackSettings(libraryStore: library)
 
+        let resolverConfig = try? AudioResolverConfiguration.live()
         let resolver: any AudioStreamResolving
-        if let configuration = try? AudioResolverConfiguration.live() {
-            resolver = AudioResolverClient(configuration: configuration, transport: transport)
+        if let resolverConfig {
+            resolver = AudioResolverClient(configuration: resolverConfig, transport: transport)
             resolverConfigured = true
         } else {
             resolver = UnavailableAudioResolver()
@@ -39,6 +40,7 @@ final class AppEnvironment: ObservableObject {
         self.networkMonitor = NetworkMonitor()
         youtubeService = YouTubeDataService(
             configuration: try? APIConfiguration.live(),
+            resolverConfiguration: resolverConfig,
             transport: transport
         )
         player = AudioPlayerCoordinator(queue: queue, resolver: resolver, youtubeService: youtubeService)

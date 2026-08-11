@@ -12,7 +12,7 @@ from starlette.background import BackgroundTask
 
 from .audio_cache import PersistentAudioCache
 from .config import Settings
-from .models import HealthResponse, ResolveRequest, ResolveResponse
+from .models import HealthResponse, ResolveRequest, ResolveResponse, SearchResponse, SearchResultItem
 from .resolution_cache import CachingAudioResolver
 from .resolver import AudioResolutionError, AudioResolving, YTDLPResolver
 from .sessions import SessionExpiredError, SessionNotFoundError, SessionStore
@@ -122,6 +122,34 @@ def create_app(
             contentType=session.audio.content_type,
             cacheStatus=session.audio.cache_status,
         )
+
+    @app.get(
+        "/v1/search",
+        response_model=SearchResponse,
+        dependencies=[Depends(require_api_token)],
+    )
+    async def search_fallback(q: str) -> SearchResponse:
+        query = q.strip()
+        if not query:
+            return SearchResponse(items=[])
+        try:
+            raw_results = await base_resolver.search(query)
+            items = [
+                SearchResultItem(
+                    id=item["id"],
+                    kind="video",
+                    title=item["title"],
+                    channelTitle=item["channelTitle"],
+                    thumbnailURL=item.get("thumbnailURL"),
+                )
+                for item in raw_results
+            ]
+            return SearchResponse(items=items)
+        except Exception as error:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Error al realizar búsqueda alternativa en VPS.",
+            ) from error
 
     async def proxy_audio(request: Request, token: str, head_only: bool) -> Response:
         try:

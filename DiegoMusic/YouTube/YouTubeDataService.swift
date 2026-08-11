@@ -76,31 +76,58 @@ extension YouTubeDataServicing {
 
 struct YouTubeDataService: YouTubeDataServicing {
     private let configuration: APIConfiguration?
+    private let resolverConfiguration: AudioResolverConfiguration?
     private let transport: any HTTPTransport
     private let mapper: YouTubeMapper
     private let keyPool: KeyPool
+    private let searchCache: SearchCache
 
     init(
         configuration: APIConfiguration?,
+        resolverConfiguration: AudioResolverConfiguration? = nil,
         transport: any HTTPTransport = URLSessionTransport(),
-        mapper: YouTubeMapper = YouTubeMapper()
+        mapper: YouTubeMapper = YouTubeMapper(),
+        searchCache: SearchCache = SearchCache()
     ) {
         self.configuration = configuration
+        self.resolverConfiguration = resolverConfiguration
         self.transport = transport
         self.mapper = mapper
         self.keyPool = KeyPool(keys: configuration?.youtubeDataKeys ?? [])
+        self.searchCache = searchCache
     }
 
     func search(query: String, pageToken: String? = nil) async throws -> SearchPage {
-        let data = try await executeWithRotation(
-            buildRequest: { apiKey in
-                try endpointRequest {
-                    YouTubeEndpoint(query: query, apiKey: apiKey, pageToken: pageToken)
+        // 1. Comprobar caché local en memoria si es la primera página
+        if pageToken == nil, let cached = await searchCache.get(for: query) {
+            return cached
+        }
+
+        // 2. Intentar consulta a YouTube Data API v3 (con rotación de claves)
+        do {
+            let data = try await executeWithRotation(
+                buildRequest: { apiKey in
+                    try endpointRequest {
+                        YouTubeEndpoint(query: query, apiKey: apiKey, pageToken: pageToken)
+                    }
+                },
+                responseType: YouTubeSearchResponseDTO.self
+            )
+            let page = mapper.map(data)
+            if pageToken == nil {
+                await searchCache.set(page, for: query)
+            }
+            return page
+        } catch YouTubeServiceError.quotaExceeded {
+            // 3. Fallback a VPS Resolver si la cuota de YouTube API se agota en todas las claves
+            if let fallbackPage = try? await searchVPSService(query: query) {
+                if pageToken == nil {
+                    await searchCache.set(fallbackPage, for: query)
                 }
-            },
-            responseType: YouTubeSearchResponseDTO.self
-        )
-        return mapper.map(data)
+                return fallbackPage
+            }
+            throw YouTubeServiceError.quotaExceeded
+        }
     }
 
     func discover() async throws -> DiscoveryFeed {
@@ -314,6 +341,45 @@ struct YouTubeDataService: YouTubeDataServicing {
 
     // MARK: - Helpers
 
+    private func searchVPSService(query: String) async throws -> SearchPage {
+        guard let resolverConfiguration else { throw YouTubeServiceError.quotaExceeded }
+
+        var components = URLComponents(url: resolverConfiguration.baseURL, resolvingAgainstBaseURL: true)
+        components?.path = "/v1/search"
+        components?.queryItems = [URLQueryItem(name: "q", value: query)]
+
+        guard let url = components?.url else { throw YouTubeServiceError.quotaExceeded }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(resolverConfiguration.apiToken)", forHTTPHeaderField: "Authorization")
+
+        let data: Data
+        let response: HTTPURLResponse
+        do {
+            (data, response) = try await transport.data(for: request)
+        } catch {
+            throw YouTubeServiceError.quotaExceeded
+        }
+
+        guard response.statusCode == 200 else {
+            throw YouTubeServiceError.quotaExceeded
+        }
+
+        let dto = try JSONDecoder().decode(VPSSearchResponseDTO.self, from: data)
+        let items = dto.items.map { item in
+            MediaItem(
+                id: item.id,
+                kind: .video,
+                title: item.title,
+                channelTitle: item.channelTitle,
+                thumbnailURL: item.thumbnailURL
+            )
+        }
+
+        return SearchPage(items: items, nextPageToken: nil)
+    }
+
     private func executeWithRotation<Response: Decodable>(
         buildRequest: (String) throws -> URLRequest,
         responseType: Response.Type
@@ -395,4 +461,15 @@ struct YouTubeDataService: YouTubeDataServicing {
             return domain == "youtube.quota" || reason == "quotaExceeded" || reason == "dailyLimitExceeded"
         }
     }
+}
+
+private struct VPSSearchResponseDTO: Decodable {
+    struct Item: Decodable {
+        let id: String
+        let kind: String?
+        let title: String
+        let channelTitle: String
+        let thumbnailURL: URL?
+    }
+    let items: [Item]
 }

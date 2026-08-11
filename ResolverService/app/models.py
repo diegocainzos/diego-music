@@ -26,3 +26,17 @@ class ResolveResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str = "ok"
+
+
+class SearchResultItem(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    id: str
+    kind: str = "video"
+    title: str
+    channel_title: str = Field(alias="channelTitle")
+    thumbnail_url: str | None = Field(default=None, alias="thumbnailURL")
+
+
+class SearchResponse(BaseModel):
+    items: list[SearchResultItem]

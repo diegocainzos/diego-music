@@ -95,6 +95,61 @@ class YTDLPResolver:
 
         return self._parse_info(info)
 
+    async def search(self, query: str, limit: int = 15) -> list[dict[str, str]]:
+        arguments = [
+            self.settings.ytdlp_binary,
+            "--dump-single-json",
+            "--no-warnings",
+            "--quiet",
+            "--no-cache-dir",
+            "--skip-download",
+            "--flat-playlist",
+            f"ytsearch{limit}:{query}",
+        ]
+        if self.settings.cookies_file is not None:
+            arguments.extend(["--cookies", str(str(self.settings.cookies_file))])
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *arguments,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(
+                process.communicate(),
+                timeout=self.settings.resolve_timeout_seconds,
+            )
+        except (OSError, TimeoutError) as error:
+            raise AudioResolutionError("No se pudo realizar la búsqueda alternativa.") from error
+
+        if process.returncode != 0 or not stdout:
+            return []
+
+        try:
+            info = json.loads(stdout)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return []
+
+        entries = info.get("entries", [])
+        results: list[dict[str, str]] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            video_id = entry.get("id")
+            title = entry.get("title")
+            if not video_id or not title:
+                continue
+            channel = entry.get("uploader") or entry.get("channel") or entry.get("uploader_id") or "Desconocido"
+            thumbnail = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+            results.append({
+                "id": str(video_id),
+                "kind": "video",
+                "title": str(title),
+                "channelTitle": str(channel),
+                "thumbnailURL": thumbnail,
+            })
+        return results
+
     def _arguments(self, video_id: str) -> list[str]:
         arguments = [
             self.settings.ytdlp_binary,
