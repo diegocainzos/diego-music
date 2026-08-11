@@ -25,14 +25,14 @@ repo_root = Path(__file__).resolve().parent.parent.parent
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
-import app_backend.config as backend_config
-import app_backend.database as backend_database
-import app_backend.seed as backend_seed
-import app_backend.routers.auth as backend_auth
-import app_backend.routers.users as backend_users
-import app_backend.routers.telemetry as backend_telemetry
-import app_backend.routers.catalog as backend_catalog
-import app_backend.routers.playlists as backend_playlists
+import backend_app.config as backend_config
+import backend_app.database as backend_database
+import backend_app.seed as backend_seed
+import backend_app.routers.auth as backend_auth
+import backend_app.routers.users as backend_users
+import backend_app.routers.telemetry as backend_telemetry
+import backend_app.routers.catalog as backend_catalog
+import backend_app.routers.playlists as backend_playlists
 
 _FORWARDED_REQUEST_HEADERS = {"range", "if-range"}
 _FORWARDED_RESPONSE_HEADERS = {
