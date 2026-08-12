@@ -1,7 +1,7 @@
 import json
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
 from ..models import (
@@ -146,6 +146,10 @@ def get_play_history(
 ):
     """Consulta el historial paginado de canciones escuchadas."""
     history_list = db.query(PlayHistory)\
+        .options(
+            joinedload(PlayHistory.track).joinedload(Track.artist),
+            joinedload(PlayHistory.track).joinedload(Track.album)
+        )\
         .filter(PlayHistory.user_id == current_user.id)\
         .order_by(PlayHistory.played_at.desc())\
         .offset(offset)\
@@ -164,7 +168,14 @@ def get_favorites(
     query = db.query(UserFavorite).filter(UserFavorite.user_id == current_user.id)
     if entity_type:
         query = query.filter(UserFavorite.entity_type == entity_type)
-    return query.order_by(UserFavorite.created_at.desc()).all()
+    favs = query.order_by(UserFavorite.created_at.desc()).all()
+    for fav in favs:
+        if fav.entity_type == "track":
+            fav.track = db.query(Track)\
+                .options(joinedload(Track.artist), joinedload(Track.album))\
+                .filter(Track.id == fav.entity_id)\
+                .first()
+    return favs
 
 @router.post("/favorites", response_model=FavoriteResponse, status_code=status.HTTP_201_CREATED)
 def add_favorite(fav_in: FavoriteCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

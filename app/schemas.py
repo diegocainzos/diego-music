@@ -195,6 +195,7 @@ class FavoriteResponse(BaseModel):
     entity_type: str
     entity_id: int
     created_at: datetime
+    track: Optional[TrackResponse] = None
 
 # History & Telemetry
 class PlayHistoryCreate(BaseModel):
@@ -211,6 +212,7 @@ class PlayHistoryResponse(PlayHistoryCreate):
     id: int
     user_id: int
     played_at: datetime
+    track: Optional[TrackResponse] = None
 
 class TelemetryEventCreate(BaseModel):
     event_type: str
