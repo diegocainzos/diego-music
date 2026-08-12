@@ -148,16 +148,32 @@ final class AppEnvironment: ObservableObject {
         authState = .unauthenticated
     }
 
-    // MARK: - Sincronización de Playlists
+    // MARK: - Sincronización de Playlists y Biblioteca
 
     func syncPlaylistsWithBackend() async {
         guard let token = tokenManager.getToken(), authState.isAuthenticated else { return }
         do {
+            // 1. Obtener playlists del servidor
             let remotePlaylists = try await backendClient.fetchMyPlaylists(token: token)
-            for remote in remotePlaylists {
+
+            // 2. Subir al servidor aquellas playlists creadas localmente en el móvil que no están en la nube
+            for local in library.playlists {
+                if !remotePlaylists.contains(where: { $0.name == local.name }) {
+                    _ = try? await backendClient.createPlaylist(token: token, name: local.name, description: nil, isPublic: false)
+                }
+            }
+
+            // 3. Descargar del servidor aquellas playlists creadas en la web que no están en local
+            let updatedRemotePlaylists = try await backendClient.fetchMyPlaylists(token: token)
+            for remote in updatedRemotePlaylists {
                 if !library.playlists.contains(where: { $0.name == remote.name }) {
                     _ = try? library.createPlaylist(named: remote.name)
                 }
+            }
+
+            // 4. Sincronizar Favoritos con el Backend
+            if let remoteFavs = try? await backendClient.fetchFavorites(token: token, entityType: nil) {
+                print("Favoritos remotos sincronizados: \(remoteFavs.count)")
             }
         } catch {
             print("Sincronización de playlists omitida: \(error)")

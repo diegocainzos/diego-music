@@ -286,3 +286,44 @@ public struct UserPlayerStateUpdatePayload: Encodable {
         self.historyQueue = historyQueue
     }
 }
+
+// MARK: - Favorites DTOs
+
+public struct BackendFavoriteDTO: Codable, Identifiable, Equatable {
+    public let id: Int
+    public let userId: Int
+    public let entityType: String
+    public let entityId: Int
+    public let createdAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case entityType = "entity_type"
+        case entityId = "entity_id"
+        case createdAt = "created_at"
+    }
+
+    public init(id: Int, userId: Int, entityType: String, entityId: Int, createdAt: String? = nil) {
+        self.id = id
+        self.userId = userId
+        self.entityType = entityType
+        self.entityId = entityId
+        self.createdAt = createdAt
+    }
+}
+
+public struct AddFavoritePayload: Encodable {
+    public let entityType: String
+    public let entityId: Int
+
+    enum CodingKeys: String, CodingKey {
+        case entityType = "entity_type"
+        case entityId = "entity_id"
+    }
+
+    public init(entityType: String, entityId: Int) {
+        self.entityType = entityType
+        self.entityId = entityId
+    }
+}

@@ -20,6 +20,11 @@ public protocol BackendAPIClientProtocol: Sendable {
     func fetchUserSettings(token: String) async throws -> UserSettingsDTO
     func fetchPlayerState(token: String) async throws -> UserPlayerStateDTO
     func updatePlayerState(token: String, payload: UserPlayerStateUpdatePayload) async throws -> UserPlayerStateDTO
+
+    // Favorites & Follows
+    func fetchFavorites(token: String, entityType: String?) async throws -> [BackendFavoriteDTO]
+    func addFavorite(token: String, entityType: String, entityID: Int) async throws -> BackendFavoriteDTO
+    func removeFavorite(token: String, entityType: String, entityID: Int) async throws
 }
 
 public final class BackendAPIClient: BackendAPIClientProtocol, @unchecked Sendable {
@@ -223,5 +228,50 @@ public final class BackendAPIClient: BackendAPIClientProtocol, @unchecked Sendab
         let (data, response) = try await transport.data(for: request)
         guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
         return try JSONDecoder().decode(UserPlayerStateDTO.self, from: data)
+    }
+
+    // MARK: - Favorites & Follows
+
+    public func fetchFavorites(token: String, entityType: String? = nil) async throws -> [BackendFavoriteDTO] {
+        var components = URLComponents(url: baseURL.appendingPathComponent("api/v1/users/me/favorites"), resolvingAgainstBaseURL: false)
+        if let entityType {
+            components?.queryItems = [URLQueryItem(name: "entity_type", value: entityType)]
+        }
+        guard let url = components?.url else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await transport.data(for: request)
+        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
+        return try JSONDecoder().decode([BackendFavoriteDTO].self, from: data)
+    }
+
+    public func addFavorite(token: String, entityType: String, entityID: Int) async throws -> BackendFavoriteDTO {
+        let url = baseURL.appendingPathComponent("api/v1/users/me/favorites")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let payload = AddFavoritePayload(entityType: entityType, entityId: entityID)
+        request.httpBody = try JSONEncoder().encode(payload)
+
+        let (data, response) = try await transport.data(for: request)
+        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
+        return try JSONDecoder().decode(BackendFavoriteDTO.self, from: data)
+    }
+
+    public func removeFavorite(token: String, entityType: String, entityID: Int) async throws {
+        let url = baseURL.appendingPathComponent("api/v1/users/me/favorites/\(entityType)/\(entityID)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await transport.data(for: request)
+        guard (200...299).contains(response.statusCode) || response.statusCode == 204 else {
+            throw URLError(.badServerResponse)
+        }
     }
 }
