@@ -82,6 +82,11 @@ final class AppEnvironment: ObservableObject {
             try? library.addHistory(item)
         }
         TelemetryLogger.shared.recordEvent(type: "track_play", data: ["title": item.title, "artist": item.channelTitle, "video_id": item.id])
+        if let token = tokenManager.getToken(), authState.isAuthenticated, let trackID = Int(item.id) {
+            Task {
+                _ = try? await backendClient.recordPlayHistory(token: token, trackID: trackID, playedSeconds: 0)
+            }
+        }
     }
 
     /// Reemplaza la cola activa por la lista completa dada y comienza la reproducción en `index`.

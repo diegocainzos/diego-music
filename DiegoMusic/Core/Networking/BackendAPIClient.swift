@@ -25,6 +25,9 @@ public protocol BackendAPIClientProtocol: Sendable {
     func fetchFavorites(token: String, entityType: String?) async throws -> [BackendFavoriteDTO]
     func addFavorite(token: String, entityType: String, entityID: Int) async throws -> BackendFavoriteDTO
     func removeFavorite(token: String, entityType: String, entityID: Int) async throws
+
+    // History
+    func recordPlayHistory(token: String, trackID: Int, playedSeconds: Int) async throws
 }
 
 public final class BackendAPIClient: BackendAPIClientProtocol, @unchecked Sendable {
@@ -271,6 +274,28 @@ public final class BackendAPIClient: BackendAPIClientProtocol, @unchecked Sendab
 
         let (_, response) = try await transport.data(for: request)
         guard (200...299).contains(response.statusCode) || response.statusCode == 204 else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    // MARK: - History
+
+    public func recordPlayHistory(token: String, trackID: Int, playedSeconds: Int = 0) async throws {
+        let url = baseURL.appendingPathComponent("api/v1/users/me/history")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "track_id": trackID,
+            "played_seconds": playedSeconds,
+            "completed": true
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await transport.data(for: request)
+        guard (200...299).contains(response.statusCode) || response.statusCode == 201 else {
             throw URLError(.badServerResponse)
         }
     }
