@@ -2,6 +2,63 @@
   "version": 1,
   "receipts": [
     {
+      "createdAt": "2026-08-20T11:23:26.505Z",
+      "bankId": "pi-coding",
+      "documentId": "pi-session:2b0d5b7284ddc4ed",
+      "queueJobId": "cd8c5454-9cdb-4e1e-a49c-68d74bb33853",
+      "updateMode": "append",
+      "source": "queue",
+      "context": "Pi coding session for repo \"youtube-music\", session 2026-08-20T11-18-30-915Z_01a01ee4-df03-7f5c-92ba-8603307c6af6.jsonl",
+      "tags": [
+        "source:pi",
+        "project:github-com-diegocainzos-diego-music",
+        "repo:youtube-music-c78aeb942290",
+        "session:2b0d5b7284ddc4ed"
+      ],
+      "outcome": {
+        "itemsCount": 1,
+        "operations": 1
+      }
+    },
+    {
+      "createdAt": "2026-08-20T11:17:50.975Z",
+      "bankId": "pi-coding",
+      "documentId": "pi-session:06296bb34e412b63",
+      "queueJobId": "6cd92ca0-50f2-433d-bbc0-4f5e77fea4b2",
+      "updateMode": "append",
+      "source": "queue",
+      "context": "Pi coding session for repo \"youtube-music\", session 2026-08-20T11-16-41-022Z_01a01ee3-31be-74af-b658-4d33e32c1a9a.jsonl",
+      "tags": [
+        "source:pi",
+        "project:github-com-diegocainzos-diego-music",
+        "repo:youtube-music-c78aeb942290",
+        "session:06296bb34e412b63"
+      ],
+      "outcome": {
+        "itemsCount": 1,
+        "operations": 1
+      }
+    },
+    {
+      "createdAt": "2026-08-12T09:50:35.124Z",
+      "bankId": "pi-coding",
+      "documentId": "pi-session:331dd391ed09bf11",
+      "queueJobId": "ee0eaa8b-9521-4f6b-8d9f-b68e9f5fcd64",
+      "updateMode": "append",
+      "source": "queue",
+      "context": "Pi coding session for repo \"youtube-music\", session 2026-08-12T09-49-45-067Z_019ff560-baeb-7661-aae1-8c8be4ad4544.jsonl",
+      "tags": [
+        "source:pi",
+        "project:github-com-diegocainzos-diego-music",
+        "repo:youtube-music-c78aeb942290",
+        "session:331dd391ed09bf11"
+      ],
+      "outcome": {
+        "itemsCount": 1,
+        "operations": 1
+      }
+    },
+    {
       "createdAt": "2026-08-11T21:37:37.656Z",
       "bankId": "pi-coding",
       "documentId": "pi-session:2b0b177f07339fa2",

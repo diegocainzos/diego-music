@@ -13,6 +13,7 @@ struct MediaItem: Identifiable, Codable, Hashable, Sendable {
     let channelTitle: String
     let thumbnailURL: URL?
     let publishedAt: Date?
+    let durationSeconds: Int?
 
     init(
         id: String,
@@ -20,7 +21,8 @@ struct MediaItem: Identifiable, Codable, Hashable, Sendable {
         title: String,
         channelTitle: String,
         thumbnailURL: URL? = nil,
-        publishedAt: Date? = nil
+        publishedAt: Date? = nil,
+        durationSeconds: Int? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -34,6 +36,7 @@ struct MediaItem: Identifiable, Codable, Hashable, Sendable {
             self.thumbnailURL = nil
         }
         self.publishedAt = publishedAt
+        self.durationSeconds = durationSeconds
     }
 }
 
