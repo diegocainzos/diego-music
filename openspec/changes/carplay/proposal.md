@@ -4,10 +4,11 @@ DiegoMusic es un reproductor privado iOS/iPadOS 17+ que hoy se controla solo des
 
 ## What Changes
 
-- Añadir compatibilidad con CarPlay: una escena CarPlay que ofrece Now Playing, vista de cola, play/pause/siguiente/anterior y navegación básica (browsing), todo orquestado por el `AudioPlayerCoordinator` existente como fuente única de verdad.
-- Editar `project.yml` para declarar el protocolo externo soportado (`UISupportedExternalAccessoryProtocols` = `com.apple.carplay`) y cualquier ajuste de escena/info necesario. Este cambio es el ÚNICO autorizado a modificar `project.yml`.
-- Añadir ficheros nuevos bajo `DiegoMusic/CarPlay/` (escena CarPlay y configurador de Now Playing). XcodeGen los incorpora automáticamente al regenerar; no se edita `DiegoMusic.xcodeproj` a mano.
-- Reutilizar tal cual `AudioPlayerCoordinator`, `PlaybackQueue` y `MPRemoteCommandCenter`; CarPlay no duplica estado de reproducción.
+- Añadir compatibilidad con CarPlay mediante una escena nativa (`CPTemplateApplicationSceneDelegate`) organizada por pestañas simples (`CPTabBarTemplate`): pestañas de **Favoritos** y **Recientes** en listas verticales simples (`CPListTemplate`), junto con el reproductor **Ahora Suena** (`CPNowPlayingTemplate`) y la vista de **Cola**.
+- Enrutar la reproducción directamente al `AudioPlayerCoordinator`, `PlaybackQueue` y `LibraryStore` existentes como fuente única de verdad. Al tocar una canción en Favoritos o Recientes, se inicia su reproducción de forma limpia y directa.
+- Editar `project.yml` para declarar el protocolo externo soportado (`UISupportedExternalAccessoryProtocols` = `com.apple.carplay`) y la escena CarPlay.
+- Añadir ficheros nuevos bajo `DiegoMusic/CarPlay/` (escena CarPlay y configurador de interfaz).
+- Reutilizar tal cual `AudioPlayerCoordinator`, `PlaybackQueue` y `LibraryStore`; CarPlay no duplica estado ni añade complejidad innecesaria.
 
 ## Capabilities
 

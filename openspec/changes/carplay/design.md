@@ -23,11 +23,15 @@ Hoy no existe ninguna escena ni configurador de CarPlay: la app se controla desd
 
 ## Decisions
 
-### Scena CarPlay basada en la interfaz `CPTemplateApplicationSceneDelegate`
+### Escena CarPlay basada en `CPTabBarTemplate` y listas simples
 
-Se añade un `CarPlaySceneDelegate` que conforma `CPTemplateApplicationSceneDelegate` y un configurador de Now Playing. CarPlay anuncia una escena (`CPNowPlayingTemplate`) que muestra la pista actual, controles play/pause/siguiente/anterior y seek, sincronizada con el `MPNowPlayingInfoCenter`/`MPRemoteCommandCenter` ya configurados por `AudioPlayerCoordinator`. Se añade `CPListTemplate` para la vista de cola (elementos de `PlaybackQueue.items`, con la pista actual marcada y selección que llama a `AudioPlayerCoordinator.select`) y un lijado browsing mínimo (listas a partir de la cola y vínculos a reproducir). La escena consulta `AudioPlayerCoordinator` y `PlaybackQueue` (ya `@MainActor ObservableObject`) en el actor principal.
+Se configura `CarPlaySceneDelegate` (conforme a `CPTemplateApplicationSceneDelegate`) utilizando una barra de pestañas principal `CPTabBarTemplate` con 3 pestañas principales:
 
-Alternativa descartada: reimplementar la reproducción en el lado CarPlay. Duplicaría estado y rompería el invariante de un único `AVPlayer`.
+1. **Favoritos** (`CPListTemplate`): Lista vertical simple construida desde `LibraryStore.favorites`. Cada `CPListItem` muestra título y artista. Al pulsar una canción, se llama a `AppEnvironment.shared?.play(item)` para iniciar la reproducción inmediatamente.
+2. **Recientes** (`CPListTemplate`): Lista vertical simple construida desde `LibraryStore.history`. Cada `CPListItem` permite reproducir directamente la canción seleccionada.
+3. **Ahora Suena** (`CPNowPlayingTemplate.shared`): Pantalla nativa de reproducción con botones de transporte (play/pause/siguiente/anterior) y el botón de acción *"Cola"* para ver y seleccionar elementos de la lista de reproducción activa.
+
+No se incluyen menús contextuales complejos ni opciones avanzadas como "Añadir a playlist" para mantener la experiencia simple, segura y fluida mientras se conduce.
 
 ### Registro de la escena en `project.yml`
 
