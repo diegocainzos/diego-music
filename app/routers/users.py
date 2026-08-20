@@ -1,17 +1,18 @@
 import json
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
 from ..models import (
-    User, UserSettings, UserPlayerState, PlayHistory, UserFavorite, UserFollow, Artist
+    User, UserSettings, UserPlayerState, PlayHistory, UserFavorite, UserFollow, Artist, Track
 )
+from ..track_utils import get_or_create_youtube_track
 from ..schemas import (
     UserSettingsResponse, UserSettingsUpdate,
     UserPlayerStateResponse, UserPlayerStateUpdate,
     PlayHistoryCreate, PlayHistoryResponse,
-    FavoriteCreate, FavoriteResponse, ArtistResponse
+    FavoriteCreate, FavoriteResponse, ArtistResponse, TrackResponse
 )
 from ..auth import get_current_user
 
@@ -122,9 +123,24 @@ def update_player_state(state_in: UserPlayerStateUpdate, current_user: User = De
 @router.post("/history", response_model=PlayHistoryResponse, status_code=status.HTTP_201_CREATED)
 def record_play_history(history_in: PlayHistoryCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Registra una sesión de reproducción de canción en el historial."""
+    target_track_id = history_in.track_id
+    if target_track_id is None and history_in.youtube_video_id:
+        track = get_or_create_youtube_track(
+            db=db,
+            youtube_video_id=history_in.youtube_video_id,
+            title=history_in.title,
+            channel_title=history_in.channel_title,
+            thumbnail_url=history_in.thumbnail_url,
+            duration_seconds=history_in.duration_seconds
+        )
+        target_track_id = track.id
+
+    if target_track_id is None:
+        raise HTTPException(status_code=400, detail="track_id o youtube_video_id requerido")
+
     history = PlayHistory(
         user_id=current_user.id,
-        track_id=history_in.track_id,
+        track_id=target_track_id,
         played_seconds=history_in.played_seconds,
         completed=history_in.completed,
         skipped=history_in.skipped,
@@ -146,6 +162,10 @@ def get_play_history(
 ):
     """Consulta el historial paginado de canciones escuchadas."""
     history_list = db.query(PlayHistory)\
+        .options(
+            joinedload(PlayHistory.track).joinedload(Track.artist),
+            joinedload(PlayHistory.track).joinedload(Track.album)
+        )\
         .filter(PlayHistory.user_id == current_user.id)\
         .order_by(PlayHistory.played_at.desc())\
         .offset(offset)\
@@ -164,7 +184,24 @@ def get_favorites(
     query = db.query(UserFavorite).filter(UserFavorite.user_id == current_user.id)
     if entity_type:
         query = query.filter(UserFavorite.entity_type == entity_type)
-    return query.order_by(UserFavorite.created_at.desc()).all()
+    favs = query.order_by(UserFavorite.created_at.desc()).all()
+
+    result = []
+    for fav in favs:
+        track_resp = None
+        if fav.entity_type == "track":
+            t = db.query(Track).options(joinedload(Track.artist), joinedload(Track.album)).filter(Track.id == fav.entity_id).first()
+            if t:
+                track_resp = TrackResponse.model_validate(t)
+        result.append(FavoriteResponse(
+            id=fav.id,
+            user_id=fav.user_id,
+            entity_type=fav.entity_type,
+            entity_id=fav.entity_id,
+            created_at=fav.created_at,
+            track=track_resp
+        ))
+    return result
 
 @router.post("/favorites", response_model=FavoriteResponse, status_code=status.HTTP_201_CREATED)
 def add_favorite(fav_in: FavoriteCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -172,33 +209,89 @@ def add_favorite(fav_in: FavoriteCreate, current_user: User = Depends(get_curren
     if fav_in.entity_type not in ["track", "album", "artist", "playlist"]:
         raise HTTPException(status_code=400, detail="entity_type inválido. Debe ser: track, album, artist, playlist.")
     
+    target_entity_id = fav_in.entity_id
+    if fav_in.entity_type == "track" and target_entity_id is None and fav_in.youtube_video_id:
+        track = get_or_create_youtube_track(
+            db=db,
+            youtube_video_id=fav_in.youtube_video_id,
+            title=fav_in.title,
+            channel_title=fav_in.channel_title,
+            thumbnail_url=fav_in.thumbnail_url,
+            duration_seconds=fav_in.duration_seconds
+        )
+        target_entity_id = track.id
+
+    if target_entity_id is None:
+        raise HTTPException(status_code=400, detail="entity_id o youtube_video_id requerido")
+
     existing = db.query(UserFavorite).filter(
         UserFavorite.user_id == current_user.id,
         UserFavorite.entity_type == fav_in.entity_type,
-        UserFavorite.entity_id == fav_in.entity_id
+        UserFavorite.entity_id == target_entity_id
     ).first()
 
     if existing:
-        return existing
+        track_resp = None
+        if existing.entity_type == "track":
+            t = db.query(Track).options(joinedload(Track.artist), joinedload(Track.album)).filter(Track.id == existing.entity_id).first()
+            if t:
+                track_resp = TrackResponse.model_validate(t)
+        return FavoriteResponse(
+            id=existing.id,
+            user_id=existing.user_id,
+            entity_type=existing.entity_type,
+            entity_id=existing.entity_id,
+            created_at=existing.created_at,
+            track=track_resp
+        )
 
     favorite = UserFavorite(
         user_id=current_user.id,
         entity_type=fav_in.entity_type,
-        entity_id=fav_in.entity_id
+        entity_id=target_entity_id
     )
     db.add(favorite)
     db.commit()
     db.refresh(favorite)
-    return favorite
+
+    track_resp = None
+    if favorite.entity_type == "track":
+        t = db.query(Track).options(joinedload(Track.artist), joinedload(Track.album)).filter(Track.id == favorite.entity_id).first()
+        if t:
+            track_resp = TrackResponse.model_validate(t)
+
+    return FavoriteResponse(
+        id=favorite.id,
+        user_id=favorite.user_id,
+        entity_type=favorite.entity_type,
+        entity_id=favorite.entity_id,
+        created_at=favorite.created_at,
+        track=track_resp
+    )
 
 @router.delete("/favorites/{entity_type}/{entity_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_favorite(entity_type: str, entity_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def remove_favorite(entity_type: str, entity_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Elimina un elemento de favoritos."""
-    favorite = db.query(UserFavorite).filter(
-        UserFavorite.user_id == current_user.id,
-        UserFavorite.entity_type == entity_type,
-        UserFavorite.entity_id == entity_id
-    ).first()
+    target_id: Optional[int] = None
+    if entity_id.isdigit():
+        target_id = int(entity_id)
+
+    favorite = None
+    if target_id is not None:
+        favorite = db.query(UserFavorite).filter(
+            UserFavorite.user_id == current_user.id,
+            UserFavorite.entity_type == entity_type,
+            UserFavorite.entity_id == target_id
+        ).first()
+
+    if not favorite and entity_type == "track":
+        track = db.query(Track).filter(Track.youtube_video_id == entity_id).first()
+        if track:
+            favorite = db.query(UserFavorite).filter(
+                UserFavorite.user_id == current_user.id,
+                UserFavorite.entity_type == entity_type,
+                UserFavorite.entity_id == track.id
+            ).first()
 
     if favorite:
         db.delete(favorite)

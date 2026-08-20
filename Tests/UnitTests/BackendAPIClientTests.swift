@@ -75,6 +75,84 @@ final class BackendAPIClientTests: XCTestCase {
         XCTAssertEqual(transport.lastRequest?.httpMethod, "POST")
     }
 
+    func testAddTrackToPlaylistWithYouTubeVideoId() async throws {
+        let json = """
+        {
+            "id": 2,
+            "name": "Noche Chill",
+            "is_public": false,
+            "user_id": 42,
+            "created_at": "2026-08-11T12:00:00Z",
+            "updated_at": "2026-08-11T12:00:00Z",
+            "tracks": []
+        }
+        """.data(using: .utf8)!
+
+        let transport = MockTransport(responseData: json, statusCode: 200)
+        let client = BackendAPIClient(baseURL: URL(string: "https://api.example.test")!, transport: transport)
+
+        let result = try await client.addTrackToPlaylist(
+            token: "valid.token",
+            playlistID: 2,
+            youtubeVideoId: "dQw4w9WgXcQ",
+            title: "Never Gonna Give You Up",
+            channelTitle: "Rick Astley",
+            thumbnailUrl: nil,
+            durationSeconds: 213,
+            order: 0
+        )
+
+        XCTAssertEqual(result.id, 2)
+        XCTAssertEqual(transport.lastRequest?.httpMethod, "POST")
+        XCTAssertEqual(transport.lastRequest?.url?.path, "/api/v1/playlists/2/tracks")
+    }
+
+    func testAddFavoriteWithYouTubeVideoId() async throws {
+        let json = """
+        {
+            "id": 10,
+            "user_id": 42,
+            "entity_type": "track",
+            "entity_id": 101,
+            "created_at": "2026-08-11T12:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let transport = MockTransport(responseData: json, statusCode: 201)
+        let client = BackendAPIClient(baseURL: URL(string: "https://api.example.test")!, transport: transport)
+
+        let fav = try await client.addFavorite(
+            token: "valid.token",
+            entityType: "track",
+            youtubeVideoId: "dQw4w9WgXcQ",
+            title: "Never Gonna Give You Up",
+            channelTitle: "Rick Astley"
+        )
+
+        XCTAssertEqual(fav.id, 10)
+        XCTAssertEqual(fav.entityType, "track")
+        XCTAssertEqual(transport.lastRequest?.httpMethod, "POST")
+        XCTAssertEqual(transport.lastRequest?.url?.path, "/api/v1/users/me/favorites")
+    }
+
+    func testRecordPlayHistoryWithYouTubeVideoId() async throws {
+        let transport = MockTransport(responseData: Data(), statusCode: 201)
+        let client = BackendAPIClient(baseURL: URL(string: "https://api.example.test")!, transport: transport)
+
+        try await client.recordPlayHistory(
+            token: "valid.token",
+            youtubeVideoId: "dQw4w9WgXcQ",
+            title: "Never Gonna Give You Up",
+            channelTitle: "Rick Astley",
+            thumbnailUrl: nil,
+            durationSeconds: 213,
+            playedSeconds: 120
+        )
+
+        XCTAssertEqual(transport.lastRequest?.httpMethod, "POST")
+        XCTAssertEqual(transport.lastRequest?.url?.path, "/api/v1/users/me/history")
+    }
+
     func testSearchCatalogSuccess() async throws {
         let json = """
         {

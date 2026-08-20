@@ -1,15 +1,16 @@
-name: diegomusic-resolver
+name: diegomusic
 
 services:
   resolver:
     build:
-      context: ..
+      context: .
       dockerfile: ResolverService/Dockerfile
+    container_name: diegomusic-resolver
     restart: unless-stopped
     env_file:
-      - .env
+      - ResolverService/.env
     environment:
-      PUBLIC_BASE_URL: "https://${RESOLVER_DOMAIN:?Define RESOLVER_DOMAIN en ResolverService/.env}"
+      PUBLIC_BASE_URL: "https://${RESOLVER_DOMAIN:-music.diegocainzos.cv}"
       AUDIO_CACHE_DIR: /var/cache/diegomusic
       AUDIO_CACHE_MAX_BYTES: "${AUDIO_CACHE_MAX_BYTES:-5368709120}"
       AUDIO_CACHE_MAX_FILE_BYTES: "${AUDIO_CACHE_MAX_FILE_BYTES:-268435456}"
@@ -22,11 +23,11 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=proxy
-      - traefik.http.routers.diegomusic.rule=Host(`${RESOLVER_DOMAIN:-music.diegocainzos.cv}`) && (PathPrefix(`/v1`) || PathPrefix(`/api`) || PathPrefix(`/health`))
-      - traefik.http.routers.diegomusic.priority=100
-      - traefik.http.routers.diegomusic.entrypoints=websecure
-      - traefik.http.routers.diegomusic.tls.certresolver=letsencrypt
-      - traefik.http.services.diegomusic.loadbalancer.server.port=8080
+      - traefik.http.routers.diegomusic-api.rule=Host(`${RESOLVER_DOMAIN:-music.diegocainzos.cv}`) && (PathPrefix(`/v1`) || PathPrefix(`/api`) || PathPrefix(`/health`))
+      - traefik.http.routers.diegomusic-api.priority=100
+      - traefik.http.routers.diegomusic-api.entrypoints=websecure
+      - traefik.http.routers.diegomusic-api.tls.certresolver=letsencrypt
+      - traefik.http.services.diegomusic-api.loadbalancer.server.port=8080
     networks:
       - proxy
     healthcheck:
@@ -47,6 +48,25 @@ services:
     volumes:
       - audio_cache:/var/cache/diegomusic
       - db_data:/service/data
+
+  web:
+    build:
+      context: ../diego-music-web
+      dockerfile: Dockerfile
+    container_name: diegomusic-web
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.diegomusic-web.rule=Host(`${RESOLVER_DOMAIN:-music.diegocainzos.cv}`)
+      - traefik.http.routers.diegomusic-web.priority=1
+      - traefik.http.routers.diegomusic-web.entrypoints=websecure
+      - traefik.http.routers.diegomusic-web.tls.certresolver=letsencrypt
+      - traefik.http.services.diegomusic-web.loadbalancer.server.port=80
+    networks:
+      - proxy
 
 networks:
   proxy:

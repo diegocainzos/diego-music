@@ -48,10 +48,10 @@ def test_sqlite_wal_mode():
 
 # 2. Test Autenticación (Registro, Login, Me)
 def test_user_registration_and_login(client):
-    # Registro de usuario
+    # Registro de usuario con contraseña válida
     reg_payload = {
         "email": "testuser@diegomusic.app",
-        "password": "Password123!",
+        "password": "Password1234",
         "full_name": "Test User"
     }
     response = client.post("/api/v1/auth/register", json=reg_payload)
@@ -60,6 +60,30 @@ def test_user_registration_and_login(client):
     assert "access_token" in data
     assert data["email"] == reg_payload["email"]
     token = data["access_token"]
+
+    # Validación de contraseña: corta (<10 caracteres)
+    short_res = client.post("/api/v1/auth/register", json={
+        "email": "short@diegomusic.app",
+        "password": "Pass1",
+        "full_name": "Short Pass"
+    })
+    assert short_res.status_code == 422
+
+    # Validación de contraseña: sin mayúscula
+    no_upper_res = client.post("/api/v1/auth/register", json={
+        "email": "noupper@diegomusic.app",
+        "password": "password1234",
+        "full_name": "No Upper"
+    })
+    assert no_upper_res.status_code == 422
+
+    # Validación de contraseña: demasiado larga (>25 caracteres)
+    long_res = client.post("/api/v1/auth/register", json={
+        "email": "long@diegomusic.app",
+        "password": "Password12345678901234567890",
+        "full_name": "Long Pass"
+    })
+    assert long_res.status_code == 422
 
     # Duplicado debe fallar con 400
     dup_res = client.post("/api/v1/auth/register", json=reg_payload)
@@ -71,7 +95,7 @@ def test_user_registration_and_login(client):
     assert "access_token" in login_res.json()
 
     # Login con clave errónea
-    bad_login = client.post("/api/v1/auth/login", data={"username": reg_payload["email"], "password": "WrongPassword"})
+    bad_login = client.post("/api/v1/auth/login", data={"username": reg_payload["email"], "password": "WrongPassword1234"})
     assert bad_login.status_code == 401
 
     # /auth/me
@@ -165,14 +189,49 @@ def test_playlists_and_favorites(client):
     headers = {"Authorization": f"Bearer {token}"}
 
     # Crear Playlist
-    p_res = client.post("/api/v1/playlists", json={"name": "Mis Favoritas 2026", "is_public": True}, headers=headers)
+    p_res = client.post("/api/v1/playlists/", json={"name": "Mis Favoritas 2026", "is_public": True}, headers=headers)
     assert p_res.status_code == 201
     playlist_id = p_res.json()["id"]
 
-    # Agregar Canción a Playlist
+    # Agregar Canción a Playlist por ID
     add_tr = client.post(f"/api/v1/playlists/{playlist_id}/tracks", json={"track_id": 1, "order": 1}, headers=headers)
     assert add_tr.status_code == 200
 
-    # Agregar Favorito
+    # Agregar Canción a Playlist por youtube_video_id
+    add_yt = client.post(f"/api/v1/playlists/{playlist_id}/tracks", json={
+        "youtube_video_id": "yt_pl_bridge_1",
+        "title": "YouTube Bridge PL Track",
+        "channel_title": "Bridge Artist",
+        "duration_seconds": 200
+    }, headers=headers)
+    assert add_yt.status_code == 200
+
+    # Eliminar canción por youtube_video_id
+    del_yt = client.delete(f"/api/v1/playlists/{playlist_id}/tracks/yt_pl_bridge_1", headers=headers)
+    assert del_yt.status_code == 204
+
+    # Agregar Favorito por ID
     fav_res = client.post("/api/v1/users/me/favorites", json={"entity_type": "track", "entity_id": 1}, headers=headers)
     assert fav_res.status_code == 201
+
+    # Agregar Favorito por youtube_video_id
+    fav_yt_res = client.post("/api/v1/users/me/favorites", json={
+        "entity_type": "track",
+        "youtube_video_id": "yt_fav_bridge_1",
+        "title": "YouTube Bridge Fav Track",
+        "channel_title": "Bridge Artist"
+    }, headers=headers)
+    assert fav_yt_res.status_code == 201
+    assert fav_yt_res.json()["track"]["youtube_video_id"] == "yt_fav_bridge_1"
+
+    # Eliminar Favorito por youtube_video_id
+    del_fav_yt = client.delete("/api/v1/users/me/favorites/track/yt_fav_bridge_1", headers=headers)
+    assert del_fav_yt.status_code == 204
+
+    # Historial por youtube_video_id
+    hist_yt = client.post("/api/v1/users/me/history", json={
+        "youtube_video_id": "yt_hist_bridge_1",
+        "title": "YouTube History Track",
+        "played_seconds": 60.0
+    }, headers=headers)
+    assert hist_yt.status_code == 201

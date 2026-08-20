@@ -9,6 +9,13 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var history: [SavedTrack] = []
     @Published private(set) var savedAlbums: [SavedAlbum] = []
 
+    // Callbacks para sincronización en tiempo real con backend
+    var onFavoriteToggled: ((MediaItem, Bool) -> Void)?
+    var onTrackAddedToPlaylist: ((MediaItem, LocalPlaylist) -> Void)?
+    var onTrackRemovedFromPlaylist: ((PlaylistEntry, LocalPlaylist) -> Void)?
+    var onPlaylistCreated: ((LocalPlaylist) -> Void)?
+    var onPlaylistDeleted: ((LocalPlaylist) -> Void)?
+
     private let context: NSManagedObjectContext
 
     init(context: NSManagedObjectContext) {
@@ -21,8 +28,10 @@ final class LibraryStore: ObservableObject {
     }
 
     func toggleFavorite(_ item: MediaItem) throws {
+        let isFav: Bool
         if let existing = try favoriteRecord(videoID: item.id) {
             context.delete(existing)
+            isFav = false
         } else {
             let record: FavoriteTrackRecord = insertRecord(entityName: "FavoriteTrack")
             record.videoID = item.id
@@ -30,8 +39,10 @@ final class LibraryStore: ObservableObject {
             record.channelTitle = item.channelTitle
             record.thumbnailURLString = item.thumbnailURL?.absoluteString
             record.savedAt = .now
+            isFav = true
         }
         try saveAndReload()
+        onFavoriteToggled?(item, isFav)
     }
 
     func deleteFavorite(_ track: SavedTrack) throws {
@@ -106,7 +117,9 @@ final class LibraryStore: ObservableObject {
         record.name = trimmed.isEmpty ? "Nueva playlist" : trimmed
         record.createdAt = .now
         try saveAndReload()
-        return playlists.first(where: { $0.id == record.id })!
+        let created = playlists.first(where: { $0.id == record.id })!
+        onPlaylistCreated?(created)
+        return created
     }
 
     func add(_ item: MediaItem, to playlist: LocalPlaylist) throws {
@@ -121,6 +134,7 @@ final class LibraryStore: ObservableObject {
         record.thumbnailURLString = item.thumbnailURL?.absoluteString
         record.position = (currentEntries.map(\.position).max() ?? -1) + 1
         try saveAndReload()
+        onTrackAddedToPlaylist?(item, playlist)
     }
 
     func remove(_ entry: PlaylistEntry, from playlist: LocalPlaylist) throws {
@@ -130,6 +144,7 @@ final class LibraryStore: ObservableObject {
             try normalizePositions(records.filter { $0.id != entry.id })
         }
         try saveAndReload()
+        onTrackRemovedFromPlaylist?(entry, playlist)
     }
 
     func move(_ entry: PlaylistEntry, in playlist: LocalPlaylist, by offset: Int) throws {
@@ -149,6 +164,7 @@ final class LibraryStore: ObservableObject {
         }
         for entry in try entryRecords(playlistID: playlist.id) { context.delete(entry) }
         try saveAndReload()
+        onPlaylistDeleted?(playlist)
     }
 
     func rename(_ playlist: LocalPlaylist, to newName: String) throws {
@@ -218,6 +234,84 @@ final class LibraryStore: ObservableObject {
     func clearHistory() throws {
         let request = NSFetchRequest<PlaybackHistoryRecord>(entityName: "PlaybackHistory")
         for record in try context.fetch(request) { context.delete(record) }
+        try saveAndReload()
+    }
+
+    // MARK: - Sincronización y Limpieza de Usuario
+
+    /// Purga todos los registros de usuario locales (favoritos, playlists, entradas, historial, álbumes guardados).
+    func clearAllUserData() {
+        let entityNames = ["FavoriteTrack", "Playlist", "PlaylistEntry", "PlaybackHistory", "SavedAlbum"]
+        for name in entityNames {
+            let request = NSFetchRequest<NSManagedObject>(entityName: name)
+            if let objects = try? context.fetch(request) {
+                for obj in objects {
+                    context.delete(obj)
+                }
+            }
+        }
+        try? saveAndReload()
+    }
+
+    /// Importa o actualiza un favorito desde el backend.
+    func importFavorite(videoID: String, title: String, channelTitle: String, thumbnailURLString: String? = nil, savedAt: Date = .now) throws {
+        if let existing = try favoriteRecord(videoID: videoID) {
+            existing.title = title
+            existing.channelTitle = channelTitle
+            existing.thumbnailURLString = thumbnailURLString
+        } else {
+            let record: FavoriteTrackRecord = insertRecord(entityName: "FavoriteTrack")
+            record.videoID = videoID
+            record.title = title
+            record.channelTitle = channelTitle
+            record.thumbnailURLString = thumbnailURLString
+            record.savedAt = savedAt
+        }
+        try saveAndReload()
+    }
+
+    /// Importa o actualiza una playlist completa con sus pistas desde el backend.
+    func importPlaylist(name: String, entries: [(videoID: String, title: String, channelTitle: String, thumbnailURLString: String?)]) throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let request = NSFetchRequest<PlaylistRecord>(entityName: "Playlist")
+        request.predicate = NSPredicate(format: "name ==[c] %@", trimmed)
+        let playlistRecord: PlaylistRecord
+        if let existing = try context.fetch(request).first {
+            playlistRecord = existing
+            let oldEntries = try entryRecords(playlistID: existing.id)
+            for old in oldEntries { context.delete(old) }
+        } else {
+            playlistRecord = insertRecord(entityName: "Playlist")
+            playlistRecord.id = UUID()
+            playlistRecord.name = trimmed
+            playlistRecord.createdAt = .now
+        }
+
+        for (index, entry) in entries.enumerated() {
+            let entryRecord: PlaylistEntryRecord = insertRecord(entityName: "PlaylistEntry")
+            entryRecord.id = UUID()
+            entryRecord.playlistID = playlistRecord.id
+            entryRecord.videoID = entry.videoID
+            entryRecord.title = entry.title
+            entryRecord.channelTitle = entry.channelTitle
+            entryRecord.thumbnailURLString = entry.thumbnailURLString
+            entryRecord.position = Int64(index)
+        }
+
+        try saveAndReload()
+    }
+
+    /// Importa un registro de historial desde el backend.
+    func importHistory(videoID: String, title: String, channelTitle: String, thumbnailURLString: String? = nil, playedAt: Date = .now) throws {
+        let record: PlaybackHistoryRecord = insertRecord(entityName: "PlaybackHistory")
+        record.id = UUID()
+        record.videoID = videoID
+        record.title = title
+        record.channelTitle = channelTitle
+        record.thumbnailURLString = thumbnailURLString
+        record.playedAt = playedAt
         try saveAndReload()
     }
 
