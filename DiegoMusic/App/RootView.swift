@@ -11,16 +11,30 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if sizeClass == .compact {
-                phoneTabView
-            } else {
-                desktopLayout
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        PlayerDock(
-                            player: environment.player,
-                            queue: environment.queue
-                        )
+            switch environment.authState {
+            case .loading:
+                ZStack {
+                    DiegoTheme.background.ignoresSafeArea()
+                    VStack(spacing: 16) {
+                        AppleMusicLogoView(size: 48, showText: true)
+                        ProgressView()
+                            .tint(DiegoTheme.accent)
                     }
+                }
+            case .unauthenticated:
+                AuthGateView()
+            case .authenticated:
+                if sizeClass == .compact {
+                    phoneTabView
+                } else {
+                    desktopLayout
+                        .safeAreaInset(edge: .bottom, spacing: 0) {
+                            PlayerDock(
+                                player: environment.player,
+                                queue: environment.queue
+                            )
+                        }
+                }
             }
         }
         .tint(DiegoTheme.accent)
@@ -327,17 +341,21 @@ struct HeaderView: View {
             .background(DiegoTheme.surface)
             .clipShape(Capsule())
 
-            // Sign In / Profile Accent Button
+            // Profile / Settings Button
             Button {
                 navState.navigate(to: .settings)
             } label: {
-                Text("Sign In")
-                    .font(.caption.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(DiegoTheme.accent)
-                    .clipShape(Capsule())
+                HStack(spacing: 6) {
+                    Image(systemName: "person.crop.circle")
+                        .font(.caption)
+                    Text("Cuenta")
+                        .font(.caption.bold())
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background(DiegoTheme.accent)
+                .clipShape(Capsule())
             }
             .buttonStyle(.plain)
         }

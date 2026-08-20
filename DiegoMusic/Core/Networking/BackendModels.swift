@@ -94,16 +94,39 @@ public struct CreatePlaylistRequestPayload: Encodable {
 }
 
 public struct AddTrackToPlaylistPayload: Encodable {
-    public let trackId: Int
+    public let trackId: Int?
+    public let youtubeVideoId: String?
+    public let title: String?
+    public let channelTitle: String?
+    public let thumbnailUrl: String?
+    public let durationSeconds: Int?
     public let order: Int?
 
     enum CodingKeys: String, CodingKey {
         case trackId = "track_id"
+        case youtubeVideoId = "youtube_video_id"
+        case title
+        case channelTitle = "channel_title"
+        case thumbnailUrl = "thumbnail_url"
+        case durationSeconds = "duration_seconds"
         case order
     }
 
-    public init(trackId: Int, order: Int? = 0) {
+    public init(
+        trackId: Int? = nil,
+        youtubeVideoId: String? = nil,
+        title: String? = nil,
+        channelTitle: String? = nil,
+        thumbnailUrl: String? = nil,
+        durationSeconds: Int? = nil,
+        order: Int? = 0
+    ) {
         self.trackId = trackId
+        self.youtubeVideoId = youtubeVideoId
+        self.title = title
+        self.channelTitle = channelTitle
+        self.thumbnailUrl = thumbnailUrl
+        self.durationSeconds = durationSeconds
         self.order = order
     }
 }
@@ -295,6 +318,7 @@ public struct BackendFavoriteDTO: Codable, Identifiable, Equatable {
     public let entityType: String
     public let entityId: Int
     public let createdAt: String?
+    public let track: BackendTrackDTO?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -302,28 +326,159 @@ public struct BackendFavoriteDTO: Codable, Identifiable, Equatable {
         case entityType = "entity_type"
         case entityId = "entity_id"
         case createdAt = "created_at"
+        case track
     }
 
-    public init(id: Int, userId: Int, entityType: String, entityId: Int, createdAt: String? = nil) {
+    public init(id: Int, userId: Int, entityType: String, entityId: Int, createdAt: String? = nil, track: BackendTrackDTO? = nil) {
         self.id = id
         self.userId = userId
         self.entityType = entityType
         self.entityId = entityId
         self.createdAt = createdAt
+        self.track = track
     }
 }
 
 public struct AddFavoritePayload: Encodable {
     public let entityType: String
-    public let entityId: Int
+    public let entityId: Int?
+    public let youtubeVideoId: String?
+    public let title: String?
+    public let channelTitle: String?
+    public let thumbnailUrl: String?
+    public let durationSeconds: Int?
 
     enum CodingKeys: String, CodingKey {
         case entityType = "entity_type"
         case entityId = "entity_id"
+        case youtubeVideoId = "youtube_video_id"
+        case title
+        case channelTitle = "channel_title"
+        case thumbnailUrl = "thumbnail_url"
+        case durationSeconds = "duration_seconds"
     }
 
-    public init(entityType: String, entityId: Int) {
+    public init(
+        entityType: String,
+        entityId: Int? = nil,
+        youtubeVideoId: String? = nil,
+        title: String? = nil,
+        channelTitle: String? = nil,
+        thumbnailUrl: String? = nil,
+        durationSeconds: Int? = nil
+    ) {
         self.entityType = entityType
         self.entityId = entityId
+        self.youtubeVideoId = youtubeVideoId
+        self.title = title
+        self.channelTitle = channelTitle
+        self.thumbnailUrl = thumbnailUrl
+        self.durationSeconds = durationSeconds
+    }
+}
+
+// MARK: - Play History DTOs
+
+public struct BackendPlayHistoryDTO: Codable, Identifiable, Equatable {
+    public let id: Int
+    public let userId: Int
+    public let trackId: Int
+    public let playedSeconds: Double
+    public let completed: Bool
+    public let skipped: Bool
+    public let context: String?
+    public let device: String?
+    public let playedAt: String?
+    public let track: BackendTrackDTO?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case trackId = "track_id"
+        case playedSeconds = "played_seconds"
+        case completed
+        case skipped
+        case context
+        case device
+        case playedAt = "played_at"
+        case track
+    }
+
+    public init(
+        id: Int,
+        userId: Int,
+        trackId: Int,
+        playedSeconds: Double = 0.0,
+        completed: Bool = false,
+        skipped: Bool = false,
+        context: String? = nil,
+        device: String? = nil,
+        playedAt: String? = nil,
+        track: BackendTrackDTO? = nil
+    ) {
+        self.id = id
+        self.userId = userId
+        self.trackId = trackId
+        self.playedSeconds = playedSeconds
+        self.completed = completed
+        self.skipped = skipped
+        self.context = context
+        self.device = device
+        self.playedAt = playedAt
+        self.track = track
+    }
+}
+
+public struct RecordPlayHistoryPayload: Encodable {
+    public let trackId: Int?
+    public let youtubeVideoId: String?
+    public let title: String?
+    public let channelTitle: String?
+    public let thumbnailUrl: String?
+    public let durationSeconds: Int?
+    public let playedSeconds: Double
+    public let completed: Bool
+    public let skipped: Bool
+    public let context: String?
+    public let device: String?
+
+    enum CodingKeys: String, CodingKey {
+        case trackId = "track_id"
+        case youtubeVideoId = "youtube_video_id"
+        case title
+        case channelTitle = "channel_title"
+        case thumbnailUrl = "thumbnail_url"
+        case durationSeconds = "duration_seconds"
+        case playedSeconds = "played_seconds"
+        case completed
+        case skipped
+        case context
+        case device
+    }
+
+    public init(
+        trackId: Int? = nil,
+        youtubeVideoId: String? = nil,
+        title: String? = nil,
+        channelTitle: String? = nil,
+        thumbnailUrl: String? = nil,
+        durationSeconds: Int? = nil,
+        playedSeconds: Double = 0.0,
+        completed: Bool = true,
+        skipped: Bool = false,
+        context: String? = nil,
+        device: String? = nil
+    ) {
+        self.trackId = trackId
+        self.youtubeVideoId = youtubeVideoId
+        self.title = title
+        self.channelTitle = channelTitle
+        self.thumbnailUrl = thumbnailUrl
+        self.durationSeconds = durationSeconds
+        self.playedSeconds = playedSeconds
+        self.completed = completed
+        self.skipped = skipped
+        self.context = context
+        self.device = device
     }
 }

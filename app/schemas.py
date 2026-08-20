@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Any
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 
 # Token Schemas
 class Token(BaseModel):
@@ -20,7 +20,16 @@ class UserBase(BaseModel):
     avatar_url: Optional[str] = None
 
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=10, max_length=25)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_complexity(cls, v: str) -> str:
+        if not (10 <= len(v) <= 25):
+            raise ValueError("La contraseña debe tener entre 10 y 25 caracteres")
+        if not any(c.isupper() for c in v):
+            raise ValueError("La contraseña debe contener al menos una letra mayúscula")
+        return v
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -157,7 +166,12 @@ class PlaylistUpdate(BaseModel):
     is_public: Optional[bool] = None
 
 class PlaylistTrackAdd(BaseModel):
-    track_id: int
+    track_id: Optional[int] = None
+    youtube_video_id: Optional[str] = None
+    title: Optional[str] = None
+    channel_title: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    duration_seconds: Optional[int] = None
     order: Optional[int] = 0
 
 class PlaylistTrackReorder(BaseModel):
@@ -186,7 +200,12 @@ class PlaylistResponse(BaseModel):
 # Favorites & Follows
 class FavoriteCreate(BaseModel):
     entity_type: str  # track, album, artist, playlist
-    entity_id: int
+    entity_id: Optional[int] = None
+    youtube_video_id: Optional[str] = None
+    title: Optional[str] = None
+    channel_title: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    duration_seconds: Optional[int] = None
 
 class FavoriteResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -199,7 +218,12 @@ class FavoriteResponse(BaseModel):
 
 # History & Telemetry
 class PlayHistoryCreate(BaseModel):
-    track_id: int
+    track_id: Optional[int] = None
+    youtube_video_id: Optional[str] = None
+    title: Optional[str] = None
+    channel_title: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    duration_seconds: Optional[int] = None
     played_seconds: float = 0.0
     completed: bool = False
     skipped: bool = False

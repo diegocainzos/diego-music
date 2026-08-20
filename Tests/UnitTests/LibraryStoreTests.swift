@@ -4,6 +4,7 @@ import XCTest
 @MainActor
 final class LibraryStoreTests: XCTestCase {
     private static let persistence = PersistenceController(inMemory: true)
+    
     func testFavoritesToggleWithoutDuplicates() throws {
         let store = makeStore()
         let item = MediaItem(id: "video", title: "Pieza", channelTitle: "Canal")
@@ -71,6 +72,31 @@ final class LibraryStoreTests: XCTestCase {
 
         try store.deleteSavedAlbum(id: album.id)
         XCTAssertFalse(store.isAlbumSaved(id: album.id))
+        XCTAssertTrue(store.savedAlbums.isEmpty)
+    }
+
+    func testClearAllUserDataAndImports() throws {
+        let store = makeStore()
+
+        // Importar datos simulando sincronización de backend
+        try store.importFavorite(videoID: "yt_fav_1", title: "Fav Track", channelTitle: "Fav Artist")
+        try store.importPlaylist(
+            name: "Cloud Playlist",
+            entries: [(videoID: "yt_pl_1", title: "PL Track 1", channelTitle: "PL Artist", thumbnailURLString: nil)]
+        )
+        try store.importHistory(videoID: "yt_hist_1", title: "History Track", channelTitle: "History Artist")
+
+        XCTAssertEqual(store.favorites.count, 1)
+        XCTAssertEqual(store.playlists.count, 1)
+        XCTAssertEqual(store.playlists.first?.entries.count, 1)
+        XCTAssertEqual(store.history.count, 1)
+
+        // Purgar todo
+        store.clearAllUserData()
+
+        XCTAssertTrue(store.favorites.isEmpty)
+        XCTAssertTrue(store.playlists.isEmpty)
+        XCTAssertTrue(store.history.isEmpty)
         XCTAssertTrue(store.savedAlbums.isEmpty)
     }
 

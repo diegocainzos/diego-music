@@ -22,7 +22,8 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=proxy
-      - traefik.http.routers.diegomusic.rule=Host(`${RESOLVER_DOMAIN:-music.diegocainzos.cv}`)
+      - traefik.http.routers.diegomusic.rule=Host(`${RESOLVER_DOMAIN:-music.diegocainzos.cv}`) && (PathPrefix(`/v1`) || PathPrefix(`/api`) || PathPrefix(`/health`))
+      - traefik.http.routers.diegomusic.priority=100
       - traefik.http.routers.diegomusic.entrypoints=websecure
       - traefik.http.routers.diegomusic.tls.certresolver=letsencrypt
       - traefik.http.services.diegomusic.loadbalancer.server.port=8080

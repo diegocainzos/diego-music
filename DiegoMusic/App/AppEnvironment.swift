@@ -71,8 +71,102 @@ final class AppEnvironment: ObservableObject {
         }
         Self.shared = self
 
+        // Configurar sincronización en tiempo real desde LibraryStore hacia el Backend
+        setupRealtimeLibrarySync(library: library, tokenManager: manager, backendClient: self.backendClient)
+
         Task {
             await checkInitialAuthState()
+        }
+    }
+
+    private func setupRealtimeLibrarySync(
+        library: LibraryStore,
+        tokenManager: any TokenManaging,
+        backendClient: any BackendAPIClientProtocol
+    ) {
+        library.onFavoriteToggled = { [weak self] item, isFav in
+            guard let self, let token = tokenManager.getToken(), self.authState.isAuthenticated else { return }
+            Task {
+                if isFav {
+                    _ = try? await backendClient.addFavorite(
+                        token: token,
+                        entityType: "track",
+                        youtubeVideoId: item.id,
+                        title: item.title,
+                        channelTitle: item.channelTitle,
+                        thumbnailUrl: item.thumbnailURL?.absoluteString,
+                        durationSeconds: item.durationSeconds
+                    )
+                } else {
+                    _ = try? await backendClient.removeFavorite(
+                        token: token,
+                        entityType: "track",
+                        entityIdentifier: item.id
+                    )
+                }
+            }
+        }
+
+        library.onTrackAddedToPlaylist = { [weak self] item, playlist in
+            guard let self, let token = tokenManager.getToken(), self.authState.isAuthenticated else { return }
+            Task {
+                do {
+                    let playlists = try await backendClient.fetchMyPlaylists(token: token)
+                    let remotePL: BackendPlaylistDTO
+                    if let found = playlists.first(where: { $0.name.lowercased() == playlist.name.lowercased() }) {
+                        remotePL = found
+                    } else {
+                        remotePL = try await backendClient.createPlaylist(token: token, name: playlist.name, description: nil, isPublic: false)
+                    }
+                    _ = try await backendClient.addTrackToPlaylist(
+                        token: token,
+                        playlistID: remotePL.id,
+                        youtubeVideoId: item.id,
+                        title: item.title,
+                        channelTitle: item.channelTitle,
+                        thumbnailUrl: item.thumbnailURL?.absoluteString,
+                        durationSeconds: item.durationSeconds,
+                        order: nil
+                    )
+                } catch {
+                    print("Error sincronizando adición de canción a playlist en backend: \(error)")
+                }
+            }
+        }
+
+        library.onTrackRemovedFromPlaylist = { [weak self] entry, playlist in
+            guard let self, let token = tokenManager.getToken(), self.authState.isAuthenticated else { return }
+            Task {
+                do {
+                    let playlists = try await backendClient.fetchMyPlaylists(token: token)
+                    if let remotePL = playlists.first(where: { $0.name.lowercased() == playlist.name.lowercased() }) {
+                        try await backendClient.removeTrackFromPlaylist(
+                            token: token,
+                            playlistID: remotePL.id,
+                            trackIdentifier: entry.videoID
+                        )
+                    }
+                } catch {
+                    print("Error sincronizando eliminación de canción de playlist en backend: \(error)")
+                }
+            }
+        }
+
+        library.onPlaylistCreated = { [weak self] playlist in
+            guard let self, let token = tokenManager.getToken(), self.authState.isAuthenticated else { return }
+            Task {
+                _ = try? await backendClient.createPlaylist(token: token, name: playlist.name, description: nil, isPublic: false)
+            }
+        }
+
+        library.onPlaylistDeleted = { [weak self] playlist in
+            guard let self, let token = tokenManager.getToken(), self.authState.isAuthenticated else { return }
+            Task {
+                if let playlists = try? await backendClient.fetchMyPlaylists(token: token),
+                   let remotePL = playlists.first(where: { $0.name.lowercased() == playlist.name.lowercased() }) {
+                    try? await backendClient.deletePlaylist(token: token, playlistID: remotePL.id)
+                }
+            }
         }
     }
 
@@ -82,9 +176,17 @@ final class AppEnvironment: ObservableObject {
             try? library.addHistory(item)
         }
         TelemetryLogger.shared.recordEvent(type: "track_play", data: ["title": item.title, "artist": item.channelTitle, "video_id": item.id])
-        if let token = tokenManager.getToken(), authState.isAuthenticated, let trackID = Int(item.id) {
+        if let token = tokenManager.getToken(), authState.isAuthenticated {
             Task {
-                _ = try? await backendClient.recordPlayHistory(token: token, trackID: trackID, playedSeconds: 0)
+                _ = try? await backendClient.recordPlayHistory(
+                    token: token,
+                    youtubeVideoId: item.id,
+                    title: item.title,
+                    channelTitle: item.channelTitle,
+                    thumbnailUrl: item.thumbnailURL?.absoluteString,
+                    durationSeconds: item.durationSeconds,
+                    playedSeconds: 0
+                )
             }
         }
     }
@@ -110,9 +212,10 @@ final class AppEnvironment: ObservableObject {
         do {
             let user = try await authClient.fetchMe(token: token)
             authState = .authenticated(user)
-            await syncPlaylistsWithBackend()
+            await syncAllUserDataWithBackend()
         } catch {
             tokenManager.deleteToken()
+            library.clearAllUserData()
             authState = .unauthenticated
         }
     }
@@ -125,7 +228,7 @@ final class AppEnvironment: ObservableObject {
             let user = try await authClient.fetchMe(token: response.accessToken)
             authState = .authenticated(user)
             TelemetryLogger.shared.recordEvent(type: "login", data: ["email": email])
-            await syncPlaylistsWithBackend()
+            await syncAllUserDataWithBackend()
         } catch {
             authState = .unauthenticated
             throw error
@@ -140,7 +243,7 @@ final class AppEnvironment: ObservableObject {
             let user = try await authClient.fetchMe(token: response.accessToken)
             authState = .authenticated(user)
             TelemetryLogger.shared.recordEvent(type: "register", data: ["email": email, "full_name": fullName ?? ""])
-            await syncPlaylistsWithBackend()
+            await syncAllUserDataWithBackend()
         } catch {
             authState = .unauthenticated
             throw error
@@ -150,38 +253,61 @@ final class AppEnvironment: ObservableObject {
     func logout() {
         TelemetryLogger.shared.recordEvent(type: "logout", data: nil)
         tokenManager.deleteToken()
+        library.clearAllUserData()
         authState = .unauthenticated
     }
 
-    // MARK: - Sincronización de Playlists y Biblioteca
+    // MARK: - Sincronización Total de Actividad
 
-    func syncPlaylistsWithBackend() async {
+    func syncAllUserDataWithBackend() async {
         guard let token = tokenManager.getToken(), authState.isAuthenticated else { return }
         do {
-            // 1. Obtener playlists del servidor
-            let remotePlaylists = try await backendClient.fetchMyPlaylists(token: token)
+            // 1. Purgar caché local previa para aislar sesión limpia
+            library.clearAllUserData()
 
-            // 2. Subir al servidor aquellas playlists creadas localmente en el móvil que no están en la nube
-            for local in library.playlists {
-                if !remotePlaylists.contains(where: { $0.name == local.name }) {
-                    _ = try? await backendClient.createPlaylist(token: token, name: local.name, description: nil, isPublic: false)
+            // 2. Sincronizar Favoritos desde el backend
+            if let remoteFavs = try? await backendClient.fetchFavorites(token: token, entityType: "track") {
+                for fav in remoteFavs {
+                    if let track = fav.track {
+                        let videoID = track.youtubeVideoId ?? "\(track.id)"
+                        let title = track.title
+                        let channel = track.artist?.name ?? ""
+                        let thumb = track.album?.coverURL
+                        try? library.importFavorite(videoID: videoID, title: title, channelTitle: channel, thumbnailURLString: thumb)
+                    }
                 }
             }
 
-            // 3. Descargar del servidor aquellas playlists creadas en la web que no están en local
-            let updatedRemotePlaylists = try await backendClient.fetchMyPlaylists(token: token)
-            for remote in updatedRemotePlaylists {
-                if !library.playlists.contains(where: { $0.name == remote.name }) {
-                    _ = try? library.createPlaylist(named: remote.name)
+            // 3. Sincronizar Playlists y sus pistas desde el backend
+            if let remotePlaylists = try? await backendClient.fetchMyPlaylists(token: token) {
+                for remote in remotePlaylists {
+                    let detailed = (try? await backendClient.fetchPlaylist(token: token, playlistID: remote.id)) ?? remote
+                    let entries = detailed.tracks.map { pt in
+                        (
+                            videoID: pt.track?.youtubeVideoId ?? "\(pt.trackId)",
+                            title: pt.track?.title ?? "",
+                            channelTitle: pt.track?.artist?.name ?? "",
+                            thumbnailURLString: pt.track?.album?.coverURL
+                        )
+                    }
+                    try? library.importPlaylist(name: remote.name, entries: entries)
                 }
             }
 
-            // 4. Sincronizar Favoritos con el Backend
-            if let remoteFavs = try? await backendClient.fetchFavorites(token: token, entityType: nil) {
-                print("Favoritos remotos sincronizados: \(remoteFavs.count)")
+            // 4. Sincronizar Historial de reproducción desde el backend
+            if let remoteHistory = try? await backendClient.fetchPlayHistory(token: token, limit: 50, offset: 0) {
+                for hist in remoteHistory {
+                    if let track = hist.track {
+                        let videoID = track.youtubeVideoId ?? "\(track.id)"
+                        let title = track.title
+                        let channel = track.artist?.name ?? ""
+                        let thumb = track.album?.coverURL
+                        try? library.importHistory(videoID: videoID, title: title, channelTitle: channel, thumbnailURLString: thumb)
+                    }
+                }
             }
         } catch {
-            print("Sincronización de playlists omitida: \(error)")
+            print("Error durante la sincronización total del usuario: \(error)")
         }
     }
 
