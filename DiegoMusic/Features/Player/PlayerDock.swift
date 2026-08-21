@@ -386,25 +386,6 @@ struct PlayerDock: View {
                             .buttonStyle(.plain)
                         }
 
-                        // Botón Minimalista de Letras
-                        Button {
-                            showLyricsFromExpanded = true
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "quote.bubble")
-                                    .font(.subheadline)
-                                Text("Letras")
-                                    .font(.subheadline.weight(.medium))
-                            }
-                            .foregroundStyle(DiegoTheme.textSecondary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Ver letras de la canción")
-
                         // Indicador de Scroll hacia abajo para Cola
                         HStack(spacing: 6) {
                             Image(systemName: "chevron.down")
