@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 
 enum AppThemeMode: String, CaseIterable, Identifiable, Codable {
+    case midnight = "midnight"
     case dark = "dark"
     case light = "light"
     case system = "system"
@@ -11,6 +12,7 @@ enum AppThemeMode: String, CaseIterable, Identifiable, Codable {
 
     var title: String {
         switch self {
+        case .midnight: return "Midnight"
         case .dark: return "Oscuro"
         case .light: return "Claro"
         case .system: return "Sistema"
@@ -19,6 +21,7 @@ enum AppThemeMode: String, CaseIterable, Identifiable, Codable {
 
     var icon: String {
         switch self {
+        case .midnight: return "sparkles"
         case .dark: return "moon.fill"
         case .light: return "sun.max.fill"
         case .system: return "circle.righthalf.filled"
@@ -27,7 +30,7 @@ enum AppThemeMode: String, CaseIterable, Identifiable, Codable {
 
     var colorScheme: ColorScheme? {
         switch self {
-        case .dark: return .dark
+        case .midnight, .dark: return .dark
         case .light: return .light
         case .system: return nil
         }

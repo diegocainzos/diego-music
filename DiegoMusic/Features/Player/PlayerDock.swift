@@ -299,104 +299,131 @@ struct PlayerDock: View {
             ZStack {
                 ambientBackground
 
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 20) {
-                        // Carátula Grande
-                        TrackArtwork(url: current.thumbnailURL)
-                            .frame(width: 260, height: 260)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .shadow(color: Color.black.opacity(0.25), radius: 20, y: 10)
-                            .padding(.top, 16)
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 24) {
+                        // Carátula Central con Halo de Progreso Circular Interactivo
+                        CircularHaloScrubber(
+                            url: current.thumbnailURL,
+                            currentTime: player.currentTime,
+                            duration: player.duration,
+                            progress: player.progress,
+                            onSeek: { fraction in
+                                player.seek(to: fraction)
+                            }
+                        )
+                        .padding(.top, 12)
 
-                        // Información del Tema
-                        VStack(spacing: 6) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(current.title)
-                                        .font(.title2.bold())
-                                        .foregroundStyle(DiegoTheme.textPrimary)
-                                        .lineLimit(2)
-
-                                    Button {
-                                        expanded = false
-                                        navState.navigate(to: .artistDetail(id: current.channelTitle, name: current.channelTitle))
-                                    } label: {
-                                        Text(current.channelTitle)
-                                            .font(.headline)
-                                            .foregroundStyle(DiegoTheme.accent)
-                                            .lineLimit(1)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                                Spacer()
+                        // Información del Tema + Botón Favorito
+                        HStack(alignment: .center, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(current.title)
+                                    .font(.system(size: 22, weight: .bold))
+                                    .foregroundStyle(DiegoTheme.textPrimary)
+                                    .lineLimit(1)
 
                                 Button {
-                                    try? environment.library.toggleFavorite(current)
+                                    expanded = false
+                                    navState.navigate(to: .artistDetail(id: current.channelTitle, name: current.channelTitle))
                                 } label: {
-                                    Image(systemName: environment.library.isFavorite(current) ? "heart.fill" : "heart")
-                                        .font(.title2)
-                                        .foregroundStyle(environment.library.isFavorite(current) ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                                    Text(current.channelTitle)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundStyle(DiegoTheme.midnightTextSecondary)
+                                        .lineLimit(1)
                                 }
                                 .buttonStyle(.plain)
                             }
-                        }
-                        .padding(.horizontal, 24)
 
-                        // Scrubber Bar Grande
-                        VStack(spacing: 6) {
-                            scrubberBar
-                        }
-                        .padding(.horizontal, 24)
+                            Spacer()
 
-                        // Controles de Reproducción Completos
-                        HStack(spacing: 32) {
+                            Button {
+                                try? environment.library.toggleFavorite(current)
+                            } label: {
+                                Image(systemName: environment.library.isFavorite(current) ? "heart.fill" : "heart")
+                                    .font(.system(size: 24))
+                                    .foregroundStyle(environment.library.isFavorite(current) ? DiegoTheme.red : DiegoTheme.midnightTextSecondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(environment.library.isFavorite(current) ? "Quitar de favoritos" : "Añadir a favoritos")
+                        }
+                        .padding(.horizontal, 28)
+
+                        // Consola de Controles de Reproducción (5 Botones con Play/Pause Elevado)
+                        HStack(spacing: 26) {
+                            // Shuffle
                             Button(action: { player.toggleShuffle() }) {
                                 Image(systemName: "shuffle")
-                                    .font(.title3)
-                                    .foregroundStyle(player.shuffleEnabled ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(player.shuffleEnabled ? DiegoTheme.midnightAccent : DiegoTheme.midnightTextSecondary)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Barajar")
 
+                            // Previous
                             Button(action: { player.previous() }) {
                                 Image(systemName: "backward.fill")
-                                    .font(.title)
+                                    .font(.system(size: 24, weight: .medium))
                                     .foregroundStyle(DiegoTheme.textPrimary)
                             }
+                            .disabled(!queue.canRetreat && player.currentTime < 1)
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Anterior")
 
+                            // Central Play/Pause Disc (Elevated High-Contrast Disc)
                             Button(action: { player.togglePlayback() }) {
-                                Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                    .font(.system(size: 64))
-                                    .foregroundStyle(DiegoTheme.accent)
-                            }
-                            .buttonStyle(.plain)
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.white)
+                                        .frame(width: 66, height: 66)
+                                        .shadow(color: Color.black.opacity(0.35), radius: 14, y: 6)
 
+                                    if player.isLoading {
+                                        ProgressView()
+                                            .tint(Color.black)
+                                            .controlSize(.regular)
+                                    } else {
+                                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                                            .font(.system(size: 26, weight: .bold))
+                                            .foregroundStyle(Color.black)
+                                            .offset(x: player.isPlaying ? 0 : 2)
+                                    }
+                                }
+                            }
+                            .disabled(player.playbackState == .resolving)
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(player.isPlaying ? "Pausar" : "Reproducir")
+
+                            // Next
                             Button(action: { player.next() }) {
                                 Image(systemName: "forward.fill")
-                                    .font(.title)
+                                    .font(.system(size: 24, weight: .medium))
                                     .foregroundStyle(DiegoTheme.textPrimary)
                             }
+                            .disabled(!queue.canAdvance)
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Siguiente")
 
+                            // Repeat
                             Button(action: { player.cycleRepeat() }) {
                                 Image(systemName: repeatSymbol)
-                                    .font(.title3)
-                                    .foregroundStyle(player.repeatMode == .off ? DiegoTheme.textSecondary : DiegoTheme.accent)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(player.repeatMode == .off ? DiegoTheme.midnightTextSecondary : DiegoTheme.midnightAccent)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Repetir")
                         }
+                        .padding(.vertical, 4)
 
-                        // Indicador de Scroll hacia abajo para Cola
+                        // Indicador Deslizable para Cola
                         HStack(spacing: 6) {
                             Image(systemName: "chevron.down")
                                 .font(.caption.bold())
                             Text("Desliza para ver la cola de reproducción")
                                 .font(.caption.bold())
                         }
-                        .foregroundStyle(DiegoTheme.textSecondary)
-                        .padding(.top, 4)
+                        .foregroundStyle(DiegoTheme.midnightTextSecondary)
+                        .padding(.top, 2)
 
-                        // Sección Glassmórfica de Cola de Reproducción
+                        // Sección de Cola de Reproducción integrada
                         queueGlassSection
                             .padding(.bottom, 32)
                     }
@@ -404,16 +431,31 @@ struct PlayerDock: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cerrar") { expanded = false }
+                    Button {
+                        expanded = false
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(DiegoTheme.textPrimary)
+                            .frame(width: 36, height: 36)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Cerrar")
                 }
+
                 ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 16) {
+                    HStack(spacing: 12) {
                         Button {
                             showLyricsFromExpanded = true
                         } label: {
                             Image(systemName: "quote.bubble")
-                                .font(.subheadline)
+                                .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(DiegoTheme.textPrimary)
+                                .frame(width: 36, height: 36)
+                                .background(Color.white.opacity(0.12))
+                                .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Letras de la canción")
@@ -464,9 +506,12 @@ struct PlayerDock: View {
                                 }
                             }
                         } label: {
-                            Image(systemName: "ellipsis.circle")
-                                .font(.title3)
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(DiegoTheme.textPrimary)
+                                .frame(width: 36, height: 36)
+                                .background(Color.white.opacity(0.12))
+                                .clipShape(Circle())
                         }
                         .accessibilityLabel("Más opciones de reproducción")
                     }
@@ -476,7 +521,7 @@ struct PlayerDock: View {
                 lyricsSheet(current)
             }
         }
-        .tint(DiegoTheme.accent)
+        .tint(DiegoTheme.midnightAccent)
     }
 
     // MARK: - Sección Glassmórfica de Cola de Reproducción integrada en el scroll
@@ -486,13 +531,13 @@ struct PlayerDock: View {
         if !queue.items.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Label("A continuación en la cola", systemImage: "list.bullet")
+                    Label("A continuación", systemImage: "list.bullet")
                         .font(.headline.bold())
                         .foregroundStyle(DiegoTheme.textPrimary)
                     Spacer()
                     Text("\(queue.items.count) canciones")
                         .font(.caption.bold())
-                        .foregroundStyle(DiegoTheme.textSecondary)
+                        .foregroundStyle(DiegoTheme.midnightTextSecondary)
                 }
 
                 VStack(spacing: 8) {
@@ -507,40 +552,42 @@ struct PlayerDock: View {
                                 ZStack {
                                     TrackArtwork(url: item.thumbnailURL)
                                         .frame(width: 44, height: 44)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                                     if isCurrent {
-                                        Rectangle()
-                                            .fill(.black.opacity(0.35))
-                                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(.black.opacity(0.40))
                                         Image(systemName: player.isPlaying ? "speaker.wave.2.fill" : "play.fill")
                                             .font(.caption.bold())
-                                            .foregroundStyle(DiegoTheme.accent)
+                                            .foregroundStyle(DiegoTheme.midnightAccent)
                                     }
                                 }
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item.title)
                                         .font(.system(size: 14, weight: isCurrent ? .bold : .medium))
-                                        .foregroundStyle(isCurrent ? DiegoTheme.accent : DiegoTheme.textPrimary)
+                                        .foregroundStyle(isCurrent ? DiegoTheme.midnightAccent : DiegoTheme.textPrimary)
                                         .lineLimit(1)
 
                                     Text(item.channelTitle)
                                         .font(.caption)
-                                        .foregroundStyle(DiegoTheme.textSecondary)
+                                        .foregroundStyle(DiegoTheme.midnightTextSecondary)
                                         .lineLimit(1)
                                 }
 
                                 Spacer()
 
+                                if let duration = item.durationSeconds, duration > 0 {
+                                    Text(format(Double(duration)))
+                                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(DiegoTheme.midnightTextSecondary)
+                                }
+
                                 if isCurrent {
-                                    Text("Sonando")
+                                    Image(systemName: "speaker.wave.2.fill")
                                         .font(.caption2.bold())
-                                        .foregroundStyle(DiegoTheme.accent)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
-                                        .background(DiegoTheme.accent.opacity(0.15))
-                                        .clipShape(Capsule())
+                                        .foregroundStyle(DiegoTheme.midnightAccent)
+                                        .padding(.leading, 2)
                                         .matchedGeometryEffect(id: "queueBadge", in: queueAnimationNamespace)
                                 }
                             }
@@ -548,15 +595,15 @@ struct PlayerDock: View {
                             .background(
                                 ZStack {
                                     if isCurrent {
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .fill(DiegoTheme.accent.opacity(0.14))
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .fill(DiegoTheme.midnightAccent.opacity(0.16))
                                             .overlay(
-                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                    .stroke(DiegoTheme.accent.opacity(0.35), lineWidth: 1)
+                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                    .stroke(DiegoTheme.midnightAccent.opacity(0.35), lineWidth: 1)
                                             )
                                             .matchedGeometryEffect(id: "queueHighlight", in: queueAnimationNamespace)
                                     } else {
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                                             .fill(Color.white.opacity(0.04))
                                     }
                                 }
@@ -566,7 +613,13 @@ struct PlayerDock: View {
                     }
                 }
             }
-            .appleMusicCard(cornerRadius: 16)
+            .padding(16)
+            .background(Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
             .padding(.horizontal, 24)
         }
     }
@@ -667,13 +720,17 @@ struct PlayerDock: View {
     private var ambientBackground: some View {
         GeometryReader { geo in
             ZStack {
-                DiegoTheme.background
+                LinearGradient(
+                    colors: [DiegoTheme.midnightTop, DiegoTheme.midnightBottom],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
                 TrackArtwork(url: queue.current?.thumbnailURL)
                     .frame(width: geo.size.width, height: geo.size.height)
                     .clipped()
-                    .blur(radius: reduceMotion ? 12 : 40)
-                    .opacity(0.18)
-                    .saturation(1.2)
+                    .blur(radius: reduceMotion ? 16 : 48)
+                    .opacity(0.24)
+                    .saturation(1.35)
             }
         }
         .ignoresSafeArea()
@@ -737,5 +794,132 @@ struct TrackArtwork: View {
                 .font(.title3)
                 .foregroundStyle(DiegoTheme.accent.opacity(0.6))
         }
+    }
+}
+
+// MARK: - Halo Circular de Progreso Interactivo (Circular Halo Scrubber)
+
+struct CircularHaloScrubber: View {
+    let url: URL?
+    let currentTime: Double
+    let duration: Double
+    let progress: Double
+    let onSeek: (Double) -> Void
+
+    @State private var isDragging: Bool = false
+    @State private var dragProgress: Double = 0.0
+
+    private var currentProgress: Double {
+        isDragging ? dragProgress : progress
+    }
+
+    private var displayedCurrentTime: Double {
+        if isDragging {
+            return (dragProgress * duration).clamped(to: 0...max(duration, 1))
+        }
+        return currentTime
+    }
+
+    private var displayedRemainingTime: Double {
+        let current = displayedCurrentTime
+        return max(duration - current, 0)
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                // Anillo de Fondo Inactivo
+                Circle()
+                    .stroke(Color.white.opacity(0.10), lineWidth: 4)
+                    .frame(width: 254, height: 254)
+
+                // Halo Difuso Brillante de Fondo (Ambient Glow)
+                Circle()
+                    .trim(from: 0, to: max(0.001, currentProgress))
+                    .stroke(
+                        DiegoTheme.midnightCyan.opacity(0.70),
+                        style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                    )
+                    .frame(width: 254, height: 254)
+                    .blur(radius: 8)
+                    .rotationEffect(.degrees(-90))
+
+                // Anillo de Progreso Activo con Degradado Cyan/Cobalt
+                Circle()
+                    .trim(from: 0, to: max(0.001, currentProgress))
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                DiegoTheme.midnightCyan,
+                                DiegoTheme.midnightAccent,
+                                DiegoTheme.midnightCyan
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                    )
+                    .frame(width: 254, height: 254)
+                    .rotationEffect(.degrees(-90))
+
+                // Carátula Central Hero Artwork
+                TrackArtwork(url: url)
+                    .frame(width: 220, height: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .shadow(color: Color.black.opacity(0.40), radius: 20, y: 10)
+            }
+            .frame(width: 264, height: 264)
+            .contentShape(Circle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let center = CGPoint(x: 132, y: 132)
+                        let dx = value.location.x - center.x
+                        let dy = value.location.y - center.y
+                        var radians = atan2(dy, dx) + .pi / 2
+                        if radians < 0 { radians += 2 * .pi }
+                        let fraction = min(max(radians / (2 * .pi), 0), 1)
+                        isDragging = true
+                        dragProgress = fraction
+                    }
+                    .onEnded { value in
+                        let center = CGPoint(x: 132, y: 132)
+                        let dx = value.location.x - center.x
+                        let dy = value.location.y - center.y
+                        var radians = atan2(dy, dx) + .pi / 2
+                        if radians < 0 { radians += 2 * .pi }
+                        let fraction = min(max(radians / (2 * .pi), 0), 1)
+                        isDragging = false
+                        onSeek(fraction)
+                    }
+            )
+
+            // Tiempos Transcurrido y Restante
+            HStack {
+                Text(formatTime(displayedCurrentTime))
+                    .monospacedDigit()
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DiegoTheme.midnightTextSecondary)
+
+                Spacer()
+
+                Text("-" + formatTime(displayedRemainingTime))
+                    .monospacedDigit()
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DiegoTheme.midnightTextSecondary)
+            }
+            .padding(.horizontal, 36)
+        }
+    }
+
+    private func formatTime(_ seconds: Double) -> String {
+        guard seconds.isFinite else { return "0:00" }
+        return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+    }
+}
+
+private extension Comparable {
+    func clamped(to limits: ClosedRange<Self>) -> Self {
+        min(max(self, limits.lowerBound), limits.upperBound)
     }
 }

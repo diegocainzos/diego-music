@@ -48,6 +48,13 @@ enum DiegoTheme {
     static let green = Color(red: 0.12, green: 0.84, blue: 0.38)
     static let red = Color(red: 250 / 255.0, green: 45 / 255.0, blue: 72 / 255.0)
 
+    // MARK: - Midnight Indigo Tokens
+    static let midnightTop = Color(red: 0x13 / 255.0, green: 0x18 / 255.0, blue: 0x36 / 255.0)       // #131836
+    static let midnightBottom = Color(red: 0x1A / 255.0, green: 0x22 / 255.0, blue: 0x47 / 255.0)    // #1A2247
+    static let midnightAccent = Color(red: 0x3E / 255.0, green: 0x7B / 255.0, blue: 0xFA / 255.0)    // #3E7BFA
+    static let midnightCyan = Color(red: 0x4C / 255.0, green: 0xC9 / 255.0, blue: 0xF0 / 255.0)      // #4CC9F0
+    static let midnightTextSecondary = Color(red: 0x8E / 255.0, green: 0x9B / 255.0, blue: 0xB5 / 255.0) // #8E9BB5
+
     static let cornerRadius: CGFloat = 12
 
     // MARK: - Adaptadores dinámicos por ColorScheme (Modo Claro / Oscuro)
