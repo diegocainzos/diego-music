@@ -117,10 +117,14 @@ struct LyricsView: View {
                     .font(.title3.weight(.medium))
                     .foregroundStyle(.white.opacity(0.85))
                     .multilineTextAlignment(.leading)
+                    .lineSpacing(4)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 32)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -221,7 +225,9 @@ private struct SyncedLyricsContent: View {
                         .frame(height: max(80, viewportHeight * 0.35))
                 }
                 .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .scrollIndicators(.hidden)
             .onAppear {
                 // Initial scroll to active line
@@ -289,7 +295,9 @@ private struct SyncedLyricsContent: View {
                     radius: isActive ? 16 : 0
                 )
                 .multilineTextAlignment(.leading)
+                .lineSpacing(4)
                 .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 4)
                 .contentShape(Rectangle())
