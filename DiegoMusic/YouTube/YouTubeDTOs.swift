@@ -50,6 +50,27 @@ struct YouTubeChannelDTO: Decodable {
     let snippet: Snippet
 }
 
+// MARK: - Playlists (Álbumes / Listas de reproducción)
+
+struct YouTubePlaylistListResponseDTO: Decodable {
+    let items: [YouTubePlaylistDTO]
+    let nextPageToken: String?
+}
+
+struct YouTubePlaylistDTO: Decodable {
+    struct Snippet: Decodable {
+        let publishedAt: Date?
+        let title: String
+        let description: String?
+        let channelId: String?
+        let channelTitle: String
+        let thumbnails: [String: YouTubeThumbnail]
+    }
+
+    let id: String
+    let snippet: Snippet
+}
+
 // MARK: - Vídeos trending / novedades
 
 struct YouTubeVideoListResponseDTO: Decodable {

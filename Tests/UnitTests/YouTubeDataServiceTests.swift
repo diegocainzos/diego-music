@@ -28,6 +28,42 @@ final class YouTubeDataServiceTests: XCTestCase {
             XCTAssertEqual(error as? YouTubeServiceError, .missingConfiguration)
         }
     }
+
+    func testMapperPlaylistsAndSearchPlaylists() throws {
+        let mapper = YouTubeMapper()
+        let playlistDTO = YouTubePlaylistDTO(
+            id: "PL987",
+            snippet: .init(
+                publishedAt: nil,
+                title: "A Night at the Opera",
+                description: "Queen album",
+                channelId: "UC123",
+                channelTitle: "Queen",
+                thumbnails: [:]
+            )
+        )
+        let mappedAlbum = mapper.map(playlistDTO)
+        XCTAssertEqual(mappedAlbum.id, "PL987")
+        XCTAssertEqual(mappedAlbum.title, "A Night at the Opera")
+        XCTAssertEqual(mappedAlbum.channelTitle, "Queen")
+
+        let searchItem = YouTubeSearchItemDTO(
+            id: .init(kind: "youtube#playlist", videoId: nil, channelId: nil, playlistId: "PL456"),
+            snippet: .init(
+                publishedAt: nil,
+                title: "Abbey Road",
+                description: "The Beatles",
+                channelId: "UC456",
+                channelTitle: "The Beatles",
+                thumbnails: [:]
+            )
+        )
+        let mappedSearchAlbum = try XCTUnwrap(mapper.mapPlaylistSearchItem(searchItem))
+        XCTAssertEqual(mappedSearchAlbum.id, "PL456")
+        XCTAssertEqual(mappedSearchAlbum.title, "Abbey Road")
+        XCTAssertEqual(mappedSearchAlbum.channelTitle, "The Beatles")
+    }
+    }
 }
 
 private struct StubHTTPTransport: HTTPTransport {

@@ -8,11 +8,24 @@ struct Artist: Identifiable, Equatable, Sendable {
     let thumbnailURL: URL?
 }
 
-/// Página de artista: perfil + top tracks + relacionados.
+/// Página de artista: perfil + top tracks + relacionados + discografía/álbumes.
 struct ArtistDetail: Equatable, Sendable {
     let artist: Artist
     let topTracks: [MediaItem]
     let related: [MediaItem]
+    let albums: [Album]
+
+    init(
+        artist: Artist,
+        topTracks: [MediaItem],
+        related: [MediaItem],
+        albums: [Album] = []
+    ) {
+        self.artist = artist
+        self.topTracks = topTracks
+        self.related = related
+        self.albums = albums
+    }
 }
 
 /// Álbum/lista obtenido del endpoint `playlistItems`.

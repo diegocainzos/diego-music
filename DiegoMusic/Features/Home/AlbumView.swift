@@ -63,7 +63,7 @@ struct AlbumView: View {
             topNavigationBar
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 32) {
                     switch model.state {
                     case .loading:
                         HStack(spacing: 12) {
@@ -168,100 +168,96 @@ struct AlbumView: View {
         }
     }
 
-    // MARK: - Header Estilo Apple Music Web
+    // MARK: - Header Inmersivo (Título Arriba, Carátula al Centro, Autores Abajo)
 
     @ViewBuilder
     private func header(_ album: Album) -> some View {
         let isCompact = sizeClass == .compact
 
-        if isCompact {
-            VStack(spacing: 16) {
-                TrackArtwork(url: album.thumbnailURL)
-                    .frame(width: 180, height: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .shadow(color: .black.opacity(0.3), radius: 16, x: 0, y: 8)
-                    .accessibilityHidden(true)
+        VStack(spacing: 20) {
+            // 1. TÍTULO ARRIBA
+            VStack(spacing: 6) {
+                Text("ÁLBUM")
+                    .font(.caption.weight(.bold))
+                    .tracking(2.0)
+                    .foregroundStyle(DiegoTheme.accent)
 
-                VStack(spacing: 6) {
-                    Text("ÁLBUM")
-                        .font(.caption.weight(.bold))
-                        .tracking(1.5)
-                        .foregroundStyle(DiegoTheme.textSecondary)
-
-                    Text(album.title)
-                        .font(.title2.bold())
-                        .foregroundStyle(DiegoTheme.textPrimary)
-                        .multilineTextAlignment(.center)
-
-                    if let channel = album.channelTitle {
-                        Button {
-                            navState.navigate(to: .artistDetail(id: channel, name: channel))
-                        } label: {
-                            Text(channel)
-                                .font(.headline.weight(.semibold))
-                                .foregroundStyle(DiegoTheme.accent)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Text("Música • \(album.tracks.count) canciones")
-                        .font(.caption)
-                        .foregroundStyle(DiegoTheme.textSecondary)
-                }
-
-                actionButtons(album)
+                Text(album.title)
+                    .font(isCompact ? .title.weight(.bold) : .system(size: 32, weight: .bold))
+                    .foregroundStyle(DiegoTheme.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
             }
             .frame(maxWidth: .infinity)
-        } else {
-            HStack(alignment: .bottom, spacing: 28) {
+
+            // 2. CARÁTULA EN EL CENTRO CON RESPLANDOR AMBIENTAL
+            ZStack {
+                // Ambient Glow difuminado
                 TrackArtwork(url: album.thumbnailURL)
-                    .frame(width: 240, height: 240)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .shadow(color: .black.opacity(0.35), radius: 20, x: 0, y: 10)
-                    .accessibilityHidden(true)
+                    .frame(width: isCompact ? 180 : 230, height: isCompact ? 180 : 230)
+                    .blur(radius: 26)
+                    .opacity(0.35)
+                    .offset(y: 10)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("ÁLBUM")
-                        .font(.caption.weight(.bold))
-                        .tracking(1.5)
-                        .foregroundStyle(DiegoTheme.textSecondary)
-
-                    Text(album.title)
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundStyle(DiegoTheme.textPrimary)
-                        .lineLimit(2)
-
-                    if let channel = album.channelTitle {
-                        Button {
-                            navState.navigate(to: .artistDetail(id: channel, name: channel))
-                        } label: {
-                            Text(channel)
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(DiegoTheme.accent)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Text("Música • \(album.tracks.count) canciones")
-                        .font(.subheadline)
-                        .foregroundStyle(DiegoTheme.textSecondary)
-
-                    Spacer().frame(height: 4)
-
-                    actionButtons(album)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                TrackArtwork(url: album.thumbnailURL)
+                    .frame(width: isCompact ? 190 : 240, height: isCompact ? 190 : 240)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.35), radius: 18, x: 0, y: 8)
             }
+            .accessibilityHidden(true)
+
+            // 3. AUTORES / ARTISTAS Y METADATOS ABAJO
+            VStack(spacing: 8) {
+                if let channel = album.channelTitle, !channel.isEmpty {
+                    Button {
+                        navState.navigate(to: .artistDetail(id: channel, name: channel))
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "person.circle.fill")
+                                .font(.subheadline)
+                            Text(channel)
+                                .font(.headline.weight(.semibold))
+                        }
+                        .foregroundStyle(DiegoTheme.accent)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(DiegoTheme.surfaceElevated.opacity(0.8))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(DiegoTheme.accent.opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Text("\(album.tracks.count) canciones")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(DiegoTheme.textSecondary)
+            }
+
+            // 4. BARRA DE ACCIONES FLOTANTE
+            actionButtons(album)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 8)
     }
 
-    // MARK: - Botones Reproducir / Aleatorio (Cápsulas Apple Music)
+    // MARK: - Botones de Acción (Barra Flotante en Cristal)
 
     private func actionButtons(_ album: Album) -> some View {
         HStack(spacing: 12) {
+            // Botón Principal: Reproducir álbum completo en orden
             Button {
                 if let first = album.tracks.first {
                     onPlay(first)
+                    if album.tracks.count > 1 {
+                        let remaining = Array(album.tracks.dropFirst())
+                        environment.queue.replaceQueue(with: remaining)
+                    }
                 }
             } label: {
                 HStack(spacing: 8) {
@@ -271,36 +267,34 @@ struct AlbumView: View {
                         .font(.subheadline.weight(.bold))
                 }
                 .padding(.horizontal, 24)
-                .padding(.vertical, 10)
+                .padding(.vertical, 11)
                 .background(DiegoTheme.accent)
                 .foregroundStyle(.white)
                 .clipShape(Capsule())
+                .shadow(color: DiegoTheme.accent.opacity(0.35), radius: 8, y: 4)
             }
             .buttonStyle(.plain)
 
+            // Modo Aleatorio
             Button {
                 if let randomTrack = album.tracks.randomElement() {
                     onPlay(randomTrack)
+                    let remaining = album.tracks.filter { $0.id != randomTrack.id }.shuffled()
+                    environment.queue.replaceQueue(with: remaining)
                 }
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "shuffle")
-                        .font(.subheadline.weight(.bold))
-                    Text("Aleatorio")
-                        .font(.subheadline.weight(.bold))
-                }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 10)
-                .background(DiegoTheme.surface)
-                .foregroundStyle(DiegoTheme.accent)
-                .clipShape(Capsule())
-                .overlay {
-                    Capsule().stroke(DiegoTheme.accent.opacity(0.5), lineWidth: 1.5)
-                }
+                Image(systemName: "shuffle")
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(DiegoTheme.textPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(DiegoTheme.surfaceElevated)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Reproducir álbum en modo aleatorio")
 
-            // Botón "Descargar todo" offline
+            // Descargar todo
             if !album.tracks.isEmpty,
                let resolverClient = environment.player.resolverClient {
                 DownloadAllButton(
@@ -310,92 +304,66 @@ struct AlbumView: View {
                 )
             }
 
-            // Botón "Salvar álbum en la biblioteca"
+            // Guardar álbum en la biblioteca
             let isSaved = environment.library.isAlbumSaved(id: album.id) || environment.library.isAlbumSaved(id: album.title)
             Button {
                 do {
                     try environment.library.toggleSaveAlbum(album)
                     let nowSaved = environment.library.isAlbumSaved(id: album.id) || environment.library.isAlbumSaved(id: album.title)
-                    withAnimation {
-                        toastMessage = nowSaved ? "Álbum guardado en la biblioteca" : "Álbum eliminado de la biblioteca"
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        withAnimation { toastMessage = nil }
-                    }
+                    showToast(nowSaved ? "Álbum guardado en la biblioteca" : "Álbum eliminado de la biblioteca")
                 } catch {
-                    withAnimation { toastMessage = "Error al guardar el álbum" }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        withAnimation { toastMessage = nil }
-                    }
+                    showToast("Error al guardar el álbum")
                 }
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                        .font(.subheadline.weight(.bold))
-                    Text(isSaved ? "Guardado" : "Guardar")
-                        .font(.subheadline.weight(.bold))
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(isSaved ? DiegoTheme.accent.opacity(0.15) : DiegoTheme.surface)
-                .foregroundStyle(DiegoTheme.accent)
-                .clipShape(Capsule())
-                .overlay {
-                    Capsule().stroke(DiegoTheme.accent.opacity(0.5), lineWidth: 1.5)
-                }
+                Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(isSaved ? DiegoTheme.accent : DiegoTheme.textPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(isSaved ? DiegoTheme.accent.opacity(0.15) : DiegoTheme.surfaceElevated)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(isSaved ? DiegoTheme.accent.opacity(0.5) : Color.white.opacity(0.12), lineWidth: 1))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isSaved ? "Eliminar álbum de la biblioteca" : "Guardar álbum en la biblioteca")
         }
     }
 
-    // MARK: - Tabla de Pistas (Estilo Apple Music Web)
+    // MARK: - Tabla de Pistas Secuencial (Sin Enumerar `#`, Orden Estricto)
 
     private func tracklistTable(_ items: [MediaItem]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Pistas")
-                .font(.title3.bold())
-                .foregroundStyle(DiegoTheme.textPrimary)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Canciones")
+                    .font(.title3.bold())
+                    .foregroundStyle(DiegoTheme.textPrimary)
+
+                Spacer()
+
+                Text("\(items.count) pistas")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(DiegoTheme.textSecondary)
+            }
 
             if items.isEmpty {
                 Text("Este álbum no contiene pistas reproducibles.")
                     .font(.callout)
                     .foregroundStyle(DiegoTheme.textSecondary)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, alignment: .center)
             } else {
                 VStack(spacing: 0) {
-                    // Cabecera de tabla
-                    HStack(spacing: 12) {
-                        Text("#")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(DiegoTheme.textSecondary)
-                            .frame(width: 28, alignment: .center)
-
-                        Text("TÍTULO")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(DiegoTheme.textSecondary)
-
-                        Spacer()
-
-                        Image(systemName: "ellipsis")
-                            .font(.caption)
-                            .foregroundStyle(DiegoTheme.textSecondary)
-                            .frame(width: 32)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .overlay(alignment: .bottom) {
-                        Divider().background(Color.white.opacity(0.1))
-                    }
-
-                    // Filas de pistas
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        ForEach(items) { item in
                             AlbumTrackRow(
-                                index: index + 1,
                                 item: item,
+                                isCurrent: environment.player.currentItem?.id == item.id,
+                                isPlaying: environment.player.isPlaying && environment.player.currentItem?.id == item.id,
                                 library: environment.library,
-                                onPlay: onPlay,
+                                onPlay: {
+                                    onPlay(item)
+                                    let remaining = items.filter { $0.id != item.id }
+                                    environment.queue.replaceQueue(with: remaining)
+                                },
                                 onEnqueueNext: { track in
                                     environment.queue.enqueueNext(track)
                                     showToast("Añadida a continuación")
@@ -404,27 +372,34 @@ struct AlbumView: View {
                                     navState.navigate(to: .artistDetail(id: artistName, name: artistName))
                                 }
                             )
+
+                            if item.id != items.last?.id {
+                                Divider()
+                                    .background(Color.white.opacity(0.06))
+                                    .padding(.leading, 48)
+                            }
                         }
                     }
                 }
-                .background(DiegoTheme.surface.opacity(0.4))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .background(DiegoTheme.surface.opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                }
+                )
             }
         }
     }
 }
 
-// MARK: - Fila de Pista de Álbum (Estilo Tabla Apple Music Web)
+// MARK: - Fila de Canción Secuencial (Limpia, Sin Número `#`, Con Estado Activo)
 
 private struct AlbumTrackRow: View {
-    let index: Int
     let item: MediaItem
+    let isCurrent: Bool
+    let isPlaying: Bool
     @ObservedObject var library: LibraryStore
-    let onPlay: (MediaItem) -> Void
+    let onPlay: () -> Void
     let onEnqueueNext: (MediaItem) -> Void
     let onSelectArtist: (String) -> Void
 
@@ -432,17 +407,27 @@ private struct AlbumTrackRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Button { onPlay(item) } label: {
+            // Botón / Indicador de Reproducción Activa o Play
+            Button(action: onPlay) {
                 HStack(spacing: 12) {
-                    Text("\(index)")
-                        .font(.callout.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(DiegoTheme.textSecondary)
-                        .frame(width: 28, alignment: .center)
+                    Group {
+                        if isCurrent {
+                            Image(systemName: isPlaying ? "waveform" : "pause.fill")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(DiegoTheme.accent)
+                                .symbolEffect(.variableColor.iterative, isActive: isPlaying)
+                        } else {
+                            Image(systemName: "play.fill")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(isHovered ? DiegoTheme.accent : DiegoTheme.textSecondary.opacity(0.6))
+                        }
+                    }
+                    .frame(width: 24, height: 24, alignment: .center)
 
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(item.title)
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(DiegoTheme.textPrimary)
+                            .font(.body.weight(isCurrent ? .bold : .medium))
+                            .foregroundStyle(isCurrent ? DiegoTheme.accent : DiegoTheme.textPrimary)
                             .lineLimit(1)
 
                         Text(item.channelTitle)
@@ -456,15 +441,7 @@ private struct AlbumTrackRow: View {
             }
             .buttonStyle(.plain)
 
-            Button { onPlay(item) } label: {
-                Image(systemName: "play.fill")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(DiegoTheme.accent)
-                    .frame(width: 32, height: 32)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Reproducir \(item.title)")
-
+            // Botón Favorito
             Button { try? library.toggleFavorite(item) } label: {
                 Image(systemName: library.isFavorite(item) ? "heart.fill" : "heart")
                     .font(.caption)
@@ -474,6 +451,7 @@ private struct AlbumTrackRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel(library.isFavorite(item) ? "Quitar de favoritos" : "Añadir a favoritos")
 
+            // Menú de opciones rápidas
             Menu {
                 Button {
                     onEnqueueNext(item)
@@ -505,12 +483,9 @@ private struct AlbumTrackRow: View {
             .menuStyle(.borderlessButton)
             .accessibilityLabel("Más opciones para \(item.title)")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(isHovered ? Color.white.opacity(0.06) : Color.clear)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(isCurrent ? DiegoTheme.accent.opacity(0.08) : (isHovered ? Color.white.opacity(0.05) : Color.clear))
         .onHover { isHovered = $0 }
-        .overlay(alignment: .bottom) {
-            Divider().background(Color.white.opacity(0.05))
-        }
     }
 }

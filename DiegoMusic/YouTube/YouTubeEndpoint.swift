@@ -7,7 +7,9 @@ enum YouTubeEndpointError: Error, Equatable {
 
 enum YouTubeEndpointKind {
     case search(query: String, pageToken: String?)
+    case searchPlaylists(query: String, pageToken: String?)
     case channels(ids: [String])
+    case playlists(channelID: String, pageToken: String?)
     case playlistItems(playlistID: String, pageToken: String?)
     case mostPopularVideo
 }
@@ -33,11 +35,13 @@ struct YouTubeEndpoint {
         self.kind = kind
         self.apiKey = apiKey
         self.maxResults = min(max(maxResults, 1), 50)
-        if case let .search(_, token) = kind {
+        switch kind {
+        case let .search(_, token),
+             let .searchPlaylists(_, token),
+             let .playlists(_, token),
+             let .playlistItems(_, token):
             self.pageToken = token
-        } else if case let .playlistItems(_, token) = kind {
-            self.pageToken = token
-        } else {
+        default:
             self.pageToken = nil
         }
     }
@@ -54,10 +58,25 @@ struct YouTubeEndpoint {
             components.path = "/youtube/v3/search"
             components.queryItems = [
                 URLQueryItem(name: "part", value: "snippet"),
-                URLQueryItem(name: "q", value: normalized),
+                URLQueryItem(name: "q", normalized),
                 URLQueryItem(name: "type", value: "video"),
                 URLQueryItem(name: "videoCategoryId", value: "10"),
                 URLQueryItem(name: "videoEmbeddable", value: "true"),
+                URLQueryItem(name: "safeSearch", value: "moderate"),
+                URLQueryItem(name: "maxResults", value: String(maxResults)),
+                URLQueryItem(name: "key", value: apiKey)
+            ]
+            if let pageToken, !pageToken.isEmpty {
+                components.queryItems?.append(URLQueryItem(name: "pageToken", value: pageToken))
+            }
+        case let .searchPlaylists(query, _):
+            let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { throw YouTubeEndpointError.invalidQuery }
+            components.path = "/youtube/v3/search"
+            components.queryItems = [
+                URLQueryItem(name: "part", value: "snippet"),
+                URLQueryItem(name: "q", value: normalized),
+                URLQueryItem(name: "type", value: "playlist"),
                 URLQueryItem(name: "safeSearch", value: "moderate"),
                 URLQueryItem(name: "maxResults", value: String(maxResults)),
                 URLQueryItem(name: "key", value: apiKey)
@@ -73,6 +92,17 @@ struct YouTubeEndpoint {
                 URLQueryItem(name: "maxResults", value: String(maxResults)),
                 URLQueryItem(name: "key", value: apiKey)
             ]
+        case let .playlists(channelID, _):
+            components.path = "/youtube/v3/playlists"
+            components.queryItems = [
+                URLQueryItem(name: "part", value: "snippet"),
+                URLQueryItem(name: "channelId", value: channelID),
+                URLQueryItem(name: "maxResults", value: String(maxResults)),
+                URLQueryItem(name: "key", value: apiKey)
+            ]
+            if let pageToken, !pageToken.isEmpty {
+                components.queryItems?.append(URLQueryItem(name: "pageToken", value: pageToken))
+            }
         case let .playlistItems(playlistID, _):
             components.path = "/youtube/v3/playlistItems"
             components.queryItems = [

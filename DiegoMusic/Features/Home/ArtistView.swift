@@ -95,7 +95,7 @@ struct ArtistView: View {
                     case let .loaded(detail):
                         heroHeader(detail)
                         topTracksSection(detail.topTracks)
-                        discographySection(detail.related)
+                        discographySection(detail.albums)
                         similarArtistsSection(detail.related)
                     }
                 }
@@ -372,36 +372,50 @@ struct ArtistView: View {
 
     // MARK: - Sección Discografía y Álbumes
 
-    private func discographySection(_ items: [MediaItem]) -> some View {
+    private func discographySection(_ albums: [Album]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Discografía y Álbumes")
-                .font(.title2.bold())
-                .foregroundStyle(DiegoTheme.textPrimary)
+            HStack {
+                Text("Discografía y Álbumes")
+                    .font(.title2.bold())
+                    .foregroundStyle(DiegoTheme.textPrimary)
 
-            if items.isEmpty {
-                Text("No hay lanzamientos disponibles.")
+                Spacer()
+
+                if !albums.isEmpty {
+                    Text("\(albums.count) lanzamientos")
+                        .font(.caption.bold())
+                        .foregroundStyle(DiegoTheme.textSecondary)
+                }
+            }
+
+            if albums.isEmpty {
+                Text("No hay álbumes disponibles.")
                     .font(.callout)
                     .foregroundStyle(DiegoTheme.textSecondary)
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 16)], spacing: 16) {
-                    ForEach(items.prefix(6)) { item in
+                    ForEach(albums) { album in
                         Button {
-                            navState.navigate(to: .albumDetail(id: item.title, title: item.title))
+                            navState.navigate(to: .albumDetail(id: album.id, title: album.title))
                         } label: {
                             VStack(alignment: .leading, spacing: 8) {
-                                TrackArtwork(url: item.thumbnailURL)
+                                TrackArtwork(url: album.thumbnailURL)
                                     .frame(height: 160)
                                     .frame(maxWidth: .infinity)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                                    .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.title)
+                                    Text(album.title)
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(DiegoTheme.textPrimary)
                                         .lineLimit(2)
 
-                                    Text("Álbum")
+                                    Text(album.channelTitle ?? "Álbum")
                                         .font(.caption)
                                         .foregroundStyle(DiegoTheme.textSecondary)
                                         .lineLimit(1)

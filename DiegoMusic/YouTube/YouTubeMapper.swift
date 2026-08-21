@@ -52,6 +52,33 @@ struct YouTubeMapper {
         )
     }
 
+    func map(_ dto: YouTubePlaylistDTO) -> Album {
+        let thumbnail = dto.snippet.thumbnails["high"]
+            ?? dto.snippet.thumbnails["medium"]
+            ?? dto.snippet.thumbnails["default"]
+        return Album(
+            id: dto.id,
+            title: dto.snippet.title.decodingHTMLEntities,
+            channelTitle: dto.snippet.channelTitle.decodingHTMLEntities,
+            thumbnailURL: thumbnail?.url,
+            tracks: []
+        )
+    }
+
+    func mapPlaylistSearchItem(_ dto: YouTubeSearchItemDTO) -> Album? {
+        guard let playlistId = dto.id.playlistId, !playlistId.isEmpty else { return nil }
+        let thumbnail = dto.snippet.thumbnails["high"]
+            ?? dto.snippet.thumbnails["medium"]
+            ?? dto.snippet.thumbnails["default"]
+        return Album(
+            id: playlistId,
+            title: dto.snippet.title.decodingHTMLEntities,
+            channelTitle: dto.snippet.channelTitle.decodingHTMLEntities,
+            thumbnailURL: thumbnail?.url,
+            tracks: []
+        )
+    }
+
     private static func mediaItem(
         id: String,
         title: String,

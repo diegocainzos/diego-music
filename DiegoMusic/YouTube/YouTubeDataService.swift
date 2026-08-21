@@ -205,38 +205,92 @@ struct YouTubeDataService: YouTubeDataServicing {
                     },
                     responseType: YouTubeChannelListResponseDTO.self
                 ), let artist = profileData.items.first.map(mapper.map) {
-                    let topData = try await executeWithRotation(
+                    async let topDataTask = executeWithRotation(
                         buildRequest: { apiKey in
                             try endpointRequest { YouTubeEndpoint(query: artist.title, apiKey: apiKey, maxResults: 20) }
                         },
                         responseType: YouTubeSearchResponseDTO.self
                     )
-                    let relatedData = try await executeWithRotation(
+                    async let playlistDataTask = try? executeWithRotation(
+                        buildRequest: { apiKey in
+                            try endpointRequest { YouTubeEndpoint(kind: .playlists(channelID: channelID, pageToken: nil), apiKey: apiKey, maxResults: 15) }
+                        },
+                        responseType: YouTubePlaylistListResponseDTO.self
+                    )
+                    async let albumSearchTask = try? executeWithRotation(
+                        buildRequest: { apiKey in
+                            try endpointRequest { YouTubeEndpoint(kind: .searchPlaylists(query: "\(artist.title) album", pageToken: nil), apiKey: apiKey, maxResults: 15) }
+                        },
+                        responseType: YouTubeSearchResponseDTO.self
+                    )
+                    async let relatedDataTask = try? executeWithRotation(
                         buildRequest: { apiKey in
                             try endpointRequest { YouTubeEndpoint(kind: .mostPopularVideo, apiKey: apiKey, maxResults: 12) }
                         },
                         responseType: YouTubeVideoListEnvelopeDTO.self
                     )
+
+                    let (topData, playlistData, albumSearchData, relatedData) = await (
+                        try topDataTask,
+                        playlistDataTask,
+                        albumSearchTask,
+                        relatedDataTask
+                    )
+
+                    var albums: [Album] = []
+                    var seenAlbumIDs: Set<String> = []
+
+                    if let channelPlaylists = playlistData?.items.map(mapper.map) {
+                        for album in channelPlaylists {
+                            if !seenAlbumIDs.contains(album.id) {
+                                seenAlbumIDs.insert(album.id)
+                                albums.append(album)
+                            }
+                        }
+                    }
+
+                    if let searchedPlaylists = albumSearchData?.items.compactMap(mapper.mapPlaylistSearchItem) {
+                        for album in searchedPlaylists {
+                            if !seenAlbumIDs.contains(album.id) {
+                                seenAlbumIDs.insert(album.id)
+                                albums.append(album)
+                            }
+                        }
+                    }
+
                     return ArtistDetail(
                         artist: artist,
                         topTracks: topData.items.compactMap(mapper.map),
-                        related: relatedData.items.map(mapper.map)
+                        related: relatedData?.items.map(mapper.map) ?? [],
+                        albums: albums
                     )
                 }
             }
 
             let artistName = channelID
-            let topData = try await executeWithRotation(
+            async let topDataTask = executeWithRotation(
                 buildRequest: { apiKey in
                     try endpointRequest { YouTubeEndpoint(query: "\(artistName) tracks", apiKey: apiKey, maxResults: 20) }
                 },
                 responseType: YouTubeSearchResponseDTO.self
             )
-            let relatedData = try await executeWithRotation(
+            async let albumSearchTask = try? executeWithRotation(
+                buildRequest: { apiKey in
+                    try endpointRequest { YouTubeEndpoint(kind: .searchPlaylists(query: "\(artistName) album", pageToken: nil), apiKey: apiKey, maxResults: 15) }
+                },
+                responseType: YouTubeSearchResponseDTO.self
+            )
+            async let relatedDataTask = try? executeWithRotation(
                 buildRequest: { apiKey in
                     try endpointRequest { YouTubeEndpoint(query: "\(artistName) radio", apiKey: apiKey, maxResults: 12) }
                 },
                 responseType: YouTubeSearchResponseDTO.self
+            )
+
+            let (topData, albumSearchData, relatedData) = await (
+                try topDataTask,
+                albumSearchTask,
+                relatedDataTask
             )
 
             let topTracks = topData.items.compactMap(mapper.map)
@@ -247,10 +301,13 @@ struct YouTubeDataService: YouTubeDataServicing {
                 thumbnailURL: topTracks.first?.thumbnailURL
             )
 
+            let albums = albumSearchData?.items.compactMap(mapper.mapPlaylistSearchItem) ?? []
+
             return ArtistDetail(
                 artist: artistObj,
                 topTracks: topTracks,
-                related: relatedData.items.compactMap(mapper.map)
+                related: relatedData?.items.compactMap(mapper.map) ?? [],
+                albums: albums
             )
         } catch {
             if let fallbackDetail = try? await fetchArtistVPSService(artistID: channelID) {
