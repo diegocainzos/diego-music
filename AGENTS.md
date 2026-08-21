@@ -69,6 +69,23 @@ Si un secreto aparece accidentalmente en una salida o artefacto, detener el trab
 - Un token emitido antes de terminar el calentamiento debe poder cambiar a disco sin revelar la ruta ni exigir otro resolve.
 - Los fallos de calentamiento son best-effort: no deben interrumpir la reproducción upstream existente.
 
+### Sistema de Letras (Lyrics & LRCLIB)
+
+- **Normalización de metadatos de YouTube:** LRCLIB es una base de datos comunitaria estricta. El texto crudo de YouTube (canales con `- Topic`, `VEVO`, `Official`, `Music` o títulos con `(Official Video)`, `(Video Oficial)`, `(Audio)`, `(Remastered ...)`, `[4K]`, `(feat. ...)`) devuelve 0 resultados en búsquedas de texto completo.
+  - Limpiar canales y títulos antes de consultar LRCLIB.
+  - Separar nombres CamelCase en canales VEVO (`LadyGagaVEVO` → `Lady Gaga`).
+  - Dividir artista y canción usando separadores universales (` - `, ` — `, ` – `, ` | `, ` • `, ` // `).
+- **Cascada tolerante de consulta (5 niveles):**
+  1. `/api/get` con `artist_name`, `track_name` y `duration` (`durationSeconds`).
+  2. `/api/get` exacto sin duración.
+  3. `/api/search` estructurado enviando `artist_name` y `track_name` por separado.
+  4. `/api/search` libre con `q = "\(artist) \(track)"`.
+  5. Fallback por `track_name` únicamente si el título fue limpiado.
+  - Validar candidatos puntuando letras sincronizadas (`syncedLyrics` > `plainLyrics`) y verificando tolerancia de duración (±3 a 8s; descartar >60s) para evitar letras erróneas.
+- **Invariante de Layout en SwiftUI (`LyricsView`):**
+  - Dentro de `ScrollView`, `LazyVStack` **DEBE** tener su anchura estrictamente fijada a la ventana visible (`.frame(width: viewportWidth, alignment: .leading)`).
+  - Si no se fija la anchura horizontal, los textos largos expanden el ancho intrínseco del contenedor, provocando que `ScrollView` centre el contenido y desplace el inicio de las frases fuera de la pantalla por la izquierda en orientación vertical.
+
 ## Fuente de verdad del proyecto Xcode
 
 - `project.yml` es la fuente de verdad.
