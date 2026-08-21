@@ -124,7 +124,7 @@ class PersistentAudioCache:
                 "-f",
                 "bestaudio[ext=m4a][acodec^=mp4a]/bestaudio[ext=m4a]/bestaudio",
                 "--extractor-args",
-                "youtube:player_client=web_embedded,android,web",
+                "youtube:player_client=ios,web,mweb,web_embedded",
                 "-x",
                 "--audio-format",
                 "m4a",
