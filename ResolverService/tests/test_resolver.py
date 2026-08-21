@@ -25,6 +25,8 @@ def test_arguments_use_fixed_youtube_url_and_no_shell(resolver: YTDLPResolver) -
     assert "--no-playlist" in arguments
     assert "--no-cache-dir" in arguments
     assert "bestaudio[ext=m4a][acodec^=mp4a]/bestaudio[ext=m4a]" in arguments
+    assert "--extractor-args" in arguments
+    assert "youtube:player_client=web_embedded,android,web" in arguments
 
 
 def test_parse_info_accepts_audio_only_m4a(resolver: YTDLPResolver) -> None:

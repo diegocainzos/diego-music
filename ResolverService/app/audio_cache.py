@@ -14,7 +14,7 @@ from .resolver import ResolvedAudio
 
 _VIDEO_ID: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]{11}$")
 _CONTENT_RANGE: Final[re.Pattern[str]] = re.compile(r"^bytes\s+\d+-\d+/(\d+)$")
-_DOWNLOAD_CHUNK_BYTES: Final[int] = 4_194_304
+_DOWNLOAD_CHUNK_BYTES: Final[int] = 1_048_576
 
 
 class PersistentAudioCache:
@@ -26,11 +26,15 @@ class PersistentAudioCache:
         max_bytes: int,
         max_file_bytes: int,
         ffmpeg_binary: str = "ffmpeg",
+        ytdlp_binary: str | None = None,
+        cookies_file: Path | None = None,
     ) -> None:
         self.directory = directory
         self.max_bytes = max_bytes
         self.max_file_bytes = max_file_bytes
         self.ffmpeg_binary = ffmpeg_binary
+        self.ytdlp_binary = ytdlp_binary
+        self.cookies_file = cookies_file
         self._downloads: dict[str, asyncio.Task[None]] = {}
         self._maintenance_lock = asyncio.Lock()
 
@@ -70,10 +74,10 @@ class PersistentAudioCache:
     def schedule(
         self,
         video_id: str,
-        audio: ResolvedAudio,
-        client: httpx.AsyncClient,
+        audio: ResolvedAudio | None = None,
+        client: httpx.AsyncClient | None = None,
     ) -> None:
-        if not self.enabled or audio.upstream_url is None or video_id in self._downloads:
+        if not self.enabled or video_id in self._downloads:
             return
         path = self._path(video_id)
         if path is None or path.exists():
@@ -82,6 +86,9 @@ class PersistentAudioCache:
         task = asyncio.create_task(self._download(video_id, audio, client))
         self._downloads[video_id] = task
         task.add_done_callback(lambda completed, key=video_id: self._finish_download(key, completed))
+
+    def is_downloading(self, video_id: str) -> bool:
+        return video_id in self._downloads
 
     async def wait_for_download(self, video_id: str) -> None:
         task = self._downloads.get(video_id)
@@ -98,67 +105,117 @@ class PersistentAudioCache:
     async def _download(
         self,
         video_id: str,
-        audio: ResolvedAudio,
-        client: httpx.AsyncClient,
+        audio: ResolvedAudio | None = None,
+        client: httpx.AsyncClient | None = None,
     ) -> None:
         assert self.directory is not None
-        assert audio.upstream_url is not None
         destination = self.directory / f"{video_id}.m4a"
-        temporary = self.directory / f".{video_id}.{secrets.token_hex(8)}.part"
-        effective_file_limit = min(self.max_file_bytes, self.max_bytes)
-        headers = {
-            name: value
-            for name, value in audio.headers.items()
-            if name.lower() != "accept-encoding"
-        }
+        temporary_prefix = self.directory / f".{video_id}.{secrets.token_hex(8)}"
+        temporary_output = self.directory / f"{temporary_prefix.name}.%(ext)s"
+        expected_part = self.directory / f"{temporary_prefix.name}.m4a"
 
-        try:
-            content_length = await self._content_length(
-                client=client,
-                url=audio.upstream_url,
-                headers=headers,
-            )
-            if content_length is None or not 0 < content_length <= effective_file_limit:
-                return
+        if self.ytdlp_binary is not None:
+            cmd = [
+                self.ytdlp_binary,
+                "--no-playlist",
+                "--no-warnings",
+                "--quiet",
+                "--no-cache-dir",
+                "-f",
+                "bestaudio[ext=m4a][acodec^=mp4a]/bestaudio[ext=m4a]/bestaudio",
+                "--extractor-args",
+                "youtube:player_client=web_embedded,android,web",
+                "-x",
+                "--audio-format",
+                "m4a",
+                "--ffmpeg-location",
+                self.ffmpeg_binary,
+                "-o",
+                str(temporary_output),
+                "--force-overwrites",
+            ]
+            if self.cookies_file is not None:
+                cmd.extend(["--cookies", str(self.cookies_file)])
+            cmd.extend(["--", f"https://www.youtube.com/watch?v={video_id}"])
 
-            written = 0
-            async with await anyio.open_file(temporary, "wb") as target:
-                while written < content_length:
-                    end = min(written + _DOWNLOAD_CHUNK_BYTES, content_length) - 1
-                    range_headers = {**headers, "Range": f"bytes={written}-{end}"}
-                    async with client.stream("GET", audio.upstream_url, headers=range_headers) as response:
-                        if response.status_code != 206:
-                            return
-                        expected = end - written + 1
-                        range_written = 0
-                        async for chunk in response.aiter_raw():
-                            if not chunk:
-                                continue
-                            range_written += len(chunk)
-                            if range_written > expected:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await asyncio.wait_for(proc.communicate(), timeout=60.0)
+                if proc.returncode == 0 and expected_part.is_file() and expected_part.stat().st_size > 0:
+                    final = await self._defragment(expected_part) or expected_part
+                    await asyncio.to_thread(final.replace, destination)
+                    await asyncio.to_thread(destination.touch)
+                    await self._evict_if_needed()
+                    return
+            except (OSError, asyncio.TimeoutError):
+                pass
+            finally:
+                for p in self.directory.glob(f"{temporary_prefix.name}.*"):
+                    try:
+                        p.unlink()
+                    except OSError:
+                        pass
+
+        if client is not None and audio.upstream_url is not None:
+            temporary = self.directory / f".{video_id}.{secrets.token_hex(8)}.part"
+            effective_file_limit = min(self.max_file_bytes, self.max_bytes)
+            headers = {
+                name: value
+                for name, value in audio.headers.items()
+                if name.lower() != "accept-encoding"
+            }
+
+            try:
+                content_length = await self._content_length(
+                    client=client,
+                    url=audio.upstream_url,
+                    headers=headers,
+                )
+                if content_length is None or not 0 < content_length <= effective_file_limit:
+                    return
+
+                written = 0
+                async with await anyio.open_file(temporary, "wb") as target:
+                    while written < content_length:
+                        end = min(written + _DOWNLOAD_CHUNK_BYTES, content_length) - 1
+                        range_headers = {**headers, "Range": f"bytes={written}-{end}"}
+                        async with client.stream("GET", audio.upstream_url, headers=range_headers) as response:
+                            if response.status_code != 206:
                                 return
-                            await target.write(chunk)
-                        if range_written != expected:
-                            return
-                        written += range_written
-                await target.flush()
+                            expected = end - written + 1
+                            range_written = 0
+                            async for chunk in response.aiter_raw():
+                                if not chunk:
+                                    continue
+                                range_written += len(chunk)
+                                if range_written > expected:
+                                    return
+                                await target.write(chunk)
+                            if range_written != expected:
+                                return
+                            written += range_written
+                    await target.flush()
 
-            if written != content_length:
+                if written != content_length:
+                    return
+                # Los fMP4 de YouTube declaran la duración en mvhd Y en los
+                # fragmentos; AVFoundation los suma y muestra el doble. Remux a
+                # MP4 progresivo (stream copy) para dejar una única fuente.
+                final = await self._defragment(temporary) or temporary
+                await asyncio.to_thread(final.replace, destination)
+                await asyncio.to_thread(destination.touch)
+                await self._evict_if_needed()
+            except asyncio.CancelledError:
+                raise
+            except (OSError, httpx.HTTPError):
                 return
-            # Los fMP4 de YouTube declaran la duración en mvhd Y en los
-            # fragmentos; AVFoundation los suma y muestra el doble. Remux a
-            # MP4 progresivo (stream copy) para dejar una única fuente.
-            final = await self._defragment(temporary) or temporary
-            await asyncio.to_thread(final.replace, destination)
-            await asyncio.to_thread(destination.touch)
-            await self._evict_if_needed()
-        except asyncio.CancelledError:
-            raise
-        except (OSError, httpx.HTTPError):
-            return
-        finally:
-            await asyncio.to_thread(temporary.unlink, missing_ok=True)
-            await asyncio.to_thread(self._defrag_temp_for(temporary).unlink, missing_ok=True)
+            finally:
+                await asyncio.to_thread(temporary.unlink, missing_ok=True)
+                await asyncio.to_thread(self._defrag_temp_for(temporary).unlink, missing_ok=True)
 
     async def _defragment(self, source: Path) -> Path | None:
         """Remux fMP4 -> MP4 progresivo; None si falla (best-effort)."""

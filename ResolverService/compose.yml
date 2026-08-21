@@ -44,6 +44,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=128m,mode=1777
+      - /home/resolver/.cache:size=64m,mode=1777
     volumes:
       - audio_cache:/var/cache/diegomusic
       - db_data:/service/data

@@ -104,6 +104,8 @@ class YTDLPResolver:
             "--no-cache-dir",
             "--skip-download",
             "--flat-playlist",
+            "--extractor-args",
+            "youtube:player_client=web_embedded,android,web",
             f"ytsearch{limit}:{query}",
         ]
         if self.settings.cookies_file is not None:
@@ -202,6 +204,8 @@ class YTDLPResolver:
             "--skip-download",
             "--format",
             "bestaudio[ext=m4a][acodec^=mp4a]/bestaudio[ext=m4a]",
+            "--extractor-args",
+            "youtube:player_client=web_embedded,android,web",
         ]
         if self.settings.cookies_file is not None:
             arguments.extend(["--cookies", str(self.settings.cookies_file)])

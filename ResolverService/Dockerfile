@@ -16,8 +16,8 @@ COPY ResolverService/requirements.txt ./requirements.txt
 RUN python -m pip install --requirement requirements.txt
 
 RUN useradd --create-home --uid 10001 resolver \
-    && mkdir -p /var/cache/diegomusic /service/data \
-    && chown -R resolver:resolver /var/cache/diegomusic /service/data
+    && mkdir -p /var/cache/diegomusic /service/data /home/resolver/.cache \
+    && chown -R resolver:resolver /var/cache/diegomusic /service/data /home/resolver
 
 COPY --chown=resolver:resolver ResolverService/app ./app
 COPY --chown=resolver:resolver app ./backend_app

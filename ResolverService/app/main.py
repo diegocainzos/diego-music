@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 import hmac
 import sys
@@ -68,6 +69,8 @@ def create_app(
         max_bytes=service_settings.audio_cache_max_bytes,
         max_file_bytes=service_settings.audio_cache_max_file_bytes,
         ffmpeg_binary=service_settings.ffmpeg_binary,
+        ytdlp_binary=service_settings.ytdlp_binary,
+        cookies_file=service_settings.cookies_file,
     )
     artist_cache = ArtistCache(
         max_entries=service_settings.artist_cache_max_entries,
@@ -212,7 +215,20 @@ def create_app(
         except SessionNotFoundError as error:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La sesión de audio no existe.") from error
 
-        audio = await persistent_cache.get(session.video_id) or session.audio
+        audio = await persistent_cache.get(session.video_id)
+        if audio is None:
+            if not persistent_cache.is_downloading(session.video_id):
+                persistent_cache.schedule(
+                    session.video_id,
+                    session.audio,
+                    request.app.state.upstream_client,
+                )
+            try:
+                await asyncio.wait_for(persistent_cache.wait_for_download(session.video_id), timeout=30.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+            audio = await persistent_cache.get(session.video_id) or session.audio
+
         if audio.cached_path is not None:
             if not audio.cached_path.is_file():
                 raise HTTPException(status_code=status.HTTP_410_GONE, detail="El archivo cacheado ya no está disponible.")
@@ -230,8 +246,34 @@ def create_app(
                 headers[name] = value
 
         client: httpx.AsyncClient = request.app.state.upstream_client
+
+        if head_only:
+            probe_request = client.build_request(
+                "GET",
+                audio.upstream_url,
+                headers={**headers, "Range": "bytes=0-0"},
+            )
+            try:
+                probe_response = await client.send(probe_request, stream=True)
+            except httpx.RequestError as error:
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="El origen de audio no respondió.") from error
+
+            try:
+                if probe_response.status_code not in (200, 206):
+                    raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="El origen rechazó la reproducción.")
+                response_headers = {
+                    name: value
+                    for name, value in probe_response.headers.items()
+                    if name.lower() in _FORWARDED_RESPONSE_HEADERS
+                }
+                response_headers.setdefault("content-type", audio.content_type)
+                response_headers.setdefault("accept-ranges", "bytes")
+                return Response(status_code=status.HTTP_200_OK, headers=response_headers)
+            finally:
+                await probe_response.aclose()
+
         upstream_request = client.build_request(
-            "HEAD" if head_only else "GET",
+            "GET",
             audio.upstream_url,
             headers=headers,
         )
@@ -250,10 +292,6 @@ def create_app(
         if upstream.status_code not in (200, 206, 416):
             await upstream.aclose()
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="El origen rechazó la reproducción.")
-
-        if head_only:
-            await upstream.aclose()
-            return Response(status_code=upstream.status_code, headers=response_headers)
 
         return StreamingResponse(
             upstream.aiter_raw(),
