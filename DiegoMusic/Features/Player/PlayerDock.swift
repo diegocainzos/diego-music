@@ -12,6 +12,7 @@ struct PlayerDock: View {
     @Namespace private var queueAnimationNamespace
     @State private var expanded = false
     @State private var showLyrics = false
+    @State private var showLyricsFromExpanded = false
     @State private var showQueue = false
 
     init(
@@ -385,6 +386,25 @@ struct PlayerDock: View {
                             .buttonStyle(.plain)
                         }
 
+                        // Botón Minimalista de Letras
+                        Button {
+                            showLyricsFromExpanded = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "quote.bubble")
+                                    .font(.subheadline)
+                                Text("Letras")
+                                    .font(.subheadline.weight(.medium))
+                            }
+                            .foregroundStyle(DiegoTheme.textSecondary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.06))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Ver letras de la canción")
+
                         // Indicador de Scroll hacia abajo para Cola
                         HStack(spacing: 6) {
                             Image(systemName: "chevron.down")
@@ -406,58 +426,74 @@ struct PlayerDock: View {
                     Button("Cerrar") { expanded = false }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Menu {
+                    HStack(spacing: 16) {
                         Button {
-                            expanded = false
-                            navState.navigate(to: .albumDetail(id: current.title, title: current.title))
+                            showLyricsFromExpanded = true
                         } label: {
-                            Label("Ir al álbum", systemImage: "square.stack")
+                            Image(systemName: "quote.bubble")
+                                .font(.subheadline)
+                                .foregroundStyle(DiegoTheme.textPrimary)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Letras de la canción")
 
-                        Button {
-                            expanded = false
-                            navState.navigate(to: .artistDetail(id: current.channelTitle, name: current.channelTitle))
-                        } label: {
-                            Label("Ir al artista", systemImage: "music.mic")
-                        }
-
-                        Divider()
-
-                        if !environment.library.playlists.isEmpty {
-                            Menu {
-                                ForEach(environment.library.playlists) { playlist in
-                                    Button(playlist.name) {
-                                        try? environment.library.add(current, to: playlist)
-                                    }
-                                }
+                        Menu {
+                            Button {
+                                expanded = false
+                                navState.navigate(to: .albumDetail(id: current.title, title: current.title))
                             } label: {
-                                Label("Añadir a playlist", systemImage: "text.badge.plus")
+                                Label("Ir al álbum", systemImage: "square.stack")
                             }
-                        }
 
-                        Button {
-                            let albumID = current.title
-                            try? environment.library.toggleSaveAlbum(
-                                id: albumID,
-                                title: current.title,
-                                channelTitle: current.channelTitle,
-                                thumbnailURL: current.thumbnailURL,
-                                tracks: [current]
-                            )
-                        } label: {
-                            if environment.library.isAlbumSaved(id: current.title) {
-                                Label("Quitar álbum de la biblioteca", systemImage: "bookmark.slash")
-                            } else {
-                                Label("Salvar álbum en la librería", systemImage: "bookmark")
+                            Button {
+                                expanded = false
+                                navState.navigate(to: .artistDetail(id: current.channelTitle, name: current.channelTitle))
+                            } label: {
+                                Label("Ir al artista", systemImage: "music.mic")
                             }
+
+                            Divider()
+
+                            if !environment.library.playlists.isEmpty {
+                                Menu {
+                                    ForEach(environment.library.playlists) { playlist in
+                                        Button(playlist.name) {
+                                            try? environment.library.add(current, to: playlist)
+                                        }
+                                    }
+                                } label: {
+                                    Label("Añadir a playlist", systemImage: "text.badge.plus")
+                                }
+                            }
+
+                            Button {
+                                let albumID = current.title
+                                try? environment.library.toggleSaveAlbum(
+                                    id: albumID,
+                                    title: current.title,
+                                    channelTitle: current.channelTitle,
+                                    thumbnailURL: current.thumbnailURL,
+                                    tracks: [current]
+                                )
+                            } label: {
+                                if environment.library.isAlbumSaved(id: current.title) {
+                                    Label("Quitar álbum de la biblioteca", systemImage: "bookmark.slash")
+                                } else {
+                                    Label("Salvar álbum en la librería", systemImage: "bookmark")
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.title3)
+                                .foregroundStyle(DiegoTheme.textPrimary)
                         }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.title3)
-                            .foregroundStyle(DiegoTheme.textPrimary)
+                        .accessibilityLabel("Más opciones de reproducción")
                     }
-                    .accessibilityLabel("Más opciones de reproducción")
                 }
+            }
+            .sheet(isPresented: $showLyricsFromExpanded) {
+                lyricsSheet(current)
+            }
             }
         }
         .tint(DiegoTheme.accent)
