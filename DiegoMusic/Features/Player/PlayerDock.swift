@@ -494,7 +494,6 @@ struct PlayerDock: View {
             .sheet(isPresented: $showLyricsFromExpanded) {
                 lyricsSheet(current)
             }
-            }
         }
         .tint(DiegoTheme.accent)
     }
