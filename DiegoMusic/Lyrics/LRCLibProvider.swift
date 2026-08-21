@@ -77,61 +77,95 @@ enum LRCParser {
 // MARK: - Title Cleaner
 
 enum TrackMetadataExtractor {
-    /// Patterns to strip from YouTube video titles to extract the clean track name.
-    private static let stripPatterns: [String] = [
-        #"\s*\(Official\s*(Music\s*)?Video\)"#,
-        #"\s*\[Official\s*(Music\s*)?Video\]"#,
-        #"\s*\(Official\s*Audio\)"#,
-        #"\s*\[Official\s*Audio\]"#,
-        #"\s*\(Lyrics?\)"#,
-        #"\s*\[Lyrics?\]"#,
-        #"\s*\(Audio\)"#,
-        #"\s*\[Audio\]"#,
-        #"\s*\(HD\)"#,
-        #"\s*\[HD\]"#,
-        #"\s*\(HQ\)"#,
-        #"\s*\(Visuali[sz]er\)"#,
-        #"\s*\[Visuali[sz]er\]"#,
-        #"\s*\(Lyric\s*Video\)"#,
-        #"\s*\[Lyric\s*Video\]"#,
-        #"\s*\(Live\)"#,
-        #"\s*ft\.?\s+.*$"#,
-        #"\s*feat\.?\s+.*$"#,
-    ]
+    /// Cleans noisy YouTube channel names (e.g. "Coldplay - Topic" -> "Coldplay", "LadyGagaVEVO" -> "Lady Gaga").
+    static func cleanChannel(_ channel: String) -> String {
+        var result = channel.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Strip "- Topic" or " Topic"
+        if let topicRegex = try? NSRegularExpression(pattern: #"\s*-\s*Topic$"#, options: .caseInsensitive) {
+            result = topicRegex.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "")
+        }
+        if let topicRegex2 = try? NSRegularExpression(pattern: #"\s+Topic$"#, options: .caseInsensitive) {
+            result = topicRegex2.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "")
+        }
+
+        // Strip "VEVO", "Official", "Music", "Channel" suffix
+        if let suffixRegex = try? NSRegularExpression(pattern: #"(VEVO|Official|Music|Channel)$"#, options: .caseInsensitive) {
+            result = suffixRegex.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "")
+        }
+        result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Split CamelCase if single word without spaces (e.g. LadyGaga -> Lady Gaga, TaylorSwift -> Taylor Swift)
+        if !result.contains(" ") && result.count > 3 {
+            if let camelRegex = try? NSRegularExpression(pattern: #"([a-z])([A-Z])"#) {
+                result = camelRegex.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "$1 $2")
+            }
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Cleans common tags, video artifacts, and featured artist noise from video titles.
+    static func cleanTitle(_ title: String) -> String {
+        var result = title.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Remove straight and curly quotes
+        result = result.replacingOccurrences(of: "\"", with: "")
+            .replacingOccurrences(of: "'", with: "")
+            .replacingOccurrences(of: "“", with: "")
+            .replacingOccurrences(of: "”", with: "")
+            .replacingOccurrences(of: "‘", with: "")
+            .replacingOccurrences(of: "’", with: "")
+
+        // Remove parenthesized / bracketed / curled noise tags (English and Spanish)
+        let bracketNoisePattern = #"[\(\[\{][^\)\]\}]*(?:official|oficial|video|audio|lyric|letra|remaster|videoclip|visuali[sz]er|live|en\s*vivo|directo|4k|8k|hd|hq|1080p|60fps|prod\.?|feat\.?|ft\.?|with)[^\)\]\}]*[\)\]\}]"#
+        if let bracketRegex = try? NSRegularExpression(pattern: bracketNoisePattern, options: .caseInsensitive) {
+            result = bracketRegex.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "")
+        }
+
+        // Remove trailing "feat." / "ft." / "with"
+        let trailingFeatPattern = #"\s+(?:feat|ft|with)\.?\s+.*$"#
+        if let featRegex = try? NSRegularExpression(pattern: trailingFeatPattern, options: .caseInsensitive) {
+            result = featRegex.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: "")
+        }
+
+        // Collapse multiple whitespaces
+        if let spaceRegex = try? NSRegularExpression(pattern: #"\s+"#) {
+            result = spaceRegex.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: " ")
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     /// Extracts `(artistName, trackName)` from a `MediaItem`.
     ///
-    /// Uses `channelTitle` as artist. Cleans `title` by stripping common
-    /// YouTube suffixes. If title contains ` - `, splits into artist + track
-    /// (the artist from the dash takes priority over channelTitle).
+    /// Cleans `channelTitle` and `title`. If `title` contains a common separator
+    /// (` - `, ` — `, ` – `, ` | `, ` • `, ` // `), splits into artist + track
+    /// (the artist from the separator takes priority over channelTitle).
     static func extract(from item: MediaItem) -> (artist: String, track: String) {
-        var title = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedChannel = cleanChannel(item.channelTitle)
+        let cleanedTitle = cleanTitle(item.title)
 
-        // Strip common suffixes (case-insensitive)
-        for pattern in stripPatterns {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
-                title = regex.stringByReplacingMatches(
-                    in: title,
-                    range: NSRange(title.startIndex..., in: title),
-                    withTemplate: ""
-                )
+        // Detect separators: " - ", " — ", " – ", " | ", " • ", " // "
+        let separatorPattern = #"\s+(?:[-—–|•]|//)\s+"#
+        if let sepRegex = try? NSRegularExpression(pattern: separatorPattern) {
+            let range = NSRange(cleanedTitle.startIndex..., in: cleanedTitle)
+            if let match = sepRegex.firstMatch(in: cleanedTitle, range: range),
+               let matchRange = Range(match.range, in: cleanedTitle) {
+                let artistPart = String(cleanedTitle[..<matchRange.lowerBound])
+                let trackPart = String(cleanedTitle[matchRange.upperBound...])
+
+                let cleanArtistFromTitle = cleanTitle(cleanChannel(artistPart))
+                let cleanTrackFromTitle = cleanTitle(trackPart)
+
+                if !cleanArtistFromTitle.isEmpty && !cleanTrackFromTitle.isEmpty {
+                    return (artist: cleanArtistFromTitle, track: cleanTrackFromTitle)
+                }
             }
         }
 
-        title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // If title contains " - ", split into artist and track
-        if let dashRange = title.range(of: " - ") {
-            let artist = String(title[title.startIndex..<dashRange.lowerBound])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let track = String(title[dashRange.upperBound...])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if !artist.isEmpty && !track.isEmpty {
-                return (artist: artist, track: track)
-            }
-        }
-
-        return (artist: item.channelTitle, track: title)
+        return (artist: cleanedChannel.isEmpty ? item.channelTitle : cleanedChannel,
+                track: cleanedTitle.isEmpty ? item.title : cleanedTitle)
     }
 }
 
@@ -175,15 +209,38 @@ actor LRCLibLyricsProvider: LyricsProviding {
 
     private func performFetch(for item: MediaItem) async -> LyricsResult {
         let meta = TrackMetadataExtractor.extract(from: item)
+        let duration = item.durationSeconds
 
-        // Try /api/get first
-        if let response = await fetchGet(artist: meta.artist, track: meta.track) {
-            return processResponse(response)
+        // Stage 1: Exact /api/get with duration (if available)
+        if let duration, let response = await fetchGet(artist: meta.artist, track: meta.track, duration: duration) {
+            let res = processResponse(response)
+            if res != .notFound { return res }
         }
 
-        // Fallback to /api/search
-        if let response = await fetchSearch(artist: meta.artist, track: meta.track) {
-            return processResponse(response)
+        // Stage 2: Exact /api/get without duration
+        if let response = await fetchGet(artist: meta.artist, track: meta.track, duration: nil) {
+            let res = processResponse(response)
+            if res != .notFound { return res }
+        }
+
+        // Stage 3: Structured /api/search with artist_name and track_name
+        if let response = await fetchSearch(artist: meta.artist, track: meta.track, duration: duration) {
+            let res = processResponse(response)
+            if res != .notFound { return res }
+        }
+
+        // Stage 4: Free-text /api/search with q = "\(artist) \(track)"
+        if let response = await fetchSearchQuery(query: "\(meta.artist) \(meta.track)", expectedArtist: meta.artist, expectedTrack: meta.track, duration: duration) {
+            let res = processResponse(response)
+            if res != .notFound { return res }
+        }
+
+        // Stage 5: Fallback search with track name only if artist might have been noisy or channel-based
+        if meta.track != item.title {
+            if let response = await fetchSearch(artist: nil, track: meta.track, duration: duration) {
+                let res = processResponse(response)
+                if res != .notFound { return res }
+            }
         }
 
         return .notFound
@@ -205,12 +262,16 @@ actor LRCLibLyricsProvider: LyricsProviding {
         return .notFound
     }
 
-    private func fetchGet(artist: String, track: String) async -> LRCLibResponse? {
+    private func fetchGet(artist: String, track: String, duration: Int?) async -> LRCLibResponse? {
         var components = URLComponents(string: "\(Self.baseURL)/get")
-        components?.queryItems = [
+        var items = [
             URLQueryItem(name: "artist_name", value: artist),
             URLQueryItem(name: "track_name", value: track),
         ]
+        if let duration {
+            items.append(URLQueryItem(name: "duration", value: String(duration)))
+        }
+        components?.queryItems = items
         guard let url = components?.url else { return nil }
 
         var request = URLRequest(url: url, timeoutInterval: Self.requestTimeout)
@@ -227,14 +288,27 @@ actor LRCLibLyricsProvider: LyricsProviding {
         }
     }
 
-    private func fetchSearch(artist: String, track: String) async -> LRCLibResponse? {
-        let query = "\(artist) \(track)"
+    private func fetchSearch(artist: String?, track: String, duration: Int?) async -> LRCLibResponse? {
         var components = URLComponents(string: "\(Self.baseURL)/search")
-        components?.queryItems = [
-            URLQueryItem(name: "q", value: query),
-        ]
+        var queryItems = [URLQueryItem(name: "track_name", value: track)]
+        if let artist, !artist.isEmpty {
+            queryItems.append(URLQueryItem(name: "artist_name", value: artist))
+        }
+        components?.queryItems = queryItems
         guard let url = components?.url else { return nil }
 
+        return await executeSearchAndSelectBest(url: url, expectedArtist: artist, expectedTrack: track, expectedDuration: duration)
+    }
+
+    private func fetchSearchQuery(query: String, expectedArtist: String, expectedTrack: String, duration: Int?) async -> LRCLibResponse? {
+        var components = URLComponents(string: "\(Self.baseURL)/search")
+        components?.queryItems = [URLQueryItem(name: "q", value: query)]
+        guard let url = components?.url else { return nil }
+
+        return await executeSearchAndSelectBest(url: url, expectedArtist: expectedArtist, expectedTrack: expectedTrack, expectedDuration: duration)
+    }
+
+    private func executeSearchAndSelectBest(url: URL, expectedArtist: String?, expectedTrack: String, expectedDuration: Int?) async -> LRCLibResponse? {
         var request = URLRequest(url: url, timeoutInterval: Self.requestTimeout)
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
@@ -244,18 +318,77 @@ actor LRCLibLyricsProvider: LyricsProviding {
                 return nil
             }
             let results = try JSONDecoder().decode([LRCLibResponse].self, from: data)
+            guard !results.isEmpty else { return nil }
 
-            // Prefer results with synced lyrics
-            if let synced = results.first(where: { $0.syncedLyrics != nil && !($0.syncedLyrics?.isEmpty ?? true) }) {
-                return synced
-            }
-            // Fall back to first result with plain lyrics
-            if let plain = results.first(where: { $0.plainLyrics != nil && !($0.plainLyrics?.isEmpty ?? true) }) {
-                return plain
-            }
-            return nil
+            return selectBestCandidate(from: results, expectedArtist: expectedArtist, expectedTrack: expectedTrack, expectedDuration: expectedDuration)
         } catch {
             return nil
         }
+    }
+
+    private func selectBestCandidate(from results: [LRCLibResponse], expectedArtist: String?, expectedTrack: String, expectedDuration: Int?) -> LRCLibResponse? {
+        let expectedTrackLower = expectedTrack.lowercased()
+        let expectedArtistLower = expectedArtist?.lowercased()
+
+        var bestMatch: (response: LRCLibResponse, score: Int)?
+
+        for candidate in results {
+            var score = 0
+
+            // 1. Synced lyrics preference
+            if let synced = candidate.syncedLyrics, !synced.isEmpty {
+                score += 100
+            } else if let plain = candidate.plainLyrics, !plain.isEmpty {
+                score += 30
+            } else if candidate.instrumental {
+                score += 10
+            } else {
+                continue // No lyrics or instrumental info
+            }
+
+            // 2. Track name match
+            let candidateTrackLower = candidate.trackName.lowercased()
+            if candidateTrackLower == expectedTrackLower {
+                score += 40
+            } else if candidateTrackLower.contains(expectedTrackLower) || expectedTrackLower.contains(candidateTrackLower) {
+                score += 20
+            }
+
+            // 3. Artist name match
+            if let expectedArtistLower, !expectedArtistLower.isEmpty {
+                let candidateArtistLower = candidate.artistName.lowercased()
+                if candidateArtistLower == expectedArtistLower {
+                    score += 40
+                } else if candidateArtistLower.contains(expectedArtistLower) || expectedArtistLower.contains(candidateArtistLower) {
+                    score += 20
+                }
+            }
+
+            // 4. Duration proximity match (if known)
+            if let expectedDuration, expectedDuration > 0 {
+                let diff = abs(candidate.duration - expectedDuration)
+                if diff <= 3 {
+                    score += 30
+                } else if diff <= 8 {
+                    score += 15
+                } else if diff > 60 {
+                    score -= 40
+                }
+            }
+
+            if let currentBest = bestMatch {
+                if score > currentBest.score {
+                    bestMatch = (candidate, score)
+                }
+            } else {
+                bestMatch = (candidate, score)
+            }
+        }
+
+        // Only return if candidate achieved a reasonable score threshold
+        guard let best = bestMatch, best.score >= 20 else {
+            return nil
+        }
+        return best.response
     }
 }

@@ -137,4 +137,60 @@ final class LRCParserTests: XCTestCase {
         XCTAssertEqual(artist, "The Weeknd")
         XCTAssertEqual(track, "Blinding Lights")
     }
+
+    func testExtract_topicChannel() {
+        let item = MediaItem(id: "test", title: "Yellow", channelTitle: "Coldplay - Topic")
+        let (artist, track) = TrackMetadataExtractor.extract(from: item)
+        XCTAssertEqual(artist, "Coldplay")
+        XCTAssertEqual(track, "Yellow")
+    }
+
+    func testExtract_vevoChannelWithCamelCase() {
+        let item = MediaItem(id: "test", title: "Bad Romance (Official Music Video)", channelTitle: "LadyGagaVEVO")
+        let (artist, track) = TrackMetadataExtractor.extract(from: item)
+        XCTAssertEqual(artist, "Lady Gaga")
+        XCTAssertEqual(track, "Bad Romance")
+    }
+
+    func testExtract_officialChannel() {
+        let item = MediaItem(id: "test", title: "Bohemian Rhapsody (Official Video Remastered)", channelTitle: "Queen Official")
+        let (artist, track) = TrackMetadataExtractor.extract(from: item)
+        XCTAssertEqual(artist, "Queen")
+        XCTAssertEqual(track, "Bohemian Rhapsody")
+    }
+
+    func testExtract_spanishVideoOficial() {
+        let item = MediaItem(id: "test", title: "Tití Me Preguntó (Video Oficial)", channelTitle: "Bad Bunny")
+        let (artist, track) = TrackMetadataExtractor.extract(from: item)
+        XCTAssertEqual(artist, "Bad Bunny")
+        XCTAssertEqual(track, "Tití Me Preguntó")
+    }
+
+    func testExtract_emDashAndEnDashSeparators() {
+        let item = MediaItem(id: "test", title: "Bizarrap, Quevedo — Quevedo: Bzrp Music Sessions, Vol. 52", channelTitle: "Bizarrap")
+        let (artist, track) = TrackMetadataExtractor.extract(from: item)
+        XCTAssertEqual(artist, "Bizarrap, Quevedo")
+        XCTAssertEqual(track, "Quevedo: Bzrp Music Sessions, Vol. 52")
+    }
+
+    func testExtract_bulletSeparator() {
+        let item = MediaItem(id: "test", title: "The Weeknd • Blinding Lights (Official Audio)", channelTitle: "The Weeknd")
+        let (artist, track) = TrackMetadataExtractor.extract(from: item)
+        XCTAssertEqual(artist, "The Weeknd")
+        XCTAssertEqual(track, "Blinding Lights")
+    }
+
+    func testExtract_featInTitleAndParentheses() {
+        let item = MediaItem(id: "test", title: "Dua Lipa - Levitating (feat. DaBaby) (Official Music Video)", channelTitle: "Dua Lipa")
+        let (artist, track) = TrackMetadataExtractor.extract(from: item)
+        XCTAssertEqual(artist, "Dua Lipa")
+        XCTAssertEqual(track, "Levitating")
+    }
+
+    func testExtract_remasterAnd4KTags() {
+        let item = MediaItem(id: "test", title: "Creep (Live at Reading 2009) [4K]", channelTitle: "Radiohead - Topic")
+        let (artist, track) = TrackMetadataExtractor.extract(from: item)
+        XCTAssertEqual(artist, "Radiohead")
+        XCTAssertEqual(track, "Creep")
+    }
 }
