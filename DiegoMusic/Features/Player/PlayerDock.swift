@@ -413,18 +413,9 @@ struct PlayerDock: View {
                         }
                         .padding(.vertical, 4)
 
-                        // Indicador Deslizable para Cola
-                        HStack(spacing: 6) {
-                            Image(systemName: "chevron.down")
-                                .font(.caption.bold())
-                            Text("Desliza para ver la cola de reproducción")
-                                .font(.caption.bold())
-                        }
-                        .foregroundStyle(DiegoTheme.midnightTextSecondary)
-                        .padding(.top, 2)
-
-                        // Sección de Cola de Reproducción integrada
+                        // Lista Flotante de Cola de Reproducción
                         queueGlassSection
+                            .padding(.top, 8)
                             .padding(.bottom, 32)
                     }
                 }
@@ -524,103 +515,68 @@ struct PlayerDock: View {
         .tint(DiegoTheme.midnightAccent)
     }
 
-    // MARK: - Sección Glassmórfica de Cola de Reproducción integrada en el scroll
+    // MARK: - Lista de Cola de Reproducción Flotante en el fondo
 
     @ViewBuilder
     private var queueGlassSection: some View {
         if !queue.items.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Label("A continuación", systemImage: "list.bullet")
-                        .font(.headline.bold())
-                        .foregroundStyle(DiegoTheme.textPrimary)
-                    Spacer()
-                    Text("\(queue.items.count) canciones")
-                        .font(.caption.bold())
-                        .foregroundStyle(DiegoTheme.midnightTextSecondary)
-                }
-
-                VStack(spacing: 8) {
-                    ForEach(Array(queue.items.enumerated()), id: \.element.id) { index, item in
-                        let isCurrent = (index == queue.currentIndex)
-                        Button {
-                            withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) {
-                                player.selectFromQueue(at: index)
-                            }
-                        } label: {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    TrackArtwork(url: item.thumbnailURL)
-                                        .frame(width: 44, height: 44)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                                    if isCurrent {
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .fill(.black.opacity(0.40))
-                                        Image(systemName: player.isPlaying ? "speaker.wave.2.fill" : "play.fill")
-                                            .font(.caption.bold())
-                                            .foregroundStyle(DiegoTheme.midnightAccent)
-                                    }
-                                }
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.title)
-                                        .font(.system(size: 14, weight: isCurrent ? .bold : .medium))
-                                        .foregroundStyle(isCurrent ? DiegoTheme.midnightAccent : DiegoTheme.textPrimary)
-                                        .lineLimit(1)
-
-                                    Text(item.channelTitle)
-                                        .font(.caption)
-                                        .foregroundStyle(DiegoTheme.midnightTextSecondary)
-                                        .lineLimit(1)
-                                }
-
-                                Spacer()
-
-                                if let duration = item.durationSeconds, duration > 0 {
-                                    Text(format(Double(duration)))
-                                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                                        .foregroundStyle(DiegoTheme.midnightTextSecondary)
-                                }
+            VStack(spacing: 6) {
+                ForEach(Array(queue.items.enumerated()), id: \.element.id) { index, item in
+                    let isCurrent = (index == queue.currentIndex)
+                    Button {
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.72)) {
+                            player.selectFromQueue(at: index)
+                        }
+                    } label: {
+                        HStack(spacing: 14) {
+                            // Miniatura (Thumbnail): Cuadrado con bordes redondeados a la izquierda
+                            ZStack {
+                                TrackArtwork(url: item.thumbnailURL)
+                                    .frame(width: 46, height: 46)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                                 if isCurrent {
-                                    Image(systemName: "speaker.wave.2.fill")
-                                        .font(.caption2.bold())
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(Color.black.opacity(0.40))
+                                    Image(systemName: player.isPlaying ? "speaker.wave.2.fill" : "play.fill")
+                                        .font(.caption.bold())
                                         .foregroundStyle(DiegoTheme.midnightAccent)
-                                        .padding(.leading, 2)
-                                        .matchedGeometryEffect(id: "queueBadge", in: queueAnimationNamespace)
                                 }
                             }
-                            .padding(10)
-                            .background(
-                                ZStack {
-                                    if isCurrent {
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .fill(DiegoTheme.midnightAccent.opacity(0.16))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                    .stroke(DiegoTheme.midnightAccent.opacity(0.35), lineWidth: 1)
-                                            )
-                                            .matchedGeometryEffect(id: "queueHighlight", in: queueAnimationNamespace)
-                                    } else {
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .fill(Color.white.opacity(0.04))
-                                    }
-                                }
-                            )
+
+                            // Metadatos: Columna centrada verticalmente con Título y Artista
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                    .font(.system(size: 15, weight: isCurrent ? .bold : .medium))
+                                    .foregroundStyle(isCurrent ? DiegoTheme.midnightAccent : DiegoTheme.textPrimary)
+                                    .lineLimit(1)
+
+                                Text(item.channelTitle)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(DiegoTheme.midnightTextSecondary)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer()
+
+                            // Duración a la derecha
+                            if let duration = item.durationSeconds, duration > 0 {
+                                Text(format(Double(duration)))
+                                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(DiegoTheme.midnightTextSecondary)
+                            }
                         }
-                        .buttonStyle(.plain)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(isCurrent ? Color.white.opacity(0.08) : Color.clear)
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(16)
-            .background(Color.white.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 16)
         }
     }
 
@@ -862,11 +818,11 @@ struct CircularHaloScrubber: View {
                     .frame(width: 254, height: 254)
                     .rotationEffect(.degrees(-90))
 
-                // Carátula Central Hero Artwork
+                // Carátula Central Hero Artwork (Encuadrada perfectamente en el círculo)
                 TrackArtwork(url: url)
-                    .frame(width: 220, height: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .shadow(color: Color.black.opacity(0.40), radius: 20, y: 10)
+                    .frame(width: 236, height: 236)
+                    .clipShape(Circle())
+                    .shadow(color: Color.black.opacity(0.40), radius: 18, y: 8)
             }
             .frame(width: 264, height: 264)
             .contentShape(Circle())

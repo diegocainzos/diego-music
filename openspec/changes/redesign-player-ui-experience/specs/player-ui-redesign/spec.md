@@ -1,11 +1,11 @@
 ## ADDED Requirements
 
 ### Requirement: Circular Halo Progress Scrubber
-The expanded player view SHALL display an interactive circular halo progress ring around the hero album artwork that reflects the current playback progress and supports circular scrub gestures.
+The expanded player view SHALL display an interactive circular halo progress ring closely surrounding a circular-clipped hero album artwork disc that reflects the current playback progress and supports circular scrub gestures.
 
-#### Scenario: Visual presentation of circular progress halo
-- **WHEN** a track is playing or paused
-- **THEN** the system renders a circular progress stroke around the artwork container with active progress proportion and ambient blur halo
+#### Scenario: Visual presentation of circular progress halo and circular artwork
+- **WHEN** a track is playing or paused in the expanded player
+- **THEN** the system renders the album artwork clipped to a circle centered inside a matching circular progress ring with active stroke and ambient glow
 
 #### Scenario: Interactive circular seek gesture
 - **WHEN** the user touches or drags around the circular progress ring
