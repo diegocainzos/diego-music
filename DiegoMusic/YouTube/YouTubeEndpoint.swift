@@ -58,7 +58,7 @@ struct YouTubeEndpoint {
             components.path = "/youtube/v3/search"
             components.queryItems = [
                 URLQueryItem(name: "part", value: "snippet"),
-                URLQueryItem(name: "q", normalized),
+                URLQueryItem(name: "q", value: normalized),
                 URLQueryItem(name: "type", value: "video"),
                 URLQueryItem(name: "videoCategoryId", value: "10"),
                 URLQueryItem(name: "videoEmbeddable", value: "true"),
