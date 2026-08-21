@@ -112,17 +112,35 @@ def create_app(
     async def require_api_token(
         credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     ) -> None:
-        valid = (
-            credentials is not None
-            and credentials.scheme.lower() == "bearer"
-            and hmac.compare_digest(credentials.credentials, service_settings.api_token)
-        )
-        if not valid:
+        if credentials is None or credentials.scheme.lower() != "bearer":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Credencial no válida.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+        token_str = credentials.credentials
+        # 1. Comprobar si coincide con el token estático del VPS
+        if service_settings.api_token and hmac.compare_digest(token_str, service_settings.api_token):
+            return
+
+        # 2. Comprobar si es un JWT válido de usuario autenticado
+        try:
+            payload = backend_auth.jwt.decode(
+                token_str,
+                backend_config.settings.SECRET_KEY,
+                algorithms=[backend_config.settings.ALGORITHM],
+            )
+            if payload.get("sub") is not None:
+                return
+        except Exception:
+            pass
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credencial no válida.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     @app.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
