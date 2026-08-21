@@ -38,10 +38,11 @@ struct LyricsView: View {
                         lines: lines,
                         player: player,
                         reduceMotion: reduceMotion,
+                        viewportWidth: geo.size.width,
                         viewportHeight: geo.size.height
                     )
                 case .plain(let text):
-                    plainLyricsView(text)
+                    plainLyricsView(text, width: geo.size.width)
                 case .instrumental:
                     instrumentalView
                 case .notFound:
@@ -98,7 +99,7 @@ struct LyricsView: View {
 
     // MARK: - Plain Lyrics
 
-    private func plainLyricsView(_ text: String) -> some View {
+    private func plainLyricsView(_ text: String, width: CGFloat) -> some View {
         VStack(spacing: 0) {
             HStack {
                 Image(systemName: "text.quote")
@@ -112,20 +113,20 @@ struct LyricsView: View {
             .padding(.horizontal, 24)
             .padding(.top, 16)
 
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 Text(text)
                     .font(.title3.weight(.medium))
                     .foregroundStyle(.white.opacity(0.85))
                     .multilineTextAlignment(.leading)
-                    .lineSpacing(4)
+                    .lineSpacing(6)
                     .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 32)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: width, alignment: .leading)
         }
+        .frame(width: width)
     }
 
     // MARK: - Instrumental
@@ -187,6 +188,7 @@ private struct SyncedLyricsContent: View {
     let lines: [LyricsLine]
     @ObservedObject var player: AudioPlayerCoordinator
     let reduceMotion: Bool
+    let viewportWidth: CGFloat
     let viewportHeight: CGFloat
 
     @State private var userScrolling = false
@@ -209,8 +211,8 @@ private struct SyncedLyricsContent: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 16) {
                     // Top spacer for centering first line (35% of visible viewport height)
                     Spacer()
                         .frame(height: max(80, viewportHeight * 0.35))
@@ -225,9 +227,9 @@ private struct SyncedLyricsContent: View {
                         .frame(height: max(80, viewportHeight * 0.35))
                 }
                 .padding(.horizontal, 24)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(width: viewportWidth, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: viewportWidth, height: viewportHeight)
             .scrollIndicators(.hidden)
             .onAppear {
                 // Initial scroll to active line
@@ -295,9 +297,8 @@ private struct SyncedLyricsContent: View {
                     radius: isActive ? 16 : 0
                 )
                 .multilineTextAlignment(.leading)
-                .lineSpacing(4)
+                .lineSpacing(6)
                 .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 4)
                 .contentShape(Rectangle())

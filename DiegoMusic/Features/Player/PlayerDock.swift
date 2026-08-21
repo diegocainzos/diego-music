@@ -601,13 +601,14 @@ struct PlayerDock: View {
             )
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cerrar") { showLyrics = false }
-                        .foregroundStyle(.white)
+                    Button("Cerrar") {
+                        showLyrics = false
+                        showLyricsFromExpanded = false
+                    }
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
                 }
             }
-            #if os(iOS)
-            .toolbarBackground(.hidden, for: .navigationBar)
-            #endif
         }
         .tint(.white)
     }
