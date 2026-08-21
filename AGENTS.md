@@ -86,6 +86,17 @@ Si un secreto aparece accidentalmente en una salida o artefacto, detener el trab
   - Dentro de `ScrollView`, `LazyVStack` **DEBE** tener su anchura estrictamente fijada a la ventana visible (`.frame(width: viewportWidth, alignment: .leading)`).
   - Si no se fija la anchura horizontal, los textos largos expanden el ancho intrínseco del contenedor, provocando que `ScrollView` centre el contenido y desplace el inicio de las frases fuera de la pantalla por la izquierda en orientación vertical.
 
+### Sistema de Diseño y Reproductor (Design System & Player UX)
+
+- **Modos de Tema (`AppThemeMode`):**
+  - Soporta `.midnight` (Midnight Indigo: gradiente `#131836` a `#1A2247`, acento cobalto `#3E7BFA` / cian `#4CC9F0`, textos secundarios `#8E9BB5`), `.dark`, `.light` y `.system`.
+  - Los temas aplican paletas consistentes y fondos ambientales con desenfoque de carátula en reproducción.
+- **Reproductor Expandido (`PlayerDock`):**
+  - **Halo de Progreso Circular (`CircularHaloScrubber`):** La carátula central debe recortarse en círculo (`.clipShape(Circle())`) para encuadrarla exactamente dentro del anillo de progreso circular interactivo con resplandor ambiental y soporte para gestos angulares (`atan2`).
+  - **Cabecera Minimalista:** Botón `chevron.down` circular a la izquierda, sin título superior de cabecera ("REPRODUCIENDO AHORA"), y botones de Letras (`quote.bubble`) y 3 puntos (`ellipsis`) a la derecha preservando todas las acciones de navegación y gestión de biblioteca.
+  - **Consola de Controles:** Fila de 5 controles (`shuffle`, `previous`, Play/Pause central elevado en disco blanco de alto contraste, `next`, `repeat`).
+  - **Cola de Reproducción Flotante:** Las canciones de la cola flotan directamente sobre el fondo ambiental sin contenedores tipo caja pesada ni cabeceras redundantes ("A continuación" o contador). Cada fila incluye miniatura redondeada, título y artista centrados, duración a la derecha e indicador animado de reproducción activa.
+
 ## Fuente de verdad del proyecto Xcode
 
 - `project.yml` es la fuente de verdad.

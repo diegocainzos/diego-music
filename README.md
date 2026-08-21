@@ -25,8 +25,12 @@ DiegoMusic no es una aplicación oficial ni está afiliada con YouTube o Google.
 - **Búsqueda optimizada y gestión de cuota**:
   - Búsqueda bajo demanda, pool de claves con rotación automática (`KeyPool`) ante errores 403 (cuota) / 429, y deduplicación con caché local (`SearchCache`).
   - Endpoints alternativos en el VPS (`/v1/search` y `/v1/artist/{artist_id}`) impulsados por `yt-dlp` y caché LRU de artistas (`ArtistCache`) cuando se agota la cuota oficial.
-- **Reproductor nativo y caché multicapa**:
-  - Reproductor con estética Bauhaus Hi‑Fi y modo compacto/expandido.
+- **Reproductor Atmosférico y Temas Personalizados**:
+  - **Nuevo Tema *Midnight Indigo***: Paleta ambient dark con degradado azul noche (`#131836` a `#1A2247`), acento cobalto/cian (`#3E7BFA` / `#4CC9F0`), textos secundarios suaves (`#8E9BB5`) y acabado glassmorphism, integrado junto a los modos Oscuro, Claro y Sistema.
+  - **Halo Circular de Progreso (`CircularHaloScrubber`)**: Carátula central recortada en disco circular perfecto encuadrada dentro de un anillo de progreso reactivo con resplandor ambiental y soporte para gestos táctiles angulares de búsqueda de tiempo.
+  - **Cabecera Minimalista**: Repliegue rápido con botón circular, sin títulos redundantes, con acceso directo a Letras (`quote.bubble`) y menú contextual de 3 puntos (`ellipsis`).
+  - **Consola de 5 Controles**: Botón central elevado en disco blanco de alto contraste para Play/Pause, junto a anterior/siguiente y modos aleatorio/repetir.
+  - **Cola de Reproducción Flotante**: Lista de pistas que levita sobre el fondo ambiental sin contenedores pesados, con carátulas redondeadas, metadatos y duración a la derecha.
   - Un único `AVPlayer` con play, pausa, seek, cola de reproducción y precarga silenciosa.
   - Caché de audio M4A persistente en el VPS (volumen Docker con límite global y expulsión LRU).
   - HTTPS automático mediante Traefik (proxy central del VPS).
