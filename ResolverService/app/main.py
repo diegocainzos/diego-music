@@ -3,11 +3,10 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 import hmac
-import sys
-from pathlib import Path
 from typing import AsyncIterator
 
 import httpx
+import jwt
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -16,23 +15,16 @@ from starlette.background import BackgroundTask
 from .artist_cache import ArtistCache
 from .audio_cache import PersistentAudioCache
 from .config import Settings
-from .models import ArtistDetailResponse, HealthResponse, ResolveRequest, ResolveResponse, SearchResponse, SearchResultItem
+from .models import ArtistDetailResponse, HealthResponse, ResolveRequest, ResolveResponse, SearchResponse
 from .resolution_cache import CachingAudioResolver
 from .resolver import AudioResolutionError, AudioResolving, YTDLPResolver
 from .sessions import SessionExpiredError, SessionNotFoundError, SessionStore
-
-# Importar el módulo backend principal
-repo_root = Path(__file__).resolve().parent.parent.parent
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
 
 import backend_app.config as backend_config
 import backend_app.database as backend_database
 import backend_app.seed as backend_seed
 import backend_app.routers.auth as backend_auth
 import backend_app.routers.users as backend_users
-import backend_app.routers.telemetry as backend_telemetry
-import backend_app.routers.catalog as backend_catalog
 import backend_app.routers.playlists as backend_playlists
 
 _FORWARDED_REQUEST_HEADERS = {"range", "if-range"}
@@ -46,6 +38,16 @@ _FORWARDED_RESPONSE_HEADERS = {
     "etag",
     "last-modified",
 }
+
+
+def _forwarded_response_headers(upstream: httpx.Response, content_type: str) -> dict[str, str]:
+    headers = {
+        name: value
+        for name, value in upstream.headers.items()
+        if name.lower() in _FORWARDED_RESPONSE_HEADERS
+    }
+    headers.setdefault("content-type", content_type)
+    return headers
 
 
 def create_app(
@@ -85,15 +87,16 @@ def create_app(
             follow_redirects=True,
         )
         await persistent_cache.initialize()
-        
-        # Inicializar base de datos SQLite del backend y datos semilla
+
+        # Inicializar la base de datos SQLite del backend; el usuario demo es opcional
         backend_database.Base.metadata.create_all(bind=backend_database.engine)
-        db = backend_database.SessionLocal()
-        try:
-            backend_seed.seed_database(db)
-        finally:
-            db.close()
-            
+        if service_settings.seed_demo_data:
+            db = backend_database.SessionLocal()
+            try:
+                backend_seed.seed_database(db)
+            finally:
+                db.close()
+
         yield
         await persistent_cache.close()
         if owns_upstream_client:
@@ -126,14 +129,14 @@ def create_app(
 
         # 2. Comprobar si es un JWT válido de usuario autenticado
         try:
-            payload = backend_auth.jwt.decode(
+            payload = jwt.decode(
                 token_str,
                 backend_config.settings.SECRET_KEY,
                 algorithms=[backend_config.settings.ALGORITHM],
             )
             if payload.get("sub") is not None:
                 return
-        except Exception:
+        except jwt.PyJWTError:
             pass
 
         raise HTTPException(
@@ -151,16 +154,12 @@ def create_app(
         response_model=ResolveResponse,
         dependencies=[Depends(require_api_token)],
     )
-    async def resolve_audio(payload: ResolveRequest, request: Request) -> ResolveResponse:
+    async def resolve_audio(payload: ResolveRequest) -> ResolveResponse:
         try:
             audio = await persistent_cache.get(payload.video_id)
             if audio is None:
                 audio = await service_resolver.resolve(payload.video_id)
-                persistent_cache.schedule(
-                    payload.video_id,
-                    audio,
-                    request.app.state.upstream_client,
-                )
+                persistent_cache.schedule(payload.video_id)
             session = session_store.create(payload.video_id, audio)
         except AudioResolutionError as error:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error.public_message) from error
@@ -184,18 +183,7 @@ def create_app(
         if not query:
             return SearchResponse(items=[])
         try:
-            raw_results = await base_resolver.search(query)
-            items = [
-                SearchResultItem(
-                    id=item["id"],
-                    kind="video",
-                    title=item["title"],
-                    channelTitle=item["channelTitle"],
-                    thumbnailURL=item.get("thumbnailURL"),
-                )
-                for item in raw_results
-            ]
-            return SearchResponse(items=items)
+            return SearchResponse(items=await base_resolver.search(query))
         except Exception as error:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -235,12 +223,7 @@ def create_app(
 
         audio = await persistent_cache.get(session.video_id)
         if audio is None:
-            if not persistent_cache.is_downloading(session.video_id):
-                persistent_cache.schedule(
-                    session.video_id,
-                    session.audio,
-                    request.app.state.upstream_client,
-                )
+            persistent_cache.schedule(session.video_id)
             try:
                 await asyncio.wait_for(persistent_cache.wait_for_download(session.video_id), timeout=30.0)
             except (asyncio.TimeoutError, asyncio.CancelledError):
@@ -279,12 +262,7 @@ def create_app(
             try:
                 if probe_response.status_code not in (200, 206):
                     raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="El origen rechazó la reproducción.")
-                response_headers = {
-                    name: value
-                    for name, value in probe_response.headers.items()
-                    if name.lower() in _FORWARDED_RESPONSE_HEADERS
-                }
-                response_headers.setdefault("content-type", audio.content_type)
+                response_headers = _forwarded_response_headers(probe_response, audio.content_type)
                 response_headers.setdefault("accept-ranges", "bytes")
                 return Response(status_code=status.HTTP_200_OK, headers=response_headers)
             finally:
@@ -300,12 +278,7 @@ def create_app(
         except httpx.RequestError as error:
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="El origen de audio no respondió.") from error
 
-        response_headers = {
-            name: value
-            for name, value in upstream.headers.items()
-            if name.lower() in _FORWARDED_RESPONSE_HEADERS
-        }
-        response_headers.setdefault("content-type", audio.content_type)
+        response_headers = _forwarded_response_headers(upstream, audio.content_type)
 
         if upstream.status_code not in (200, 206, 416):
             await upstream.aclose()
@@ -326,11 +299,9 @@ def create_app(
     async def inspect_audio(request: Request, token: str) -> Response:
         return await proxy_audio(request, token, head_only=True)
 
-    # Routers del Backend de Autenticación, Catálogo, Usuarios, Telemetría y Playlists
+    # Routers del backend de usuarios: autenticación, favoritos/historial y playlists
     app.include_router(backend_auth.router, prefix=backend_config.settings.API_V1_STR)
     app.include_router(backend_users.router, prefix=backend_config.settings.API_V1_STR)
-    app.include_router(backend_telemetry.router, prefix=backend_config.settings.API_V1_STR)
-    app.include_router(backend_catalog.router, prefix=backend_config.settings.API_V1_STR)
     app.include_router(backend_playlists.router, prefix=backend_config.settings.API_V1_STR)
 
     return app

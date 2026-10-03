@@ -12,26 +12,11 @@ enum DownloadState: Equatable, Sendable {
     case failed(String)
 }
 
-struct DownloadProgressEvent: Sendable {
-    let videoID: String
-    let state: DownloadState
-}
-
 enum DownloadError: LocalizedError {
-    case alreadyDownloaded
     case resolveFailure
-    case writeFailed
-    case quotaExceeded
-    case unknown(String)
 
     var errorDescription: String? {
-        switch self {
-        case .alreadyDownloaded: return "La canción ya está descargada."
-        case .resolveFailure: return "No se pudo obtener la pista de audio para descargar."
-        case .writeFailed: return "Error al guardar el archivo en el dispositivo."
-        case .quotaExceeded: return "Espacio insuficiente en el dispositivo."
-        case .unknown: return "Error de descarga desconocido."
-        }
+        "No se pudo obtener la pista de audio para descargar."
     }
 }
 
@@ -178,9 +163,8 @@ final class OfflineDownloadManager: ObservableObject {
                 videoID: videoID
             )
 
-            // 3. Determinar extensión y ruta final
-            let ext = extensionFor(contentType: descriptor.contentType)
-            let filename = "\(videoID).\(ext)"
+            // 3. Ruta final (el resolver solo entrega audio/mp4)
+            let filename = "\(videoID).m4a"
             let destinationURL = downloadsDirectory.appendingPathComponent(filename)
 
             // Borrar si existía
@@ -324,15 +308,6 @@ final class OfflineDownloadManager: ObservableObject {
 
     // MARK: - Utilidades
 
-    private func extensionFor(contentType: String) -> String {
-        let lower = contentType.lowercased()
-        if lower.contains("mp4") || lower.contains("m4a") { return "m4a" }
-        if lower.contains("mpeg") || lower.contains("mp3") { return "mp3" }
-        if lower.contains("ogg") { return "ogg" }
-        if lower.contains("webm") { return "webm" }
-        return "m4a"
-    }
-
     private func sanitizedErrorMessage(_ error: Error) -> String {
         if let de = error as? DownloadError { return de.errorDescription ?? "Error de descarga." }
         let nsError = error as NSError
@@ -347,41 +322,6 @@ final class OfflineDownloadManager: ObservableObject {
             }
         }
         return "No se pudo completar la descarga."
-    }
-
-    // MARK: - Descarga en lote (batch coordinado internamente)
-
-    /// Descarga una lista de ítems en serie, respetando el orden.
-    func downloadBatch(_ items: [MediaItem], resolver: any AudioStreamResolving) {
-        // Filtrar ya descargados
-        let pending = items.filter { item in
-            let s = states[item.id]
-            if s == .downloaded { return false }
-            if case .downloading = s { return false }
-            if s == .queued { return false }
-            return true
-        }
-        guard !pending.isEmpty else { return }
-        for item in pending { states[item.id] = .queued }
-        // Lanzar descarga serial en task
-        activeDownloadTask?.cancel()
-        activeDownloadTask = Task { [weak self] in
-            guard let self else { return }
-            for item in pending {
-                guard !Task.isCancelled else { break }
-                await self.performDownload(item: item, resolver: resolver, retryCount: 0)
-            }
-            await MainActor.run {
-                self.activeDownloadTask = nil
-            }
-        }
-    }
-
-    var availableDiskSpaceBytes: Int64 {
-        let attrs = try? FileManager.default.attributesOfFileSystem(
-            forPath: NSHomeDirectory()
-        )
-        return attrs?[.systemFreeSize] as? Int64 ?? 0
     }
 
     var formattedTotalUsage: String {

@@ -94,8 +94,7 @@ public struct CreatePlaylistRequestPayload: Encodable {
 }
 
 public struct AddTrackToPlaylistPayload: Encodable {
-    public let trackId: Int?
-    public let youtubeVideoId: String?
+    public let youtubeVideoId: String
     public let title: String?
     public let channelTitle: String?
     public let thumbnailUrl: String?
@@ -103,7 +102,6 @@ public struct AddTrackToPlaylistPayload: Encodable {
     public let order: Int?
 
     enum CodingKeys: String, CodingKey {
-        case trackId = "track_id"
         case youtubeVideoId = "youtube_video_id"
         case title
         case channelTitle = "channel_title"
@@ -113,15 +111,13 @@ public struct AddTrackToPlaylistPayload: Encodable {
     }
 
     public init(
-        trackId: Int? = nil,
-        youtubeVideoId: String? = nil,
+        youtubeVideoId: String,
         title: String? = nil,
         channelTitle: String? = nil,
         thumbnailUrl: String? = nil,
         durationSeconds: Int? = nil,
         order: Int? = 0
     ) {
-        self.trackId = trackId
         self.youtubeVideoId = youtubeVideoId
         self.title = title
         self.channelTitle = channelTitle
@@ -131,19 +127,7 @@ public struct AddTrackToPlaylistPayload: Encodable {
     }
 }
 
-public struct ReorderPlaylistTracksPayload: Encodable {
-    public let trackIds: [Int]
-
-    enum CodingKeys: String, CodingKey {
-        case trackIds = "track_ids"
-    }
-
-    public init(trackIds: [Int]) {
-        self.trackIds = trackIds
-    }
-}
-
-// MARK: - Catalog DTOs
+// MARK: - Artist, Album & Track DTOs (anidados en playlists, favoritos e historial)
 
 public struct BackendArtistDTO: Codable, Identifiable, Equatable {
     public let id: Int
@@ -219,97 +203,6 @@ public struct BackendTrackDTO: Codable, Identifiable, Equatable {
     }
 }
 
-public struct CatalogSearchResponseDTO: Codable, Equatable {
-    public let query: String
-    public let artists: [BackendArtistDTO]
-    public let albums: [BackendAlbumDTO]
-    public let tracks: [BackendTrackDTO]
-}
-
-// MARK: - User Settings & Player State DTOs
-
-public struct UserSettingsDTO: Codable, Equatable {
-    public let id: Int
-    public let userId: Int
-    public let theme: String
-    public let audioQuality: String
-    public let offlineMode: Bool
-    public let explicitContent: Bool
-    public let preferredGenres: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case userId = "user_id"
-        case theme
-        case audioQuality = "audio_quality"
-        case offlineMode = "offline_mode"
-        case explicitContent = "explicit_content"
-        case preferredGenres = "preferred_genres"
-    }
-}
-
-public struct UserPlayerStateDTO: Codable, Equatable {
-    public let id: Int
-    public let userId: Int
-    public let currentTrackId: Int?
-    public let positionSeconds: Double
-    public let playbackStatus: String
-    public let shuffleEnabled: Bool
-    public let repeatMode: String
-    public let queue: [Int]
-    public let historyQueue: [Int]
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case userId = "user_id"
-        case currentTrackId = "current_track_id"
-        case positionSeconds = "position_seconds"
-        case playbackStatus = "playback_status"
-        case shuffleEnabled = "shuffle_enabled"
-        case repeatMode = "repeat_mode"
-        case queue
-        case historyQueue = "history_queue"
-    }
-}
-
-public struct UserPlayerStateUpdatePayload: Encodable {
-    public let currentTrackId: Int?
-    public let positionSeconds: Double?
-    public let playbackStatus: String?
-    public let shuffleEnabled: Bool?
-    public let repeatMode: String?
-    public let queue: [Int]?
-    public let historyQueue: [Int]?
-
-    enum CodingKeys: String, CodingKey {
-        case currentTrackId = "current_track_id"
-        case positionSeconds = "position_seconds"
-        case playbackStatus = "playback_status"
-        case shuffleEnabled = "shuffle_enabled"
-        case repeatMode = "repeat_mode"
-        case queue
-        case historyQueue = "history_queue"
-    }
-
-    public init(
-        currentTrackId: Int? = nil,
-        positionSeconds: Double? = nil,
-        playbackStatus: String? = nil,
-        shuffleEnabled: Bool? = nil,
-        repeatMode: String? = nil,
-        queue: [Int]? = nil,
-        historyQueue: [Int]? = nil
-    ) {
-        self.currentTrackId = currentTrackId
-        self.positionSeconds = positionSeconds
-        self.playbackStatus = playbackStatus
-        self.shuffleEnabled = shuffleEnabled
-        self.repeatMode = repeatMode
-        self.queue = queue
-        self.historyQueue = historyQueue
-    }
-}
-
 // MARK: - Favorites DTOs
 
 public struct BackendFavoriteDTO: Codable, Identifiable, Equatable {
@@ -341,8 +234,7 @@ public struct BackendFavoriteDTO: Codable, Identifiable, Equatable {
 
 public struct AddFavoritePayload: Encodable {
     public let entityType: String
-    public let entityId: Int?
-    public let youtubeVideoId: String?
+    public let youtubeVideoId: String
     public let title: String?
     public let channelTitle: String?
     public let thumbnailUrl: String?
@@ -350,7 +242,6 @@ public struct AddFavoritePayload: Encodable {
 
     enum CodingKeys: String, CodingKey {
         case entityType = "entity_type"
-        case entityId = "entity_id"
         case youtubeVideoId = "youtube_video_id"
         case title
         case channelTitle = "channel_title"
@@ -360,15 +251,13 @@ public struct AddFavoritePayload: Encodable {
 
     public init(
         entityType: String,
-        entityId: Int? = nil,
-        youtubeVideoId: String? = nil,
+        youtubeVideoId: String,
         title: String? = nil,
         channelTitle: String? = nil,
         thumbnailUrl: String? = nil,
         durationSeconds: Int? = nil
     ) {
         self.entityType = entityType
-        self.entityId = entityId
         self.youtubeVideoId = youtubeVideoId
         self.title = title
         self.channelTitle = channelTitle
@@ -430,8 +319,7 @@ public struct BackendPlayHistoryDTO: Codable, Identifiable, Equatable {
 }
 
 public struct RecordPlayHistoryPayload: Encodable {
-    public let trackId: Int?
-    public let youtubeVideoId: String?
+    public let youtubeVideoId: String
     public let title: String?
     public let channelTitle: String?
     public let thumbnailUrl: String?
@@ -443,7 +331,6 @@ public struct RecordPlayHistoryPayload: Encodable {
     public let device: String?
 
     enum CodingKeys: String, CodingKey {
-        case trackId = "track_id"
         case youtubeVideoId = "youtube_video_id"
         case title
         case channelTitle = "channel_title"
@@ -457,8 +344,7 @@ public struct RecordPlayHistoryPayload: Encodable {
     }
 
     public init(
-        trackId: Int? = nil,
-        youtubeVideoId: String? = nil,
+        youtubeVideoId: String,
         title: String? = nil,
         channelTitle: String? = nil,
         thumbnailUrl: String? = nil,
@@ -469,7 +355,6 @@ public struct RecordPlayHistoryPayload: Encodable {
         context: String? = nil,
         device: String? = nil
     ) {
-        self.trackId = trackId
         self.youtubeVideoId = youtubeVideoId
         self.title = title
         self.channelTitle = channelTitle

@@ -1,3 +1,5 @@
+> **Actualizado por [`ponytail-audit-simplification`](../ponytail-audit-simplification/proposal.md) (2026-10-03):** `LyricsService` y `LyricsProviding` se eliminaron; `PlayerDock` y `LyricsView` usan `LRCLibLyricsProvider.fetchLyrics(for:)` directamente.
+
 ## Why
 
 DiegoMusic reproduce una única pista con `AVPlayer`, publica metadatos en `MPNowPlayingInfoCenter` e integra la pantalla bloqueada y el centro de control; ahora la reproducción ampliada debería poder mostrar la letra sincronizada de la canción activa con desplazamiento automático. Sin embargo no existe ningún índice de letras local y no se debe scrapear letras con copyright. Este cambio añade una capability `lyrics` autocontenida: un proveedor opcional best‑effort con un contrato público (`LyricsView` + `LyricsProviding`) que otro cambio (`player-experience`, C1) podrá conectar al reproductor ampliado tras el merge, degradando con elegancia si no hay proveedor.

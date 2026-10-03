@@ -19,16 +19,16 @@ final class AppEnvironment: ObservableObject {
     let resolverConfigured: Bool
     let downloadManager: OfflineDownloadManager
     let networkMonitor: NetworkMonitor
-    let authClient: any AuthClientProtocol
-    let backendClient: any BackendAPIClientProtocol
-    let tokenManager: any TokenManaging
+    let authClient: AuthClient
+    let backendClient: BackendAPIClient
+    let tokenManager: KeychainTokenManager
 
     init(
         modelContext: NSManagedObjectContext,
         transport: any HTTPTransport = URLSessionTransport(),
-        authClient: (any AuthClientProtocol)? = nil,
-        backendClient: (any BackendAPIClientProtocol)? = nil,
-        tokenManager: (any TokenManaging)? = nil
+        authClient: AuthClient? = nil,
+        backendClient: BackendAPIClient? = nil,
+        tokenManager: KeychainTokenManager? = nil
     ) {
         let library = LibraryStore(context: modelContext)
         let queue = PlaybackQueue()
@@ -49,7 +49,6 @@ final class AppEnvironment: ObservableObject {
         self.tokenManager = manager
         self.authClient = authClient ?? AuthClient(baseURL: baseURL, transport: transport)
         self.backendClient = backendClient ?? BackendAPIClient(baseURL: baseURL, transport: transport)
-        TelemetryLogger.shared.configure(baseURL: baseURL, tokenManager: manager)
 
         self.library = library
         self.queue = queue
@@ -81,8 +80,8 @@ final class AppEnvironment: ObservableObject {
 
     private func setupRealtimeLibrarySync(
         library: LibraryStore,
-        tokenManager: any TokenManaging,
-        backendClient: any BackendAPIClientProtocol
+        tokenManager: KeychainTokenManager,
+        backendClient: BackendAPIClient
     ) {
         library.onFavoriteToggled = { [weak self] item, isFav in
             guard let self, let token = tokenManager.getToken(), self.authState.isAuthenticated else { return }
@@ -175,7 +174,6 @@ final class AppEnvironment: ObservableObject {
         if playbackSettings.historyEnabled {
             try? library.addHistory(item)
         }
-        TelemetryLogger.shared.recordEvent(type: "track_play", data: ["title": item.title, "artist": item.channelTitle, "video_id": item.id])
         if let token = tokenManager.getToken(), authState.isAuthenticated {
             Task {
                 _ = try? await backendClient.recordPlayHistory(
@@ -227,7 +225,6 @@ final class AppEnvironment: ObservableObject {
             try tokenManager.saveToken(response.accessToken)
             let user = try await authClient.fetchMe(token: response.accessToken)
             authState = .authenticated(user)
-            TelemetryLogger.shared.recordEvent(type: "login", data: ["email": email])
             await syncAllUserDataWithBackend()
         } catch {
             authState = .unauthenticated
@@ -242,7 +239,6 @@ final class AppEnvironment: ObservableObject {
             try tokenManager.saveToken(response.accessToken)
             let user = try await authClient.fetchMe(token: response.accessToken)
             authState = .authenticated(user)
-            TelemetryLogger.shared.recordEvent(type: "register", data: ["email": email, "full_name": fullName ?? ""])
             await syncAllUserDataWithBackend()
         } catch {
             authState = .unauthenticated
@@ -251,7 +247,6 @@ final class AppEnvironment: ObservableObject {
     }
 
     func logout() {
-        TelemetryLogger.shared.recordEvent(type: "logout", data: nil)
         tokenManager.deleteToken()
         library.clearAllUserData()
         authState = .unauthenticated

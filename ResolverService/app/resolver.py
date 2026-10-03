@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from typing import Literal, Mapping, Protocol
+from typing import Any, Literal, Mapping, Protocol
 from urllib.parse import parse_qs, urlsplit
 
 from .config import Settings
@@ -37,10 +37,6 @@ class ResolvedAudio:
     cached_path: Path | None = None
     content_length: int | None = None
     cache_status: Literal["miss", "resolution", "disk"] = "miss"
-
-    @property
-    def is_cached_file(self) -> bool:
-        return self.cached_path is not None
 
     @classmethod
     def from_cached_file(cls, path: Path, size: int) -> "ResolvedAudio":
@@ -109,7 +105,7 @@ class YTDLPResolver:
             f"ytsearch{limit}:{query}",
         ]
         if self.settings.cookies_file is not None:
-            arguments.extend(["--cookies", str(str(self.settings.cookies_file))])
+            arguments.extend(["--cookies", str(self.settings.cookies_file)])
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -153,41 +149,15 @@ class YTDLPResolver:
         return results
 
     async def get_artist_detail(self, artist_id: str) -> dict[str, Any]:
-        query = f"{artist_id} tracks"
-        raw_tracks = await self.search(query, limit=15)
-
-        first_thumb = raw_tracks[0].get("thumbnailURL") if raw_tracks else None
-        artist_name = artist_id
-
-        top_tracks = [
-            {
-                "id": item["id"],
-                "kind": "video",
-                "title": item["title"],
-                "channelTitle": item["channelTitle"],
-                "thumbnailURL": item.get("thumbnailURL"),
-            }
-            for item in raw_tracks
-        ]
-
-        related_raw = await self.search(f"{artist_id} radio", limit=8)
-        related = [
-            {
-                "id": item["id"],
-                "kind": "video",
-                "title": item["title"],
-                "channelTitle": item["channelTitle"],
-                "thumbnailURL": item.get("thumbnailURL"),
-            }
-            for item in related_raw
-        ]
+        top_tracks = await self.search(f"{artist_id} tracks", limit=15)
+        related = await self.search(f"{artist_id} radio", limit=8)
 
         return {
             "artist": {
                 "id": artist_id,
-                "title": artist_name,
+                "title": artist_id,
                 "bio": "Perfil de artista del servicio VPS",
-                "thumbnailURL": first_thumb,
+                "thumbnailURL": top_tracks[0]["thumbnailURL"] if top_tracks else None,
             },
             "topTracks": top_tracks,
             "related": related,

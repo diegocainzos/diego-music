@@ -301,12 +301,11 @@ struct AlbumView: View {
             .buttonStyle(.plain)
 
             // Botón "Descargar todo" offline
-            if !album.tracks.isEmpty,
-               let resolverClient = environment.player.resolverClient {
+            if !album.tracks.isEmpty {
                 DownloadAllButton(
                     items: album.tracks,
                     downloadManager: environment.downloadManager,
-                    resolver: resolverClient
+                    resolver: environment.player.resolver
                 )
             }
 

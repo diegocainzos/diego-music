@@ -61,7 +61,7 @@ DiegoMusic (iOS/Android/Web) ──> YouTube Data API v3 (KeyPool) ──> Búsq
    │                               │
    │                               └── Fallback a VPS (/v1/search, /v1/artist)
    │
-   └── Backend FastAPI (/api/auth, /api/users, /api/playlists) ──> SQLite WAL
+   └── Backend FastAPI (/api/v1/auth, /api/v1/users/me, /api/v1/playlists) ──> SQLite WAL
 
                              SISTEMA DE LETRAS
 DiegoMusic (iOS/Android/Web) ──> Normalización y limpieza de metadatos
@@ -93,10 +93,10 @@ DiegoMusic/                App nativa para iOS y macOS (Swift / SwiftUI)
 
 ResolverService/           Servicio resolutor de audio (FastAPI + yt-dlp)
   ├── app/                 Resolución de audio, streaming, caché M4A y sesiones
-  └── tests/               Pruebas unitarias y de integración del resolutor
+  └── tests/               Pruebas del resolutor y del backend de usuarios (auth, playlists, favoritos, historial)
 
-app/                       Backend API de usuario y catálogo (FastAPI + SQLite)
-  └── routers/             Endpoints de autenticación, usuarios, playlists y catálogo
+app/                       Backend API de usuarios (FastAPI + SQLite); la imagen lo copia como backend_app
+  └── routers/             Endpoints de autenticación, favoritos, historial y playlists
 
 diego-music-android/       App nativa para Android (Kotlin, Jetpack Compose, Media3)
 diego-music-web/           Cliente web (React 19, TypeScript, Vite, Tailwind CSS)
@@ -111,7 +111,7 @@ openspec/                  Especificaciones formales, diseño y tareas (OpenSpec
 2. **Descriptores en el cliente**: Reutilización de sesiones activas, margen de seguridad y deduplicación de peticiones simultáneas.
 3. **Resoluciones en el VPS**: Caché LRU `videoId → ResolvedAudio` (500 entradas, TTL máximo de 3 horas).
 4. **Artistas en el VPS (`ArtistCache`)**: Caché LRU en FastAPI (`ARTIST_CACHE_MAX_ENTRIES=1000`, `TTL=86400s`) para perfiles y discografía.
-5. **Audio M4A persistente**: Descarga en segundo plano mediante rangos, escritura atómica y expulsión LRU en el volumen `audio_cache` (hasta 5 GiB, máx. 256 MiB por pista).
+5. **Audio M4A persistente**: Descarga en segundo plano con `yt-dlp`, validación de tamaño, escritura atómica y expulsión LRU en el volumen `audio_cache` (hasta 5 GiB, máx. 256 MiB por pista).
 6. **Precarga de cola**: Precarga silenciosa del siguiente tema y reintento automático transparente ante expiración.
 
 ---
@@ -136,20 +136,22 @@ Genera el proyecto Xcode sin exponer secretos:
 
 ### 2. Despliegue en VPS (Docker Compose)
 
-En el servidor:
+En el servidor, desde la raíz del repositorio (el `compose.yml` raíz define el resolver y el servicio web detrás de Traefik):
 
 ```bash
-cd ResolverService
-cp .env.example .env
-# Configura RESOLVER_DOMAIN y DIEGOMUSIC_API_TOKEN en ResolverService/.env
+cp ResolverService/.env.example ResolverService/.env
+# Configura RESOLVER_DOMAIN, DIEGOMUSIC_API_TOKEN y SECRET_KEY en ResolverService/.env
+# SECRET_KEY es obligatoria (mínimo 32 caracteres, p. ej. openssl rand -hex 32); sin ella el servicio no arranca
 ```
 
 Despliegue unificado con Traefik:
 
 ```bash
-docker compose config --quiet
-docker compose up -d --build
+docker compose --file compose.yml config --quiet
+docker compose --file compose.yml up -d --build
 ```
+
+`config --quiet` no imprime nada: `docker compose config` expandiría los secretos de `ResolverService/.env`. El usuario demo solo se crea con `SEED_DEMO_DATA=true` (por defecto desactivado).
 
 Comprobación del estado:
 
@@ -177,10 +179,11 @@ Comprobación de seguridad (sin filtrado de secretos):
 ./scripts/verify-no-secrets.py
 ```
 
-Pruebas del resolutor y backend:
+Pruebas del resolutor y backend (incluye autenticación, playlists, favoritos e historial):
 
 ```bash
 ./scripts/validate-resolver.sh
+docker compose --file compose.yml config --quiet
 ```
 
 Pruebas de la app Swift:
@@ -202,7 +205,8 @@ cd diego-music-android && ./gradlew testDebugUnitTest
 
 ## Seguridad
 
-- **Nunca versionar ni mostrar en logs valores de `.env`, `Secrets.xcconfig` ni tokens.**
+- **Nunca versionar ni mostrar en logs valores de `.env`, `Secrets.xcconfig`, `SECRET_KEY` ni tokens.**
+- `SECRET_KEY` (firma de los JWT de usuario) es obligatoria, sin valor por defecto, y debe tener al menos 32 caracteres.
 - No registrar URLs completas de YouTube Data API (contienen la clave en el query string).
 - No registrar Bearer tokens, tokens opacos de stream, cookies ni URLs de Googlevideo.
 - Mantener Traefik como único punto de entrada público seguro con HTTPS.

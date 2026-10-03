@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Iterator, Optional
 from sqlalchemy.orm import Session
 from .models import Artist, Album, Track
+from .schemas import YouTubeTrackRef
 
 def get_or_create_youtube_track(
     db: Session,
@@ -63,3 +64,28 @@ def get_or_create_youtube_track(
     db.commit()
     db.refresh(track)
     return track
+
+
+def resolve_track_id(db: Session, track_id: Optional[int], ref: YouTubeTrackRef) -> Optional[int]:
+    """Devuelve track_id o, si falta, el id de la pista de ref.youtube_video_id (creándola si no existe)."""
+    if track_id is not None:
+        return track_id
+    if not ref.youtube_video_id:
+        return None
+    return get_or_create_youtube_track(
+        db=db,
+        youtube_video_id=ref.youtube_video_id,
+        title=ref.title,
+        channel_title=ref.channel_title,
+        thumbnail_url=ref.thumbnail_url,
+        duration_seconds=ref.duration_seconds,
+    ).id
+
+
+def track_id_candidates(db: Session, key: str) -> Iterator[int]:
+    """Ids de pista que puede designar `key`: primero como id numérico y después como youtube_video_id."""
+    if key.isdecimal():
+        yield int(key)
+    track = db.query(Track).filter(Track.youtube_video_id == key).first()
+    if track:
+        yield track.id

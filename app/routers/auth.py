@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import User, UserSettings, UserPlayerState
+from ..models import User
 from ..schemas import UserCreate, UserResponse, UserUpdate, Token
 from ..auth import hash_password, verify_password, create_access_token, get_current_user
 
@@ -28,13 +28,6 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         is_active=True
     )
     db.add(db_user)
-    db.flush()
-
-    # Inicializar preferencias y reproductor por defecto
-    user_settings = UserSettings(user_id=db_user.id)
-    user_player = UserPlayerState(user_id=db_user.id)
-    db.add(user_settings)
-    db.add(user_player)
     db.commit()
     db.refresh(db_user)
 

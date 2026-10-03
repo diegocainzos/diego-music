@@ -30,9 +30,7 @@ final class AudioResolverClientTests: XCTestCase {
         _ = try await client.resolve(videoID: "M7lc1UVf-VE")
 
         let requestCount = await recorder.requestCount()
-        let cacheCount = await client.cacheEntryCount
         XCTAssertEqual(requestCount, 1)
-        XCTAssertEqual(cacheCount, 1)
     }
 
     func testNearExpiryDescriptorIsNotCached() async throws {

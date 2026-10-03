@@ -6,6 +6,9 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 
+_TRUE_VALUES = frozenset({"true", "1", "yes"})
+
+
 class ConfigurationError(RuntimeError):
     """Configuración inválida sin incluir valores sensibles en el mensaje."""
 
@@ -28,6 +31,7 @@ class Settings:
     audio_cache_max_file_bytes: int = 268_435_456
     artist_cache_max_entries: int = 1000
     artist_cache_ttl_seconds: int = 86_400
+    seed_demo_data: bool = False
 
     def __post_init__(self) -> None:
         if len(self.api_token) < 32:
@@ -66,6 +70,7 @@ class Settings:
         public_base_url = os.getenv("PUBLIC_BASE_URL", "")
         cookies_value = os.getenv("YTDLP_COOKIES_FILE", "").strip()
         audio_cache_value = os.getenv("AUDIO_CACHE_DIR", "/var/cache/diegomusic").strip()
+        seed_demo_data = os.getenv("SEED_DEMO_DATA", "").strip().lower() in _TRUE_VALUES
 
         try:
             ttl = int(os.getenv("SESSION_TTL_SECONDS", "14400"))
@@ -98,4 +103,5 @@ class Settings:
             audio_cache_max_file_bytes=audio_cache_file_max,
             artist_cache_max_entries=artist_entries,
             artist_cache_ttl_seconds=artist_ttl,
+            seed_demo_data=seed_demo_data,
         )

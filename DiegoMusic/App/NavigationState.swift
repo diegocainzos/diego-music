@@ -54,23 +54,17 @@ enum DiegoAppDestination: Hashable, Identifiable {
         case .settings: return "gearshape"
         }
     }
-
-    var accentColor: Color {
-        DiegoTheme.accent
-    }
 }
-
-typealias AppDestination = DiegoAppDestination
 
 /// Estado de navegación con historial (Back < y Forward >) estilo Apple Music Web.
 @MainActor
 final class NavigationState: ObservableObject {
-    @Published var current: AppDestination
-    @Published private(set) var backStack: [AppDestination] = []
-    @Published private(set) var forwardStack: [AppDestination] = []
+    @Published var current: DiegoAppDestination
+    @Published private(set) var backStack: [DiegoAppDestination] = []
+    @Published private(set) var forwardStack: [DiegoAppDestination] = []
     @Published var rootResetTrigger: UUID = UUID()
 
-    init(initialDestination: AppDestination = .home) {
+    init(initialDestination: DiegoAppDestination = .home) {
         self.current = initialDestination
     }
 
@@ -94,7 +88,7 @@ final class NavigationState: ObservableObject {
         current = next
     }
 
-    func navigate(to destination: AppDestination) {
+    func navigate(to destination: DiegoAppDestination) {
         guard destination != current else { return }
         backStack.append(current)
         current = destination
@@ -102,7 +96,7 @@ final class NavigationState: ObservableObject {
     }
 
     /// Selecciona una pestaña; si ya es la pestaña activa, resetea la pila a la raíz.
-    func selectTab(_ destination: AppDestination) {
+    func selectTab(_ destination: DiegoAppDestination) {
         if current == destination {
             resetToRoot(destination)
         } else {
@@ -111,53 +105,12 @@ final class NavigationState: ObservableObject {
     }
 
     /// Resetea la pila de rutas e historial a la vista raíz de la pestaña actual.
-    func resetToRoot(_ destination: AppDestination? = nil) {
+    func resetToRoot(_ destination: DiegoAppDestination? = nil) {
         backStack.removeAll()
         forwardStack.removeAll()
         if let destination {
             current = destination
         }
         rootResetTrigger = UUID()
-    }
-}
-
-/// Cabecera de navegación con botones `<` (Atrás) y `>` (Adelante) estilo Apple Music Web.
-struct NavigationHeaderView: View {
-    @ObservedObject var navigationState: NavigationState
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Button {
-                navigationState.goBack()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(navigationState.canGoBack ? DiegoTheme.textPrimary : DiegoTheme.textSecondary.opacity(0.4))
-                    .frame(width: 32, height: 32)
-                    .background(DiegoTheme.cardSurface)
-                    .clipShape(Circle())
-            }
-            .disabled(!navigationState.canGoBack)
-            .buttonStyle(.plain)
-            .accessibilityLabel("Ir atrás")
-
-            Button {
-                navigationState.goForward()
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(navigationState.canGoForward ? DiegoTheme.textPrimary : DiegoTheme.textSecondary.opacity(0.4))
-                    .frame(width: 32, height: 32)
-                    .background(DiegoTheme.cardSurface)
-                    .clipShape(Circle())
-            }
-            .disabled(!navigationState.canGoForward)
-            .buttonStyle(.plain)
-            .accessibilityLabel("Ir adelante")
-
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
     }
 }

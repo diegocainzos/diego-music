@@ -80,12 +80,6 @@ final class OfflineDownloadManagerTests: XCTestCase {
         let result = manager.formattedTotalUsage
         XCTAssertFalse(result.isEmpty)
     }
-
-    // MARK: - availableDiskSpace
-
-    func testAvailableDiskSpace_isPositive() {
-        XCTAssertGreaterThan(manager.availableDiskSpaceBytes, 0)
-    }
 }
 
 // MARK: - Stub

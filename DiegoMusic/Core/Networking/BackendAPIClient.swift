@@ -1,43 +1,10 @@
 import Foundation
 
-public protocol BackendAPIClientProtocol: Sendable {
-    // Playlists
-    func fetchMyPlaylists(token: String) async throws -> [BackendPlaylistDTO]
-    func fetchPlaylist(token: String, playlistID: Int) async throws -> BackendPlaylistDTO
-    func createPlaylist(token: String, name: String, description: String?, isPublic: Bool) async throws -> BackendPlaylistDTO
-    func updatePlaylist(token: String, playlistID: Int, name: String?, description: String?, isPublic: Bool?) async throws -> BackendPlaylistDTO
-    func deletePlaylist(token: String, playlistID: Int) async throws
-    func addTrackToPlaylist(token: String, playlistID: Int, trackID: Int, order: Int?) async throws -> BackendPlaylistDTO
-    func addTrackToPlaylist(token: String, playlistID: Int, youtubeVideoId: String, title: String?, channelTitle: String?, thumbnailUrl: String?, durationSeconds: Int?, order: Int?) async throws -> BackendPlaylistDTO
-    func reorderPlaylistTracks(token: String, playlistID: Int, trackIDs: [Int]) async throws -> BackendPlaylistDTO
-    func removeTrackFromPlaylist(token: String, playlistID: Int, trackID: Int) async throws
-    func removeTrackFromPlaylist(token: String, playlistID: Int, trackIdentifier: String) async throws
-
-    // Catalog
-    func searchCatalog(query: String) async throws -> CatalogSearchResponseDTO
-    func fetchArtists(genre: String?, limit: Int, offset: Int) async throws -> [BackendArtistDTO]
-    func fetchAlbums(artistID: Int?, genre: String?, limit: Int, offset: Int) async throws -> [BackendAlbumDTO]
-    func fetchTracks(albumID: Int?, artistID: Int?, limit: Int, offset: Int) async throws -> [BackendTrackDTO]
-
-    // User State & Sync
-    func fetchUserSettings(token: String) async throws -> UserSettingsDTO
-    func fetchPlayerState(token: String) async throws -> UserPlayerStateDTO
-    func updatePlayerState(token: String, payload: UserPlayerStateUpdatePayload) async throws -> UserPlayerStateDTO
-
-    // Favorites & Follows
-    func fetchFavorites(token: String, entityType: String?) async throws -> [BackendFavoriteDTO]
-    func addFavorite(token: String, entityType: String, entityID: Int) async throws -> BackendFavoriteDTO
-    func addFavorite(token: String, entityType: String, youtubeVideoId: String, title: String?, channelTitle: String?, thumbnailUrl: String?, durationSeconds: Int?) async throws -> BackendFavoriteDTO
-    func removeFavorite(token: String, entityType: String, entityID: Int) async throws
-    func removeFavorite(token: String, entityType: String, entityIdentifier: String) async throws
-
-    // History
-    func recordPlayHistory(token: String, trackID: Int, playedSeconds: Int) async throws
-    func recordPlayHistory(token: String, youtubeVideoId: String, title: String?, channelTitle: String?, thumbnailUrl: String?, durationSeconds: Int?, playedSeconds: Int) async throws
-    func fetchPlayHistory(token: String, limit: Int, offset: Int) async throws -> [BackendPlayHistoryDTO]
-}
-
-public final class BackendAPIClient: BackendAPIClientProtocol, @unchecked Sendable {
+/// Cliente REST del backend FastAPI (`/api/v1/*`) para playlists, favoritos e historial.
+///
+/// Todas las operaciones pasan por `send`, que construye la petición con la
+/// cabecera `Authorization: Bearer`, valida el estado `2xx` y decodifica la respuesta.
+public final class BackendAPIClient: @unchecked Sendable {
     private let baseURL: URL
     private let transport: any HTTPTransport
 
@@ -49,92 +16,24 @@ public final class BackendAPIClient: BackendAPIClientProtocol, @unchecked Sendab
     // MARK: - Playlists
 
     public func fetchMyPlaylists(token: String) async throws -> [BackendPlaylistDTO] {
-        let url = baseURL.appendingPathComponent("api/v1/playlists/me")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        return try JSONDecoder().decode([BackendPlaylistDTO].self, from: data)
+        try await send("GET", "api/v1/playlists/me", token: token)
     }
 
     public func fetchPlaylist(token: String, playlistID: Int) async throws -> BackendPlaylistDTO {
-        let url = baseURL.appendingPathComponent("api/v1/playlists/\(playlistID)")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        return try JSONDecoder().decode(BackendPlaylistDTO.self, from: data)
+        try await send("GET", "api/v1/playlists/\(playlistID)", token: token)
     }
 
     public func createPlaylist(token: String, name: String, description: String? = nil, isPublic: Bool = false) async throws -> BackendPlaylistDTO {
-        let url = baseURL.appendingPathComponent("api/v1/playlists/")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let payload = CreatePlaylistRequestPayload(name: name, description: description, isPublic: isPublic)
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        return try JSONDecoder().decode(BackendPlaylistDTO.self, from: data)
-    }
-
-    public func updatePlaylist(token: String, playlistID: Int, name: String? = nil, description: String? = nil, isPublic: Bool? = nil) async throws -> BackendPlaylistDTO {
-        let url = baseURL.appendingPathComponent("api/v1/playlists/\(playlistID)")
-        var request = URLRequest(url: url)
-        request.httpMethod = "PUT"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let payload = CreatePlaylistRequestPayload(name: name ?? "", description: description, isPublic: isPublic ?? false)
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        return try JSONDecoder().decode(BackendPlaylistDTO.self, from: data)
+        try await send(
+            "POST",
+            "api/v1/playlists/",
+            token: token,
+            body: CreatePlaylistRequestPayload(name: name, description: description, isPublic: isPublic)
+        )
     }
 
     public func deletePlaylist(token: String, playlistID: Int) async throws {
-        let url = baseURL.appendingPathComponent("api/v1/playlists/\(playlistID)")
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (_, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) || response.statusCode == 204 else {
-            throw URLError(.badServerResponse)
-        }
-    }
-
-    public func addTrackToPlaylist(token: String, playlistID: Int, trackID: Int, order: Int? = 0) async throws -> BackendPlaylistDTO {
-        let url = baseURL.appendingPathComponent("api/v1/playlists/\(playlistID)/tracks")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let payload = AddTrackToPlaylistPayload(trackId: trackID, order: order)
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        return try JSONDecoder().decode(BackendPlaylistDTO.self, from: data)
+        try await sendDiscardingResponse("DELETE", "api/v1/playlists/\(playlistID)", token: token)
     }
 
     public func addTrackToPlaylist(
@@ -147,180 +46,34 @@ public final class BackendAPIClient: BackendAPIClientProtocol, @unchecked Sendab
         durationSeconds: Int? = nil,
         order: Int? = 0
     ) async throws -> BackendPlaylistDTO {
-        let url = baseURL.appendingPathComponent("api/v1/playlists/\(playlistID)/tracks")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let payload = AddTrackToPlaylistPayload(
-            youtubeVideoId: youtubeVideoId,
-            title: title,
-            channelTitle: channelTitle,
-            thumbnailUrl: thumbnailUrl,
-            durationSeconds: durationSeconds,
-            order: order
+        try await send(
+            "POST",
+            "api/v1/playlists/\(playlistID)/tracks",
+            token: token,
+            body: AddTrackToPlaylistPayload(
+                youtubeVideoId: youtubeVideoId,
+                title: title,
+                channelTitle: channelTitle,
+                thumbnailUrl: thumbnailUrl,
+                durationSeconds: durationSeconds,
+                order: order
+            )
         )
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        return try JSONDecoder().decode(BackendPlaylistDTO.self, from: data)
-    }
-
-    public func reorderPlaylistTracks(token: String, playlistID: Int, trackIDs: [Int]) async throws -> BackendPlaylistDTO {
-        let url = baseURL.appendingPathComponent("api/v1/playlists/\(playlistID)/tracks/reorder")
-        var request = URLRequest(url: url)
-        request.httpMethod = "PUT"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let payload = ReorderPlaylistTracksPayload(trackIds: trackIDs)
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        return try JSONDecoder().decode(BackendPlaylistDTO.self, from: data)
-    }
-
-    public func removeTrackFromPlaylist(token: String, playlistID: Int, trackID: Int) async throws {
-        try await removeTrackFromPlaylist(token: token, playlistID: playlistID, trackIdentifier: "\(trackID)")
     }
 
     public func removeTrackFromPlaylist(token: String, playlistID: Int, trackIdentifier: String) async throws {
-        let url = baseURL.appendingPathComponent("api/v1/playlists/\(playlistID)/tracks/\(trackIdentifier)")
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (_, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) || response.statusCode == 204 else {
-            throw URLError(.badServerResponse)
-        }
+        try await sendDiscardingResponse("DELETE", "api/v1/playlists/\(playlistID)/tracks/\(trackIdentifier)", token: token)
     }
 
-    // MARK: - Catalog
-
-    public func searchCatalog(query: String) async throws -> CatalogSearchResponseDTO {
-        var components = URLComponents(url: baseURL.appendingPathComponent("api/v1/catalog/search"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [URLQueryItem(name: "q", value: query)]
-        guard let url = components?.url else { throw URLError(.badURL) }
-
-        let (data, response) = try await transport.data(for: URLRequest(url: url))
-        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode(CatalogSearchResponseDTO.self, from: data)
-    }
-
-    public func fetchArtists(genre: String? = nil, limit: Int = 20, offset: Int = 0) async throws -> [BackendArtistDTO] {
-        var components = URLComponents(url: baseURL.appendingPathComponent("api/v1/catalog/artists"), resolvingAgainstBaseURL: false)
-        var items = [URLQueryItem(name: "limit", value: "\(limit)"), URLQueryItem(name: "offset", value: "\(offset)")]
-        if let genre { items.append(URLQueryItem(name: "genre", value: genre)) }
-        components?.queryItems = items
-        guard let url = components?.url else { throw URLError(.badURL) }
-
-        let (data, response) = try await transport.data(for: URLRequest(url: url))
-        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode([BackendArtistDTO].self, from: data)
-    }
-
-    public func fetchAlbums(artistID: Int? = nil, genre: String? = nil, limit: Int = 20, offset: Int = 0) async throws -> [BackendAlbumDTO] {
-        var components = URLComponents(url: baseURL.appendingPathComponent("api/v1/catalog/albums"), resolvingAgainstBaseURL: false)
-        var items = [URLQueryItem(name: "limit", value: "\(limit)"), URLQueryItem(name: "offset", value: "\(offset)")]
-        if let artistID { items.append(URLQueryItem(name: "artist_id", value: "\(artistID)")) }
-        if let genre { items.append(URLQueryItem(name: "genre", value: genre)) }
-        components?.queryItems = items
-        guard let url = components?.url else { throw URLError(.badURL) }
-
-        let (data, response) = try await transport.data(for: URLRequest(url: url))
-        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode([BackendAlbumDTO].self, from: data)
-    }
-
-    public func fetchTracks(albumID: Int? = nil, artistID: Int? = nil, limit: Int = 50, offset: Int = 0) async throws -> [BackendTrackDTO] {
-        var components = URLComponents(url: baseURL.appendingPathComponent("api/v1/catalog/tracks"), resolvingAgainstBaseURL: false)
-        var items = [URLQueryItem(name: "limit", value: "\(limit)"), URLQueryItem(name: "offset", value: "\(offset)")]
-        if let albumID { items.append(URLQueryItem(name: "album_id", value: "\(albumID)")) }
-        if let artistID { items.append(URLQueryItem(name: "artist_id", value: "\(artistID)")) }
-        components?.queryItems = items
-        guard let url = components?.url else { throw URLError(.badURL) }
-
-        let (data, response) = try await transport.data(for: URLRequest(url: url))
-        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode([BackendTrackDTO].self, from: data)
-    }
-
-    // MARK: - User State & Sync
-
-    public func fetchUserSettings(token: String) async throws -> UserSettingsDTO {
-        let url = baseURL.appendingPathComponent("api/v1/users/me/settings")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode(UserSettingsDTO.self, from: data)
-    }
-
-    public func fetchPlayerState(token: String) async throws -> UserPlayerStateDTO {
-        let url = baseURL.appendingPathComponent("api/v1/users/me/player-state")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode(UserPlayerStateDTO.self, from: data)
-    }
-
-    public func updatePlayerState(token: String, payload: UserPlayerStateUpdatePayload) async throws -> UserPlayerStateDTO {
-        let url = baseURL.appendingPathComponent("api/v1/users/me/player-state")
-        var request = URLRequest(url: url)
-        request.httpMethod = "PUT"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode(UserPlayerStateDTO.self, from: data)
-    }
-
-    // MARK: - Favorites & Follows
+    // MARK: - Favorites
 
     public func fetchFavorites(token: String, entityType: String? = nil) async throws -> [BackendFavoriteDTO] {
-        var components = URLComponents(url: baseURL.appendingPathComponent("api/v1/users/me/favorites"), resolvingAgainstBaseURL: false)
-        if let entityType {
-            components?.queryItems = [URLQueryItem(name: "entity_type", value: entityType)]
-        }
-        guard let url = components?.url else { throw URLError(.badURL) }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode([BackendFavoriteDTO].self, from: data)
-    }
-
-    public func addFavorite(token: String, entityType: String, entityID: Int) async throws -> BackendFavoriteDTO {
-        let url = baseURL.appendingPathComponent("api/v1/users/me/favorites")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let payload = AddFavoritePayload(entityType: entityType, entityId: entityID)
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode(BackendFavoriteDTO.self, from: data)
+        try await send(
+            "GET",
+            "api/v1/users/me/favorites",
+            token: token,
+            query: entityType.map { [URLQueryItem(name: "entity_type", value: $0)] }
+        )
     }
 
     public func addFavorite(
@@ -332,64 +85,26 @@ public final class BackendAPIClient: BackendAPIClientProtocol, @unchecked Sendab
         thumbnailUrl: String? = nil,
         durationSeconds: Int? = nil
     ) async throws -> BackendFavoriteDTO {
-        let url = baseURL.appendingPathComponent("api/v1/users/me/favorites")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let payload = AddFavoritePayload(
-            entityType: entityType,
-            youtubeVideoId: youtubeVideoId,
-            title: title,
-            channelTitle: channelTitle,
-            thumbnailUrl: thumbnailUrl,
-            durationSeconds: durationSeconds
+        try await send(
+            "POST",
+            "api/v1/users/me/favorites",
+            token: token,
+            body: AddFavoritePayload(
+                entityType: entityType,
+                youtubeVideoId: youtubeVideoId,
+                title: title,
+                channelTitle: channelTitle,
+                thumbnailUrl: thumbnailUrl,
+                durationSeconds: durationSeconds
+            )
         )
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode(BackendFavoriteDTO.self, from: data)
-    }
-
-    public func removeFavorite(token: String, entityType: String, entityID: Int) async throws {
-        try await removeFavorite(token: token, entityType: entityType, entityIdentifier: "\(entityID)")
     }
 
     public func removeFavorite(token: String, entityType: String, entityIdentifier: String) async throws {
-        let url = baseURL.appendingPathComponent("api/v1/users/me/favorites/\(entityType)/\(entityIdentifier)")
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (_, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) || response.statusCode == 204 else {
-            throw URLError(.badServerResponse)
-        }
+        try await sendDiscardingResponse("DELETE", "api/v1/users/me/favorites/\(entityType)/\(entityIdentifier)", token: token)
     }
 
     // MARK: - History
-
-    public func recordPlayHistory(token: String, trackID: Int, playedSeconds: Int = 0) async throws {
-        let url = baseURL.appendingPathComponent("api/v1/users/me/history")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let payload = RecordPlayHistoryPayload(
-            trackId: trackID,
-            playedSeconds: Double(playedSeconds),
-            completed: true
-        )
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (_, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) || response.statusCode == 201 else {
-            throw URLError(.badServerResponse)
-        }
-    }
 
     public func recordPlayHistory(
         token: String,
@@ -400,43 +115,87 @@ public final class BackendAPIClient: BackendAPIClientProtocol, @unchecked Sendab
         durationSeconds: Int? = nil,
         playedSeconds: Int = 0
     ) async throws {
-        let url = baseURL.appendingPathComponent("api/v1/users/me/history")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let payload = RecordPlayHistoryPayload(
-            youtubeVideoId: youtubeVideoId,
-            title: title,
-            channelTitle: channelTitle,
-            thumbnailUrl: thumbnailUrl,
-            durationSeconds: durationSeconds,
-            playedSeconds: Double(playedSeconds),
-            completed: true
+        try await sendDiscardingResponse(
+            "POST",
+            "api/v1/users/me/history",
+            token: token,
+            body: RecordPlayHistoryPayload(
+                youtubeVideoId: youtubeVideoId,
+                title: title,
+                channelTitle: channelTitle,
+                thumbnailUrl: thumbnailUrl,
+                durationSeconds: durationSeconds,
+                playedSeconds: Double(playedSeconds),
+                completed: true
+            )
         )
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (_, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) || response.statusCode == 201 else {
-            throw URLError(.badServerResponse)
-        }
     }
 
     public func fetchPlayHistory(token: String, limit: Int = 20, offset: Int = 0) async throws -> [BackendPlayHistoryDTO] {
-        var components = URLComponents(url: baseURL.appendingPathComponent("api/v1/users/me/history"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "limit", value: "\(limit)"),
-            URLQueryItem(name: "offset", value: "\(offset)")
-        ]
-        guard let url = components?.url else { throw URLError(.badURL) }
+        try await send(
+            "GET",
+            "api/v1/users/me/history",
+            token: token,
+            query: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
+    // MARK: - Transporte
+
+    /// Envía la petición y decodifica el cuerpo de la respuesta como `Response`.
+    private func send<Response: Decodable>(
+        _ method: String,
+        _ path: String,
+        token: String,
+        query: [URLQueryItem]? = nil,
+        body: (any Encodable)? = nil
+    ) async throws -> Response {
+        let data = try await perform(method, path, token: token, query: query, body: body)
+        return try JSONDecoder().decode(Response.self, from: data)
+    }
+
+    /// Envía la petición y descarta el cuerpo de la respuesta (`DELETE`, historial).
+    private func sendDiscardingResponse(
+        _ method: String,
+        _ path: String,
+        token: String,
+        query: [URLQueryItem]? = nil,
+        body: (any Encodable)? = nil
+    ) async throws {
+        _ = try await perform(method, path, token: token, query: query, body: body)
+    }
+
+    /// Construye la petición, la entrega al transporte y exige un estado `2xx`.
+    private func perform(
+        _ method: String,
+        _ path: String,
+        token: String,
+        query: [URLQueryItem]?,
+        body: (any Encodable)?
+    ) async throws -> Data {
+        var url = baseURL.appendingPathComponent(path)
+        if let query, !query.isEmpty {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.queryItems = query
+            guard let queryURL = components?.url else { throw URLError(.badURL) }
+            url = queryURL
+        }
 
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(body)
+        }
 
         let (data, response) = try await transport.data(for: request)
-        guard (200...299).contains(response.statusCode) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode([BackendPlayHistoryDTO].self, from: data)
+        guard (200...299).contains(response.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return data
     }
 }

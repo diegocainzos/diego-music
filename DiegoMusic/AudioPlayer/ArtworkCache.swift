@@ -11,24 +11,20 @@ import ImageIO
 actor ArtworkCache {
     static let shared = ArtworkCache()
 
-    private let capacity: Int
-    private var images: [URL: CGImage] = [:]
-    private var order: [URL] = []
-
-    init(capacity: Int = 32) {
-        self.capacity = capacity
-    }
+    private let images: NSCache<NSURL, CGImage> = {
+        let cache = NSCache<NSURL, CGImage>()
+        cache.countLimit = 32
+        return cache
+    }()
 
     /// Devuelve la carátula para una URL, descargándola si no está en caché.
     /// Si la descarga falla o la URL no produce imagen, devuelve `nil`.
     @discardableResult
     func image(for url: URL) async -> CGImage? {
-        if let existing = images[url] {
-            touch(url)
-            return existing
-        }
+        let key = url as NSURL
+        if let existing = images.object(forKey: key) { return existing }
         guard let image = await download(url) else { return nil }
-        insert(url, image)
+        images.setObject(image, forKey: key)
         return image
     }
 
@@ -39,22 +35,6 @@ actor ArtworkCache {
             return CGImageSourceCreateImageAtIndex(source, 0, nil)
         } catch {
             return nil
-        }
-    }
-
-    private func touch(_ url: URL) {
-        if let index = order.firstIndex(of: url) {
-            order.remove(at: index)
-        }
-        order.append(url)
-    }
-
-    private func insert(_ url: URL, _ image: CGImage) {
-        images[url] = image
-        touch(url)
-        while order.count > capacity {
-            let evicted = order.removeFirst()
-            images.removeValue(forKey: evicted)
         }
     }
 }

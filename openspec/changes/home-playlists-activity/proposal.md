@@ -1,5 +1,7 @@
 # Proposal: Home Screen Apple Music Overhaul, Multi-Device Auth Sync, Playlist Management & Activity Logging
 
+> **Sustituido en parte por [`ponytail-audit-simplification`](../ponytail-audit-simplification/proposal.md) (2026-10-03):** se eliminaron la telemetría (`TelemetryLogger`, `POST /api/v1/telemetry/events`), la reordenación en backend (`PUT /api/v1/playlists/{id}/tracks/reorder`) y la sincronización del estado del reproductor. Este cambio se conserva como registro histórico.
+
 ## Motivation
 To provide a complete Apple Music "Listen Now / Escuchar" experience in **diego-music**, the application needs an upgraded Home screen featuring dynamic personalized greetings, hero carousel banners with glassmorphism dark aesthetic, horizontal recent history, and "Hecho para ti" recommendation mixes. Furthermore, all user data (playlists, history, favorites, player queue state) must be stored in the central FastAPI database and synced across multiple devices. Complete non-blocking user activity logging (login, playback, skips, searches, playlist edits) is required for analytics and recommendations.
 

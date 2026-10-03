@@ -222,7 +222,6 @@ struct PlaylistsView: View {
         do {
             _ = try library.createPlaylist(named: name)
             environment.createPlaylistInBackend(name: name)
-            TelemetryLogger.shared.recordEvent(type: "playlist_create", data: ["name": name])
             newName = ""
             errorMessage = nil
         } catch {
@@ -233,7 +232,6 @@ struct PlaylistsView: View {
     private func remove(_ entry: PlaylistEntry, from playlist: LocalPlaylist) {
         do {
             try library.remove(entry, from: playlist)
-            TelemetryLogger.shared.recordEvent(type: "playlist_remove_track", data: ["playlist_name": playlist.name, "track_title": entry.title])
             errorMessage = nil
         }
         catch { errorMessage = "No se pudo eliminar el elemento." }
@@ -242,7 +240,6 @@ struct PlaylistsView: View {
     private func move(_ entry: PlaylistEntry, in playlist: LocalPlaylist, by offset: Int) {
         do {
             try library.move(entry, in: playlist, by: offset)
-            TelemetryLogger.shared.recordEvent(type: "playlist_reorder", data: ["playlist_name": playlist.name])
             errorMessage = nil
         }
         catch { errorMessage = "No se pudo reordenar la playlist." }
@@ -251,16 +248,14 @@ struct PlaylistsView: View {
     private func delete(_ playlist: LocalPlaylist) {
         do {
             try library.delete(playlist)
-            TelemetryLogger.shared.recordEvent(type: "playlist_delete", data: ["playlist_name": playlist.name])
             errorMessage = nil
         }
         catch { errorMessage = "No se pudo eliminar la playlist." }
     }
 
     private func downloadPlaylist(_ playlist: LocalPlaylist) {
-        guard let resolver = environment.player.resolverClient else { return }
         let items = playlist.entries.sorted(by: { $0.position < $1.position }).map(\.mediaItem)
         guard !items.isEmpty else { return }
-        environment.downloadManager.enqueueBatch(items, resolver: resolver)
+        environment.downloadManager.enqueueBatch(items, resolver: environment.player.resolver)
     }
 }

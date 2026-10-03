@@ -11,6 +11,7 @@ from app.config import Settings
 from app.main import create_app
 from app.resolver import AudioResolutionError, ResolvedAudio
 from app.sessions import SessionStore
+from fake_binaries import fake_ytdlp
 
 
 API_TOKEN = "test-token-with-at-least-thirty-two-characters"
@@ -197,25 +198,19 @@ def test_head_returns_metadata_without_body() -> None:
 
 def test_existing_session_switches_to_disk_when_background_cache_finishes(tmp_path: Path) -> None:
     resolver = FakeResolver(audio())
-    cache = PersistentAudioCache(tmp_path, max_bytes=100, max_file_bytes=50)
-    upstream_client = httpx.AsyncClient(
-        transport=httpx.MockTransport(lambda request: httpx.Response(403))
+    failing_ytdlp = fake_ytdlp(tmp_path / "bin", payload=None, exit_code=1)
+    cache_directory = tmp_path / "cache"
+    cache = PersistentAudioCache(
+        cache_directory, max_bytes=100, max_file_bytes=50, ytdlp_binary=str(failing_ytdlp.path)
     )
 
-    with TestClient(
-        create_app(
-            settings(),
-            resolver=resolver,
-            audio_cache=cache,
-            upstream_client=upstream_client,
-        )
-    ) as client:
+    with TestClient(create_app(settings(), resolver=resolver, audio_cache=cache)) as client:
         resolved = client.post(
             "/v1/audio/resolve",
             json={"videoId": "M7lc1UVf-VE"},
             headers=authorization(),
         ).json()
-        (tmp_path / "M7lc1UVf-VE.m4a").write_bytes(b"0123456789")
+        (cache_directory / "M7lc1UVf-VE.m4a").write_bytes(b"0123456789")
         path = resolved["streamURL"].removeprefix("https://audio.example.test")
         ranged = client.get(path, headers={"Range": "bytes=4-7"})
 
@@ -223,6 +218,34 @@ def test_existing_session_switches_to_disk_when_background_cache_finishes(tmp_pa
     assert ranged.status_code == 206
     assert ranged.content == b"4567"
     assert resolver.calls == ["M7lc1UVf-VE"]
+
+
+def test_resolve_schedules_background_download_that_later_streams_from_disk(tmp_path: Path) -> None:
+    resolver = FakeResolver(audio())
+    ytdlp = fake_ytdlp(tmp_path / "bin", payload=b"0123456789")
+    cache_directory = tmp_path / "cache"
+    cache = PersistentAudioCache(
+        cache_directory,
+        max_bytes=100,
+        max_file_bytes=50,
+        ffmpeg_binary="/nonexistent-ffmpeg",
+        ytdlp_binary=str(ytdlp.path),
+    )
+
+    with TestClient(create_app(settings(), resolver=resolver, audio_cache=cache)) as client:
+        resolved = client.post(
+            "/v1/audio/resolve",
+            json={"videoId": "M7lc1UVf-VE"},
+            headers=authorization(),
+        ).json()
+        path = resolved["streamURL"].removeprefix("https://audio.example.test")
+        ranged = client.get(path, headers={"Range": "bytes=4-7"})
+
+    assert resolved["cacheStatus"] == "miss"
+    assert ranged.status_code == 206
+    assert ranged.content == b"4567"
+    assert len(ytdlp.calls) == 1
+    assert (cache_directory / "M7lc1UVf-VE.m4a").read_bytes() == b"0123456789"
 
 
 def test_cached_file_bypasses_resolver_and_supports_range(tmp_path: Path) -> None:
@@ -270,3 +293,76 @@ def test_expired_session_returns_gone() -> None:
 
     assert response.status_code == 410
     assert "expiró" in response.json()["detail"]
+
+
+class SearchingResolver(FakeResolver):
+    def __init__(self) -> None:
+        super().__init__(audio())
+        self.artist_calls: list[str] = []
+
+    async def search(self, query: str) -> list[dict[str, str]]:
+        if "boom" in query:
+            raise RuntimeError("detalle interno de yt-dlp que no debe llegar al cliente")
+        return [
+            {
+                "id": "M7lc1UVf-VE",
+                "kind": "video",
+                "title": "Canción",
+                "channelTitle": "Canal",
+                "thumbnailURL": "https://i.ytimg.com/vi/M7lc1UVf-VE/hqdefault.jpg",
+            }
+        ]
+
+    async def get_artist_detail(self, artist_id: str) -> dict[str, object]:
+        self.artist_calls.append(artist_id)
+        tracks = await self.search(artist_id)
+        return {
+            "artist": {"id": artist_id, "title": artist_id, "thumbnailURL": None},
+            "topTracks": tracks,
+            "related": tracks,
+        }
+
+
+def test_search_requires_authentication_and_returns_items() -> None:
+    with TestClient(create_app(settings(), resolver=SearchingResolver())) as client:
+        anonymous = client.get("/v1/search", params={"q": "canción"})
+        response = client.get("/v1/search", params={"q": "canción"}, headers=authorization())
+        empty = client.get("/v1/search", params={"q": "   "}, headers=authorization())
+
+    assert anonymous.status_code == 401
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "id": "M7lc1UVf-VE",
+                "kind": "video",
+                "title": "Canción",
+                "channelTitle": "Canal",
+                "thumbnailURL": "https://i.ytimg.com/vi/M7lc1UVf-VE/hqdefault.jpg",
+            }
+        ]
+    }
+    assert empty.json() == {"items": []}
+
+
+def test_search_failure_is_sanitized() -> None:
+    with TestClient(create_app(settings(), resolver=SearchingResolver())) as client:
+        response = client.get("/v1/search", params={"q": "boom"}, headers=authorization())
+
+    assert response.status_code == 502
+    assert "yt-dlp" not in response.text
+
+
+def test_artist_detail_is_cached_and_uses_the_shared_item_shape() -> None:
+    resolver = SearchingResolver()
+    with TestClient(create_app(settings(), resolver=resolver)) as client:
+        first = client.get("/v1/artist/Coldplay", headers=authorization())
+        second = client.get("/v1/artist/coldplay", headers=authorization())
+
+    assert first.status_code == 200
+    assert first.json() == second.json()
+    body = first.json()
+    assert body["artist"]["id"] == "Coldplay"
+    assert body["topTracks"][0]["channelTitle"] == "Canal"
+    assert body["related"][0]["id"] == "M7lc1UVf-VE"
+    assert resolver.artist_calls == ["Coldplay"]

@@ -24,16 +24,8 @@ public enum AuthError: LocalizedError, Equatable {
     }
 }
 
-/// Protocolo para cliente de autenticación backend.
-public protocol AuthClientProtocol: Sendable {
-    func login(email: String, password: String) async throws -> AuthTokenResponse
-    func register(email: String, password: String, fullName: String?) async throws -> AuthTokenResponse
-    func fetchMe(token: String) async throws -> UserDTO
-    func updateMe(token: String, fullName: String?, avatarURL: String?) async throws -> UserDTO
-}
-
 /// Cliente de red para autenticación contra el backend FastAPI (`/api/v1/auth/*`).
-public final class AuthClient: AuthClientProtocol, @unchecked Sendable {
+public final class AuthClient: @unchecked Sendable {
     private let baseURL: URL
     private let transport: any HTTPTransport
 

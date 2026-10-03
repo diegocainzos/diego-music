@@ -1,5 +1,7 @@
 # Estado del Arte: Backend FastAPI, SQLAlchemy 2.0, SQLite WAL & Autenticación de Plataforma Musical
 
+> **Nota (2026-10-03):** los modelos `UserSettings`, `UserPlayerState`, `UserFollow`, `UserDownload` y `UserActivityLog` descritos aquí ya no existen: se eliminaron en el cambio OpenSpec `ponytail-audit-simplification` por falta de uso. El backend actual cubre autenticación, playlists, favoritos e historial.
+
 ## 1. Resumen Ejecutivo
 Este documento sintetiza la arquitectura del backend para una plataforma de streaming de música (estilo Apple Music). El objetivo es ofrecer un servicio pragmático, de altísimo rendimiento local y sin sobre-ingeniería, utilizando **FastAPI**, **SQLAlchemy 2.0** (estilo Mapped/mapped_column), **SQLite en modo WAL** (Write-Ahead Logging) y autenticación JWT segura mediante `pwdlib` (Argon2id/Bcrypt).
 

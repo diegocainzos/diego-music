@@ -1,5 +1,7 @@
 # Cambio: Rediseño integral Apple Music Web Overhaul
 
+> **Nota ([`ponytail-audit-simplification`](../ponytail-audit-simplification/proposal.md), 2026-10-03):** los documentos `specs/01..05_*.md` que cita `tasks.md` se eliminaron del repositorio; siguen disponibles en el historial de git.
+
 ## Why
 
 Para clonar al 100% la experiencia oficial de Apple Music Web, es necesario renovar la identidad visual y logo, proporcionar variedad multicultural en la pantalla inicial "Escuchar", implementar la vista de perfil de artista completa, arreglar el flujo interactivo de creación de playlists, garantizar cero solapamiento entre el reproductor y la barra de pestañas, y verificar exhaustivamente en Modo Claro y Oscuro.

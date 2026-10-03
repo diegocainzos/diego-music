@@ -10,9 +10,4 @@ public enum AuthState: Equatable {
         if case .authenticated = self { return true }
         return false
     }
-
-    public var currentUser: UserDTO? {
-        if case let .authenticated(user) = self { return user }
-        return nil
-    }
 }

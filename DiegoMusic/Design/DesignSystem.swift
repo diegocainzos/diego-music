@@ -28,8 +28,6 @@ enum DiegoTheme {
         dark: Color.white.opacity(0.06)
     )
 
-    static let glassMaterial: Material = .ultraThinMaterial
-
     static let textPrimary = Color(
         light: Color.black,
         dark: Color.white
@@ -38,11 +36,6 @@ enum DiegoTheme {
     static let textSecondary = Color(
         light: Color.black.opacity(0.60),
         dark: Color.white.opacity(0.60)
-    )
-
-    static let textTertiary = Color(
-        light: Color.black.opacity(0.35),
-        dark: Color.white.opacity(0.35)
     )
 
     static let green = Color(red: 0.12, green: 0.84, blue: 0.38)
@@ -93,12 +86,6 @@ enum DiegoTheme {
 
     static func textSecondary(for scheme: ColorScheme) -> Color {
         textSecondaryColor(for: scheme)
-    }
-
-    static func cardStrokeColor(for scheme: ColorScheme) -> Color {
-        scheme == .light
-            ? Color.black.opacity(0.06)
-            : Color.white.opacity(0.08)
     }
 }
 
@@ -161,29 +148,6 @@ struct AppleMusicLogoView: View {
     }
 }
 
-// MARK: - Tarjeta estilo Apple Music Glassmorphic
-
-struct AppleMusicCardModifier: ViewModifier {
-    @Environment(\.colorScheme) private var colorScheme
-    var cornerRadius: CGFloat = DiegoTheme.cornerRadius
-
-    func body(content: Content) -> some View {
-        content
-            .padding(16)
-            .background(
-                ZStack {
-                    DiegoTheme.surfaceColor(for: colorScheme).opacity(colorScheme == .light ? 0.88 : 0.85)
-                    Rectangle().fill(colorScheme == .light ? Material.regularMaterial : Material.ultraThinMaterial)
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(DiegoTheme.cardStrokeColor(for: colorScheme), lineWidth: 1)
-            )
-    }
-}
-
 // MARK: - Tarjeta mínima adaptativa
 
 struct MinimalCardModifier: ViewModifier {
@@ -198,14 +162,6 @@ struct MinimalCardModifier: ViewModifier {
 }
 
 extension View {
-    func appleMusicCard(cornerRadius: CGFloat = DiegoTheme.cornerRadius) -> some View {
-        modifier(AppleMusicCardModifier(cornerRadius: cornerRadius))
-    }
-
-    func glassCard(cornerRadius: CGFloat = DiegoTheme.cornerRadius) -> some View {
-        modifier(AppleMusicCardModifier(cornerRadius: cornerRadius))
-    }
-
     func minimalCard() -> some View {
         modifier(MinimalCardModifier())
     }

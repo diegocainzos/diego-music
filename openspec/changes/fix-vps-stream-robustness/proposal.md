@@ -1,3 +1,5 @@
+> **Sustituido en parte por [`ponytail-audit-simplification`](../ponytail-audit-simplification/proposal.md) (2026-10-03):** la caché persistente descarga solo con `yt-dlp` (sin bloques httpx de 1MB), `is_downloading` desapareció y el Compose desplegado es el `compose.yml` raíz (`ResolverService/compose.yml` se eliminó).
+
 ## Why
 
 Actualmente, las solicitudes de audio de AVPlayer en iOS fallan intermitentemente con el error `"AVPlayer no pudo abrir la pista entregada por el VPS"` (HTTP 502 Bad Gateway) debido a que los servidores de streaming de YouTube/Googlevideo rechazan peticiones directas de rangos grandes (>1MB), peticiones HTTP `HEAD` y peticiones sin el extractor adecuado en IPs de centro de datos. Además, la caché persistente intentaba descargar bloques de 4MB (rechazados con 403) y el contenedor de FastAPI no permitía a `yt-dlp` persistir las firmas resueltas por Deno en `/home/resolver/.cache` debido a `read_only: true`.

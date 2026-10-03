@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .database import get_db
 from .models import User
-from .schemas import TokenData
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
@@ -52,15 +51,11 @@ def get_current_user(
     )
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id_str: str = payload.get("sub")
-        email: str = payload.get("email")
-        if user_id_str is None:
-            raise credentials_exception
-        token_data = TokenData(user_id=int(user_id_str), email=email)
-    except (jwt.PyJWTError, ValueError):
+        user_id = int(payload["sub"])
+    except (jwt.PyJWTError, KeyError, TypeError, ValueError):
         raise credentials_exception
-    
-    user = db.query(User).filter(User.id == token_data.user_id).first()
+
+    user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise credentials_exception
     if not user.is_active:

@@ -171,7 +171,7 @@ enum TrackMetadataExtractor {
 
 // MARK: - LRCLIB Lyrics Provider
 
-actor LRCLibLyricsProvider: LyricsProviding {
+actor LRCLibLyricsProvider {
     private struct CacheEntry: Sendable {
         let result: LyricsResult
         let timestamp: Date
@@ -183,16 +183,6 @@ actor LRCLibLyricsProvider: LyricsProviding {
 
     private static let userAgent = "AppleMusicClone/1.0 (https://github.com/app)"
     private static let baseURL = "https://lrclib.net/api"
-
-    nonisolated func lyrics(for item: MediaItem, at currentTime: Double) async -> [LyricSegment]? {
-        let result = await fetchLyrics(for: item)
-        switch result {
-        case .synced(let lines):
-            return [LyricSegment(lines: lines)]
-        case .plain, .instrumental, .notFound:
-            return nil
-        }
-    }
 
     /// Fetches lyrics with cache, returning the full `LyricsResult`.
     func fetchLyrics(for item: MediaItem) async -> LyricsResult {

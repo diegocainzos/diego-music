@@ -95,21 +95,6 @@ struct YouTubePlaylistItemDTO: Decodable {
     let snippet: Snippet
 }
 
-struct YouTubeAPIErrorEnvelopeDTO: Decodable {
-    struct Detail: Decodable {
-        struct Reason: Decodable {
-            let reason: String?
-            let message: String?
-        }
-
-        let code: Int?
-        let message: String?
-        let errors: [Reason]?
-    }
-
-    let error: Detail
-}
-
 extension JSONDecoder {
     static var youtube: JSONDecoder {
         let decoder = JSONDecoder()

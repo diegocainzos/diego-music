@@ -66,14 +66,6 @@ protocol YouTubeDataServicing: Sendable {
     func fetchRelatedRadio(for item: MediaItem) async throws -> [MediaItem]
 }
 
-/// Implementaciones por defecto para no forzar cambios en conformantes actuales.
-extension YouTubeDataServicing {
-    func discover() async throws -> DiscoveryFeed { throw YouTubeServiceError.unavailable }
-    func artist(byChannelID: String) async throws -> ArtistDetail { throw YouTubeServiceError.unavailable }
-    func album(byPlaylistID: String) async throws -> Album { throw YouTubeServiceError.unavailable }
-    func fetchRelatedRadio(for item: MediaItem) async throws -> [MediaItem] { return [] }
-}
-
 struct YouTubeDataService: YouTubeDataServicing {
     private let configuration: APIConfiguration?
     private let resolverConfiguration: AudioResolverConfiguration?
@@ -320,100 +312,52 @@ struct YouTubeDataService: YouTubeDataServicing {
 
         let (artistData, relatedData) = await (artistTask, relatedTask)
 
-        var resultItems: [MediaItem] = []
-        var seenIDs: Set<String> = [item.id]
+        let artistItems: [MediaItem] = artistData?.items.compactMap(mapper.map) ?? []
+        let relatedItems: [MediaItem] = relatedData?.items.compactMap(mapper.map) ?? []
 
-        if let artistItems = artistData?.items.compactMap(mapper.map) {
-            for track in artistItems {
-                let trackID = track.id
-                if !seenIDs.contains(trackID) {
-                    seenIDs.insert(trackID)
-                    resultItems.append(track)
-                }
-            }
-        }
-
-        if let relatedItems = relatedData?.items.compactMap(mapper.map) {
-            for track in relatedItems {
-                let trackID = track.id
-                if !seenIDs.contains(trackID) {
-                    seenIDs.insert(trackID)
-                    resultItems.append(track)
-                }
-            }
-        }
-
-        return resultItems
+        var seen: Set<String> = [item.id]
+        return (artistItems + relatedItems).filter { seen.insert($0.id).inserted }
     }
 
     // MARK: - Helpers
 
     private func fetchArtistVPSService(artistID: String) async throws -> ArtistDetail {
-        guard let resolverConfiguration else { throw YouTubeServiceError.quotaExceeded }
-
         let encodedID = artistID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? artistID
-        var components = URLComponents(url: resolverConfiguration.baseURL, resolvingAgainstBaseURL: true)
-        components?.path = "/v1/artist/\(encodedID)"
-
-        guard let url = components?.url else { throw YouTubeServiceError.quotaExceeded }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(resolverConfiguration.apiToken)", forHTTPHeaderField: "Authorization")
-
-        let data: Data
-        let response: HTTPURLResponse
-        do {
-            (data, response) = try await transport.data(for: request)
-        } catch {
-            throw YouTubeServiceError.quotaExceeded
-        }
-
-        guard response.statusCode == 200 else {
-            throw YouTubeServiceError.quotaExceeded
-        }
-
-        let dto = try JSONDecoder().decode(VPSArtistDetailResponseDTO.self, from: data)
-        let artistObj = Artist(
-            id: dto.artist.id,
-            title: dto.artist.title,
-            bio: dto.artist.bio,
-            thumbnailURL: dto.artist.thumbnailURL
-        )
-
-        let topTracks = dto.topTracks.map { item in
-            MediaItem(
-                id: item.id,
-                kind: .video,
-                title: item.title,
-                channelTitle: item.channelTitle,
-                thumbnailURL: item.thumbnailURL
-            )
-        }
-
-        let related = dto.related.map { item in
-            MediaItem(
-                id: item.id,
-                kind: .video,
-                title: item.title,
-                channelTitle: item.channelTitle,
-                thumbnailURL: item.thumbnailURL
-            )
-        }
-
+        let dto = try await vpsGET(path: "/v1/artist/\(encodedID)", decoding: VPSArtistDetailResponseDTO.self)
         return ArtistDetail(
-            artist: artistObj,
-            topTracks: topTracks,
-            related: related
+            artist: Artist(
+                id: dto.artist.id,
+                title: dto.artist.title,
+                bio: dto.artist.bio,
+                thumbnailURL: dto.artist.thumbnailURL
+            ),
+            topTracks: dto.topTracks.map(\.mediaItem),
+            related: dto.related.map(\.mediaItem)
         )
     }
 
     private func searchVPSService(query: String) async throws -> SearchPage {
+        let dto = try await vpsGET(
+            path: "/v1/search",
+            queryItems: [URLQueryItem(name: "q", value: query)],
+            decoding: VPSSearchResponseDTO.self
+        )
+        return SearchPage(items: dto.items.map(\.mediaItem), nextPageToken: nil)
+    }
+
+    /// GET autenticado contra el resolutor VPS. Cualquier fallo de configuración,
+    /// red o estado se reporta como `quotaExceeded`, que es lo que espera el
+    /// fallback de los llamadores.
+    private func vpsGET<Response: Decodable>(
+        path: String,
+        queryItems: [URLQueryItem]? = nil,
+        decoding responseType: Response.Type
+    ) async throws -> Response {
         guard let resolverConfiguration else { throw YouTubeServiceError.quotaExceeded }
 
         var components = URLComponents(url: resolverConfiguration.baseURL, resolvingAgainstBaseURL: true)
-        components?.path = "/v1/search"
-        components?.queryItems = [URLQueryItem(name: "q", value: query)]
+        components?.path = path
+        components?.queryItems = queryItems
 
         guard let url = components?.url else { throw YouTubeServiceError.quotaExceeded }
 
@@ -433,18 +377,7 @@ struct YouTubeDataService: YouTubeDataServicing {
             throw YouTubeServiceError.quotaExceeded
         }
 
-        let dto = try JSONDecoder().decode(VPSSearchResponseDTO.self, from: data)
-        let items = dto.items.map { item in
-            MediaItem(
-                id: item.id,
-                kind: .video,
-                title: item.title,
-                channelTitle: item.channelTitle,
-                thumbnailURL: item.thumbnailURL
-            )
-        }
-
-        return SearchPage(items: items, nextPageToken: nil)
+        return try JSONDecoder().decode(responseType, from: data)
     }
 
     private func executeWithRotation<Response: Decodable>(
@@ -466,12 +399,8 @@ struct YouTubeDataService: YouTubeDataServicing {
             do {
                 return try await run(request, response: responseType)
             } catch YouTubeServiceError.quotaExceeded {
-                if totalKeys > 1 {
-                    _ = await keyPool.rotateToNextKey()
-                    continue
-                } else {
-                    throw YouTubeServiceError.quotaExceeded
-                }
+                // Con una sola clave `rotateToNextKey()` devuelve nil y el bucle termina.
+                _ = await keyPool.rotateToNextKey()
             }
         }
         throw YouTubeServiceError.quotaExceeded
@@ -509,8 +438,6 @@ struct YouTubeDataService: YouTubeDataServicing {
             throw YouTubeServiceError.unauthorized
         case 429:
             throw YouTubeServiceError.quotaExceeded
-        case 500...599:
-            throw YouTubeServiceError.server(status: response.statusCode)
         default:
             throw YouTubeServiceError.server(status: response.statusCode)
         }
@@ -530,6 +457,23 @@ struct YouTubeDataService: YouTubeDataServicing {
     }
 }
 
+private struct VPSTrackDTO: Decodable {
+    let id: String
+    let title: String
+    let channelTitle: String
+    let thumbnailURL: URL?
+
+    var mediaItem: MediaItem {
+        MediaItem(
+            id: id,
+            kind: .video,
+            title: title,
+            channelTitle: channelTitle,
+            thumbnailURL: thumbnailURL
+        )
+    }
+}
+
 private struct VPSArtistDetailResponseDTO: Decodable {
     struct ArtistDTO: Decodable {
         let id: String
@@ -537,25 +481,11 @@ private struct VPSArtistDetailResponseDTO: Decodable {
         let bio: String?
         let thumbnailURL: URL?
     }
-    struct TrackDTO: Decodable {
-        let id: String
-        let kind: String?
-        let title: String
-        let channelTitle: String
-        let thumbnailURL: URL?
-    }
     let artist: ArtistDTO
-    let topTracks: [TrackDTO]
-    let related: [TrackDTO]
+    let topTracks: [VPSTrackDTO]
+    let related: [VPSTrackDTO]
 }
 
 private struct VPSSearchResponseDTO: Decodable {
-    struct Item: Decodable {
-        let id: String
-        let kind: String?
-        let title: String
-        let channelTitle: String
-        let thumbnailURL: URL?
-    }
-    let items: [Item]
+    let items: [VPSTrackDTO]
 }

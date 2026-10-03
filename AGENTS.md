@@ -14,7 +14,7 @@ La arquitectura nativa VPS + AVPlayer vive actualmente en `main`. No reintroduci
    - `/.env`;
    - `/ResolverService/.env`;
    - `/Config/Secrets.xcconfig`;
-   - cookies, PO tokens, Bearer tokens o credenciales equivalentes.
+   - cookies, PO tokens, Bearer tokens, `SECRET_KEY` (firma de los JWT de usuario) o credenciales equivalentes.
 2. Los archivos `.env.example` y `Secrets.xcconfig.example` sí pueden leerse porque solo contienen placeholders.
 3. Al hacer búsquedas globales, excluir siempre:
    - `.env` y cualquier variante local no terminada en `.example`;
@@ -22,7 +22,7 @@ La arquitectura nativa VPS + AVPlayer vive actualmente en `main`. No reintroduci
    - `.pi-subagents/`, `.pi/npm/`, `.pi/tools/`;
    - `.venv/`, `node_modules/`, datos Docker y artefactos de build.
 4. La única comprobación permitida sobre valores reales es `./scripts/verify-no-secrets.py`; informa rutas sin imprimir secretos.
-5. No ejecutar `docker compose config` mostrando stdout: puede expandir el token. Usar `docker compose config --quiet`.
+5. No ejecutar `docker compose config` mostrando stdout: puede expandir el token y `SECRET_KEY`. Usar `docker compose --file compose.yml config --quiet` desde la raíz del repositorio.
 6. No registrar ni devolver:
    - URLs completas de YouTube Data API, porque incluyen `key`;
    - URLs upstream de Googlevideo;
@@ -55,6 +55,9 @@ Si un secreto aparece accidentalmente en una salida o artefacto, detener el trab
 - Conservar semántica correcta para `GET`, `HEAD`, HTTP Range, `206` y `416`.
 - FastAPI no debe publicar directamente el puerto 8080; Traefik es la única entrada pública.
 - Mantener `read_only`, `no-new-privileges`, tmpfs limitado y HTTPS.
+- `ResolverService/app/main.py:create_app` es la única fábrica FastAPI. El backend de usuarios (`app/`, importado como `backend_app`; la imagen lo copia con ese nombre) expone bajo `/api/v1` solo autenticación, playlists, favoritos e historial.
+- `SECRET_KEY` es obligatoria (mínimo 32 caracteres), no tiene valor por defecto y su error de configuración nunca imprime valores. El usuario demo solo se crea con `SEED_DEMO_DATA` en `true`, `1` o `yes`.
+- Un único `compose.yml`, el de la raíz, define el despliegue (resolver y web detrás de Traefik).
 
 ### Cachés
 
@@ -63,7 +66,7 @@ Si un secreto aparece accidentalmente en una salida o artefacto, detener el trab
 - La caché de artistas en el servidor (`ArtistCache`) mantiene perfiles y éxitos en memoria LRU en FastAPI (`ARTIST_CACHE_MAX_ENTRIES=1000`, `ARTIST_CACHE_TTL_SECONDS=86400`).
 - Las solicitudes simultáneas para un mismo `videoId` deben usar single-flight.
 - La caché M4A persistente solo puede escribir en el volumen `audio_cache`.
-- Las descargas deben usar archivos temporales, validación de tamaño y renombrado atómico.
+- Las descargas usan únicamente `yt-dlp` y deben usar archivos temporales, validación de tamaño (descartar vacíos o mayores que `min(AUDIO_CACHE_MAX_FILE_BYTES, AUDIO_CACHE_MAX_BYTES)`) y renombrado atómico.
 - Nunca servir un archivo parcial.
 - Aplicar límite global, límite por pista y expulsión LRU.
 - Un token emitido antes de terminar el calentamiento debe poder cambiar a disco sin revelar la ruta ni exigir otro resolve.
@@ -134,7 +137,6 @@ Para cambios únicamente en el resolutor:
 ```bash
 ./scripts/verify-no-secrets.py
 ./scripts/validate-resolver.sh
-cd ResolverService
 docker compose --file compose.yml config --quiet
 ```
 
@@ -171,6 +173,7 @@ Las capacidades de pantalla bloqueada, auriculares, interrupciones y controles r
 
 ## Operación Docker
 
+- Ejecutar Compose desde la raíz del repositorio con `docker compose --file compose.yml ...`.
 - No leer `ResolverService/.env` para diagnosticar; comprobar presencia, estado y healthcheck sin imprimir contenido.
 - No usar `docker inspect` de forma que exponga variables de entorno.
 - `docker compose down` conserva volúmenes; `down --volumes` es destructivo y requiere autorización explícita.

@@ -56,3 +56,26 @@ def test_settings_normalize_trailing_slash() -> None:
     )
 
     assert value.public_base_url == "https://audio.example.test"
+
+
+@pytest.mark.parametrize(
+    ("value", "enabled"),
+    [("true", True), ("TRUE", True), ("1", True), ("yes", True), (" Yes ", True),
+     ("false", False), ("0", False), ("no", False), ("on", False), ("", False)],
+)
+def test_environment_seed_demo_data_is_strictly_opt_in(
+    monkeypatch: pytest.MonkeyPatch, value: str, enabled: bool
+) -> None:
+    monkeypatch.setenv("DIEGOMUSIC_API_TOKEN", "test-token-with-at-least-thirty-two-characters")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://audio.example.test")
+    monkeypatch.setenv("SEED_DEMO_DATA", value)
+
+    assert Settings.from_environment().seed_demo_data is enabled
+
+
+def test_seed_demo_data_defaults_to_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DIEGOMUSIC_API_TOKEN", "test-token-with-at-least-thirty-two-characters")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://audio.example.test")
+    monkeypatch.delenv("SEED_DEMO_DATA", raising=False)
+
+    assert Settings.from_environment().seed_demo_data is False

@@ -32,14 +32,12 @@ final class AudioPlayerCoordinator: ObservableObject {
 
     private let player = AVPlayer()
     private let queue: PlaybackQueue
+    /// Resolver compartido; también lo usan las vistas (p. ej. DownloadAllButton).
     let resolver: any AudioStreamResolving
     private let youtubeService: (any YouTubeDataServicing)?
-    private let relatedProvider: (any RelatedTrackProviding)?
     /// Gestor de descargas offline: si existe URL local, la usa directamente.
     var offlineManager: OfflineDownloadManager?
 
-    /// Acceso directo al resolver para uso externo (ej. DownloadAllButton en vistas).
-    var resolverClient: (any AudioStreamResolving)? { resolver }
     private var resolveTask: Task<Void, Never>?
     private var recoveryTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
@@ -64,13 +62,11 @@ final class AudioPlayerCoordinator: ObservableObject {
     init(
         queue: PlaybackQueue,
         resolver: any AudioStreamResolving,
-        youtubeService: (any YouTubeDataServicing)? = nil,
-        relatedProvider: (any RelatedTrackProviding)? = nil
+        youtubeService: (any YouTubeDataServicing)? = nil
     ) {
         self.queue = queue
         self.resolver = resolver
         self.youtubeService = youtubeService
-        self.relatedProvider = relatedProvider
         observePlayer()
         observeQueueForPrefetch()
         configurePlatformPlayback()
@@ -158,11 +154,8 @@ final class AudioPlayerCoordinator: ObservableObject {
     }
 
     func next() {
-        guard let item = queue.advance() else {
-            // Fin de cola: repeat all reinicia; si no, radio best-effort.
-            handleQueueEnded()
-            return
-        }
+        // Fin de cola con repetición desactivada: la reproducción se detiene.
+        guard let item = queue.advance() else { return }
         load(item, autoplay: true, resetRetryBudget: true)
     }
 
@@ -181,7 +174,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         }
     }
 
-    /// Al terminar la pista actual, respeta repeat one/all y radio best-effort.
+    /// Al terminar la pista actual, respeta repeat one/all.
     private func handleEndOfPlayback() {
         switch repeatMode {
         case .one:
@@ -197,32 +190,6 @@ final class AudioPlayerCoordinator: ObservableObject {
         case .off:
             next()
         }
-    }
-
-    /// Autoplay/radio best-effort al terminar la cola (repeat off).
-    private func handleQueueEnded() {
-        guard let provider = relatedProvider,
-              let current = queue.current
-        else { return }
-        radioTask?.cancel()
-        radioTask = Task { [weak self, queue, provider] in
-            do {
-                if let related = try await provider.next(after: current, playlist: queue.items) {
-                    try Task.checkCancellation()
-                    guard let self else { return }
-                    await self.enqueueAndPlayRelated(related)
-                }
-            } catch {
-                // Best-effort: ante error se mantiene detenido, sin error visible.
-            }
-        }
-    }
-
-    @MainActor
-    private func enqueueAndPlayRelated(_ related: MediaItem) {
-        // `play(_:)` encola (si no está) y sitúa la pista como actual.
-        queue.play(related)
-        load(related, autoplay: true, resetRetryBudget: true)
     }
 
     func previous() {

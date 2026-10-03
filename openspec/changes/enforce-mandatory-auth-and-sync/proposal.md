@@ -1,3 +1,5 @@
+> **Modificado por [`ponytail-audit-simplification`](../ponytail-audit-simplification/proposal.md) (2026-10-03):** el requisito `user-activity-sync` ya no sincroniza el estado del reproductor ni el orden de pistas de las playlists; favoritos, playlists e historial siguen sincronizándose.
+
 ## Why
 
 Actualmente, el soporte mixto entre uso anónimo local y cuentas privadas en DiegoMusic genera un colapso en la experiencia de usuario y en la integridad de los datos. El estado de Core Data local permanecía desvinculado de la API del servidor, provocando que las listas de reproducción, los favoritos y el historial de escuchas no se sincronizaran o se contaminaran entre sesiones. Además, los requisitos de contraseña eran inseguros (mínimo 6 caracteres sin reglas de complejidad).

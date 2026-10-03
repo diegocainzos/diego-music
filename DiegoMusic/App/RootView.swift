@@ -115,15 +115,8 @@ struct RootView: View {
         .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
-    private func themed<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        ZStack {
-            DiegoTheme.background.ignoresSafeArea()
-            content()
-        }
-    }
-
     @ViewBuilder
-    private func destinationView(_ destination: AppDestination) -> some View {
+    private func destinationView(_ destination: DiegoAppDestination) -> some View {
         switch destination {
         case .home, .browse, .radio:
             HomeView { navState.navigate(to: .search) }
@@ -141,7 +134,7 @@ struct RootView: View {
                 onPlayQueue: environment.playQueue,
                 youtubeService: environment.youtubeService,
                 downloadManager: environment.downloadManager,
-                resolver: environment.player.resolverClient,
+                resolver: environment.player.resolver,
                 isOffline: !environment.networkMonitor.isConnected
             )
         case .playlists:
@@ -158,7 +151,7 @@ struct RootView: View {
                 onPlay: environment.play,
                 onPlayQueue: environment.playQueue,
                 downloadManager: environment.downloadManager,
-                resolver: environment.player.resolverClient,
+                resolver: environment.player.resolver,
                 isOffline: !environment.networkMonitor.isConnected
             )
         case .albums:
@@ -255,7 +248,7 @@ struct SidebarView: View {
         }
     }
 
-    private func sidebarItem(_ destination: AppDestination, icon: String, title: String) -> some View {
+    private func sidebarItem(_ destination: DiegoAppDestination, icon: String, title: String) -> some View {
         let isSelected = navState.current == destination
         return Button {
             navState.navigate(to: destination)
@@ -368,7 +361,7 @@ struct HeaderView: View {
 struct PhoneTabBar: View {
     @ObservedObject var navState: NavigationState
 
-    private let mainTabs: [AppDestination] = [.home, .search, .library, .playlists, .settings]
+    private let mainTabs: [DiegoAppDestination] = [.home, .search, .library, .playlists, .settings]
 
     var body: some View {
         HStack(spacing: 0) {

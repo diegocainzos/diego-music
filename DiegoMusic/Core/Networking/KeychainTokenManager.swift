@@ -1,15 +1,8 @@
 import Foundation
 import Security
 
-/// Protocolo para inyección y pruebas de token storage.
-public protocol TokenManaging: AnyObject {
-    func saveToken(_ token: String) throws
-    func getToken() -> String?
-    func deleteToken()
-}
-
 /// Gestor seguro de tokens de autenticación mediante Keychain con fallback a almacenamiento encriptado/local para tests.
-public final class KeychainTokenManager: TokenManaging {
+public final class KeychainTokenManager {
     private let service: String
     private let account: String
     private let userDefaultsKey = "com.diegocainzos.DiegoMusic.authTokenFallback"

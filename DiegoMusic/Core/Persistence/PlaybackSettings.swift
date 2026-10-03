@@ -110,11 +110,6 @@ final class PlaybackSettings: ObservableObject {
         try? libraryStore.setPreference(raw, for: Self.restoreStatePreferenceKey)
         restoreState = (item, seconds)
     }
-
-    func clearRestoreState() {
-        try? libraryStore.setPreference("", for: Self.restoreStatePreferenceKey)
-        restoreState = nil
-    }
 }
 
 private struct RestoreState: Codable {

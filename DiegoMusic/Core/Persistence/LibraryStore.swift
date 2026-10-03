@@ -45,13 +45,6 @@ final class LibraryStore: ObservableObject {
         onFavoriteToggled?(item, isFav)
     }
 
-    func deleteFavorite(_ track: SavedTrack) throws {
-        if let record = try favoriteRecord(videoID: track.videoID) {
-            context.delete(record)
-            try saveAndReload()
-        }
-    }
-
     // MARK: - Álbumes Guardados
 
     func isAlbumSaved(id: String) -> Bool {
@@ -196,28 +189,6 @@ final class LibraryStore: ObservableObject {
     /// dado que los registros no almacenan un dato de álbum real.
     var albums: [LocalAlbum] {
         artists.map { LocalAlbum(name: $0.name, tracks: $0.tracks) }
-    }
-
-    /// Heurística local de recomendaciones: canciones favoritas de los
-    /// artistas más reproducidos en el historial, priorizadas por frecuencia.
-    /// Solo local, sin red.
-    var recommendations: [SavedTrack] {
-        var artistFreq: [String: Int] = [:]
-        for track in history { artistFreq[track.channelTitle, default: 0] += 1 }
-
-        let rankedArtists = artistFreq.sorted { $0.value > $1.value }.map(\.key)
-        var seen = Set<String>()
-        var result: [SavedTrack] = []
-
-        // Canciones marcadas como favorito de los artistas más escuchados.
-        for artist in rankedArtists {
-            for track in favorites where track.channelTitle == artist && !seen.contains(track.videoID) {
-                seen.insert(track.videoID)
-                result.append(track)
-                if result.count >= 12 { return result }
-            }
-        }
-        return result
     }
 
     func addHistory(_ item: MediaItem) throws {

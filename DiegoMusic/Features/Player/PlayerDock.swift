@@ -8,8 +8,7 @@ struct PlayerDock: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let lyricsService: LyricsService
-    @Namespace private var queueAnimationNamespace
+    private let lyricsProvider: LRCLibLyricsProvider
     @State private var expanded = false
     @State private var showLyrics = false
     @State private var showLyricsFromExpanded = false
@@ -18,11 +17,11 @@ struct PlayerDock: View {
     init(
         player: AudioPlayerCoordinator,
         queue: PlaybackQueue,
-        lyricsService: LyricsService = LyricsService()
+        lyricsProvider: LRCLibLyricsProvider = LRCLibLyricsProvider()
     ) {
         self.player = player
         self.queue = queue
-        self.lyricsService = lyricsService
+        self.lyricsProvider = lyricsProvider
     }
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
@@ -585,7 +584,7 @@ struct PlayerDock: View {
     private func lyricsSheet(_ current: MediaItem) -> some View {
         NavigationStack {
             LyricsView(
-                service: lyricsService,
+                provider: lyricsProvider,
                 item: current,
                 player: player
             )

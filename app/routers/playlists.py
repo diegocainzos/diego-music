@@ -4,11 +4,22 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
 from ..models import User, Playlist, PlaylistTrack, Track
-from ..track_utils import get_or_create_youtube_track
-from ..schemas import PlaylistCreate, PlaylistUpdate, PlaylistResponse, PlaylistTrackAdd, PlaylistTrackReorder
+from ..track_utils import resolve_track_id, track_id_candidates
+from ..schemas import PlaylistCreate, PlaylistUpdate, PlaylistResponse, PlaylistTrackAdd
 from ..auth import get_current_user
 
 router = APIRouter(prefix="/playlists", tags=["Listas de Reproducción (Playlists)"])
+
+
+def _owned_playlist(db: Session, playlist_id: int, user: User, action: str = "modificar") -> Playlist:
+    """Devuelve la playlist si pertenece al usuario; 404 si no existe y 403 si es de otro usuario."""
+    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist no encontrada")
+    if playlist.user_id != user.id:
+        raise HTTPException(status_code=403, detail=f"No tienes permisos para {action} esta playlist")
+    return playlist
+
 
 @router.post("/", response_model=PlaylistResponse, status_code=status.HTTP_201_CREATED)
 def create_playlist(playlist_in: PlaylistCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -36,10 +47,10 @@ def get_playlist_by_id(playlist_id: int, current_user: User = Depends(get_curren
     playlist = db.query(Playlist)\
         .options(joinedload(Playlist.playlist_tracks).joinedload(PlaylistTrack.track).joinedload(Track.artist))\
         .filter(Playlist.id == playlist_id).first()
-    
+
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist no encontrada")
-    
+
     if not playlist.is_public and playlist.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Acceso denegado a esta playlist privada")
 
@@ -53,11 +64,7 @@ def update_playlist(
     db: Session = Depends(get_db)
 ):
     """Actualiza metadatos (nombre, descripción, portada, visibilidad) de una playlist."""
-    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
-    if not playlist:
-        raise HTTPException(status_code=404, detail="Playlist no encontrada")
-    if playlist.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permisos para modificar esta playlist")
+    playlist = _owned_playlist(db, playlist_id, current_user)
 
     update_data = playlist_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -75,24 +82,9 @@ def add_track_to_playlist(
     db: Session = Depends(get_db)
 ):
     """Añade una canción a la playlist respetando el orden."""
-    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
-    if not playlist:
-        raise HTTPException(status_code=404, detail="Playlist no encontrada")
-    if playlist.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permisos para modificar esta playlist")
+    playlist = _owned_playlist(db, playlist_id, current_user)
 
-    target_track_id = track_in.track_id
-    if target_track_id is None and track_in.youtube_video_id:
-        track = get_or_create_youtube_track(
-            db=db,
-            youtube_video_id=track_in.youtube_video_id,
-            title=track_in.title,
-            channel_title=track_in.channel_title,
-            thumbnail_url=track_in.thumbnail_url,
-            duration_seconds=track_in.duration_seconds
-        )
-        target_track_id = track.id
-
+    target_track_id = resolve_track_id(db, track_in.track_id, track_in)
     if target_track_id is None:
         raise HTTPException(status_code=400, detail="track_id o youtube_video_id requerido")
 
@@ -115,31 +107,6 @@ def add_track_to_playlist(
     db.refresh(playlist)
     return playlist
 
-@router.put("/{playlist_id}/tracks/reorder", response_model=PlaylistResponse)
-def reorder_playlist_tracks(
-    playlist_id: int,
-    reorder_in: PlaylistTrackReorder,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Reordena la lista de canciones en la playlist según la lista de IDs proporcionada."""
-    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
-    if not playlist:
-        raise HTTPException(status_code=404, detail="Playlist no encontrada")
-    if playlist.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permisos para modificar esta playlist")
-
-    pts = db.query(PlaylistTrack).filter(PlaylistTrack.playlist_id == playlist_id).all()
-    pt_map = {pt.track_id: pt for pt in pts}
-
-    for index, track_id in enumerate(reorder_in.track_ids):
-        if track_id in pt_map:
-            pt_map[track_id].order = index
-
-    db.commit()
-    db.refresh(playlist)
-    return playlist
-
 @router.delete("/{playlist_id}/tracks/{track_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_track_from_playlist(
     playlist_id: int,
@@ -147,36 +114,21 @@ def remove_track_from_playlist(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Elimina una canción de la playlist."""
-    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
-    if not playlist:
-        raise HTTPException(status_code=404, detail="Playlist no encontrada")
-    if playlist.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permisos para modificar esta playlist")
+    """Elimina una canción de la playlist (por id numérico o youtube_video_id)."""
+    _owned_playlist(db, playlist_id, current_user)
 
-    pt = None
-    if track_id.isdigit():
-        pt = db.query(PlaylistTrack).filter(PlaylistTrack.playlist_id == playlist_id, PlaylistTrack.track_id == int(track_id)).first()
-
-    if not pt:
-        track = db.query(Track).filter(Track.youtube_video_id == track_id).first()
-        if track:
-            pt = db.query(PlaylistTrack).filter(PlaylistTrack.playlist_id == playlist_id, PlaylistTrack.track_id == track.id).first()
-
-    if pt:
-        db.delete(pt)
-        db.commit()
+    for candidate in track_id_candidates(db, track_id):
+        pt = db.query(PlaylistTrack).filter(PlaylistTrack.playlist_id == playlist_id, PlaylistTrack.track_id == candidate).first()
+        if pt:
+            db.delete(pt)
+            db.commit()
+            break
     return None
 
 @router.delete("/{playlist_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_playlist(playlist_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Elimina una playlist."""
-    playlist = db.query(Playlist).filter(Playlist.id == playlist_id).first()
-    if not playlist:
-        raise HTTPException(status_code=404, detail="Playlist no encontrada")
-    if playlist.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="No tienes permisos para eliminar esta playlist")
-
+    playlist = _owned_playlist(db, playlist_id, current_user, action="eliminar")
     db.delete(playlist)
     db.commit()
     return None

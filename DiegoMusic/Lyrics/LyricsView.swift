@@ -16,7 +16,7 @@ enum LyricsDisplayState: Equatable {
 /// Vista de letras sincronizadas estilo Apple Music con autoscroll,
 /// línea activa brillante, tap-to-seek y fondo glassmorphism.
 struct LyricsView: View {
-    let service: LyricsService
+    let provider: LRCLibLyricsProvider
     let item: MediaItem
     @ObservedObject var player: AudioPlayerCoordinator
 
@@ -55,7 +55,7 @@ struct LyricsView: View {
         }
         .task(id: item.id) {
             displayState = .loading
-            let result = await service.fetchResult(for: item)
+            let result = await provider.fetchLyrics(for: item)
             switch result {
             case .synced(let lines):
                 displayState = .synced(lines)

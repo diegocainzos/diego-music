@@ -1,3 +1,5 @@
+> **Nota ([`ponytail-audit-simplification`](../ponytail-audit-simplification/proposal.md), 2026-10-03):** Caddy se sustituyó por Traefik y `ResolverService/compose.yml` por el `compose.yml` raíz.
+
 ## Why
 
 El reproductor IFrame obliga a conservar una superficie de vídeo y pierde continuidad al alternar entre presentaciones SwiftUI. DiegoMusic necesita una experiencia musical nativa, compacta y capaz de continuar en segundo plano en iPhone, manteniendo YouTube como catálogo y fuente del contenido.

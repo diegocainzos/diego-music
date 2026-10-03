@@ -55,14 +55,6 @@ class CachingAudioResolver:
             self._put(video_id, audio)
             return replace(audio, cache_status="miss")
 
-    def invalidate(self, video_id: str) -> None:
-        self._entries.pop(video_id, None)
-
-    @property
-    def entry_count(self) -> int:
-        self._remove_expired()
-        return len(self._entries)
-
     def _get(self, video_id: str) -> ResolvedAudio | None:
         entry = self._entries.get(video_id)
         if entry is None:
@@ -74,7 +66,7 @@ class CachingAudioResolver:
         return replace(entry.audio, cache_status="resolution")
 
     def _put(self, video_id: str, audio: ResolvedAudio) -> None:
-        if audio.is_cached_file:
+        if audio.cached_path is not None:
             return
         now = self.clock()
         expires_at = now + timedelta(seconds=self.ttl_seconds)
@@ -93,9 +85,3 @@ class CachingAudioResolver:
         self._entries.move_to_end(video_id)
         while len(self._entries) > self.max_entries:
             self._entries.popitem(last=False)
-
-    def _remove_expired(self) -> None:
-        now = self.clock()
-        expired = [key for key, entry in self._entries.items() if entry.expires_at <= now]
-        for key in expired:
-            self._entries.pop(key, None)

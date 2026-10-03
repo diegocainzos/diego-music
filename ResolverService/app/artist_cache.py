@@ -53,21 +53,3 @@ class ArtistCache:
         self._entries.move_to_end(norm_key)
         while len(self._entries) > self.max_entries:
             self._entries.popitem(last=False)
-
-    def invalidate(self, key: str) -> None:
-        norm_key = key.strip().lower()
-        self._entries.pop(norm_key, None)
-
-    def clear(self) -> None:
-        self._entries.clear()
-
-    @property
-    def entry_count(self) -> int:
-        self._remove_expired()
-        return len(self._entries)
-
-    def _remove_expired(self) -> None:
-        now = self.clock()
-        expired = [k for k, entry in self._entries.items() if entry.expires_at <= now]
-        for k in expired:
-            self._entries.pop(k, None)

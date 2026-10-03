@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from datetime import timezone
+import json
+from pathlib import Path
 
 import pytest
 
 from app.config import Settings
+from app.models import ArtistDetailResponse
 from app.resolver import AudioResolutionError, YTDLPResolver
+from fake_binaries import fake_ytdlp
 
 
 @pytest.fixture
@@ -26,7 +30,7 @@ def test_arguments_use_fixed_youtube_url_and_no_shell(resolver: YTDLPResolver) -
     assert "--no-cache-dir" in arguments
     assert "bestaudio[ext=m4a][acodec^=mp4a]/bestaudio[ext=m4a]" in arguments
     assert "--extractor-args" in arguments
-    assert "youtube:player_client=web_embedded,android,web" in arguments
+    assert "youtube:player_client=ios,web,mweb,web_embedded" in arguments
 
 
 def test_parse_info_accepts_audio_only_m4a(resolver: YTDLPResolver) -> None:
@@ -71,3 +75,68 @@ def test_parse_info_rejects_incompatible_or_untrusted_formats(
 
     with pytest.raises(AudioResolutionError):
         resolver._parse_info(info)
+
+
+SEARCH_OUTPUT = json.dumps(
+    {
+        "entries": [
+            {"id": "M7lc1UVf-VE", "title": "Primera", "uploader": "Canal A"},
+            {"id": "AAAAAAAAAAA", "title": "Segunda", "channel": "Canal B"},
+            {"id": "BBBBBBBBBBB"},  # sin título: se descarta
+            "no es un diccionario",
+        ]
+    }
+)
+
+
+def resolver_using(binary: Path) -> YTDLPResolver:
+    return YTDLPResolver(
+        Settings(
+            api_token="test-token-with-at-least-thirty-two-characters",
+            public_base_url="https://audio.example.test",
+            ytdlp_binary=str(binary),
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_search_returns_items_in_the_public_shape(tmp_path: Path) -> None:
+    ytdlp = fake_ytdlp(tmp_path, payload=None, stdout=SEARCH_OUTPUT)
+    resolver = resolver_using(ytdlp.path)
+
+    items = await resolver.search("coldplay", limit=2)
+
+    assert items == [
+        {
+            "id": "M7lc1UVf-VE",
+            "kind": "video",
+            "title": "Primera",
+            "channelTitle": "Canal A",
+            "thumbnailURL": "https://i.ytimg.com/vi/M7lc1UVf-VE/hqdefault.jpg",
+        },
+        {
+            "id": "AAAAAAAAAAA",
+            "kind": "video",
+            "title": "Segunda",
+            "channelTitle": "Canal B",
+            "thumbnailURL": "https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg",
+        },
+    ]
+    (arguments,) = ytdlp.calls
+    assert arguments[-1] == "ytsearch2:coldplay"
+
+
+@pytest.mark.asyncio
+async def test_artist_detail_reuses_search_items_without_copies(tmp_path: Path) -> None:
+    ytdlp = fake_ytdlp(tmp_path, payload=None, stdout=SEARCH_OUTPUT)
+    resolver = resolver_using(ytdlp.path)
+
+    detail = await resolver.get_artist_detail("Coldplay")
+    response = ArtistDetailResponse(**detail)
+
+    assert [call[-1] for call in ytdlp.calls] == ["ytsearch15:Coldplay tracks", "ytsearch8:Coldplay radio"]
+    assert response.artist.id == "Coldplay"
+    assert response.artist.title == "Coldplay"
+    assert response.artist.thumbnail_url == "https://i.ytimg.com/vi/M7lc1UVf-VE/hqdefault.jpg"
+    assert [item.id for item in response.top_tracks] == ["M7lc1UVf-VE", "AAAAAAAAAAA"]
+    assert [item.id for item in response.related] == ["M7lc1UVf-VE", "AAAAAAAAAAA"]

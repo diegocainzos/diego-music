@@ -130,7 +130,7 @@ struct DownloadAllButton: View {
     var body: some View {
         Button {
             if !allDownloaded {
-                downloadManager.downloadBatch(items, resolver: resolver)
+                downloadManager.enqueueBatch(items, resolver: resolver)
             }
         } label: {
             HStack(spacing: 6) {

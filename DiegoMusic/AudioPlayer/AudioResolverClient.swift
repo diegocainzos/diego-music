@@ -11,10 +11,6 @@ protocol AudioStreamResolving: Sendable {
     func invalidate(videoID: String) async
 }
 
-extension AudioStreamResolving {
-    func invalidate(videoID: String) async {}
-}
-
 enum AudioResolverServiceError: LocalizedError, Equatable, Sendable {
     case notConfigured
     case invalidVideoID
@@ -108,10 +104,6 @@ actor AudioResolverClient: AudioStreamResolving {
     func invalidate(videoID: String) async {
         descriptors.removeValue(forKey: videoID)
         inFlight.removeValue(forKey: videoID)?.task.cancel()
-    }
-
-    var cacheEntryCount: Int {
-        descriptors.count
     }
 
     private static func requestDescriptor(
