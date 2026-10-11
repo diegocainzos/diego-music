@@ -3,37 +3,51 @@ import Foundation
 import SwiftUI
 
 enum AppThemeMode: String, CaseIterable, Identifiable, Codable {
-    case midnight = "midnight"
-    case dark = "dark"
-    case light = "light"
-    case system = "system"
+    case black = "black"
+    case white = "white"
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .midnight: return "Midnight"
-        case .dark: return "Oscuro"
-        case .light: return "Claro"
-        case .system: return "Sistema"
+        case .black: return "Negro"
+        case .white: return "Blanco"
         }
     }
 
     var icon: String {
         switch self {
-        case .midnight: return "sparkles"
-        case .dark: return "moon.fill"
-        case .light: return "sun.max.fill"
-        case .system: return "circle.righthalf.filled"
+        case .black: return "circle.fill"
+        case .white: return "circle"
         }
     }
 
-    var colorScheme: ColorScheme? {
+    var colorScheme: ColorScheme {
         switch self {
-        case .midnight, .dark: return .dark
-        case .light: return .light
-        case .system: return nil
+        case .black: return .dark
+        case .white: return .light
         }
+    }
+
+    static func migrating(_ raw: String?) -> AppThemeMode {
+        guard let raw else { return .black }
+        switch raw.lowercased() {
+        case "white", "light":
+            return .white
+        default:
+            return .black
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try? container.decode(String.self)
+        self = Self.migrating(raw)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 
@@ -78,7 +92,7 @@ final class PlaybackSettings: ObservableObject {
     init(libraryStore: LibraryStore) {
         self.libraryStore = libraryStore
         let rawTheme = libraryStore.preference(for: Self.themeModePreferenceKey)
-        themeMode = AppThemeMode(rawValue: rawTheme ?? "") ?? .dark
+        themeMode = AppThemeMode.migrating(rawTheme)
         historyEnabled = libraryStore.preference(for: Self.historyPreferenceKey) == "true"
         continuePlaybackEnabled = libraryStore.preference(for: Self.continuePlaybackPreferenceKey) == "true"
         if continuePlaybackEnabled,

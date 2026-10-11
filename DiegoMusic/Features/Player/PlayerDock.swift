@@ -326,7 +326,7 @@ struct PlayerDock: View {
                                 } label: {
                                     Text(current.channelTitle)
                                         .font(.system(size: 16, weight: .medium))
-                                        .foregroundStyle(DiegoTheme.midnightTextSecondary)
+                                        .foregroundStyle(DiegoTheme.textSecondary)
                                         .lineLimit(1)
                                 }
                                 .buttonStyle(.plain)
@@ -339,7 +339,7 @@ struct PlayerDock: View {
                             } label: {
                                 Image(systemName: environment.library.isFavorite(current) ? "heart.fill" : "heart")
                                     .font(.system(size: 24))
-                                    .foregroundStyle(environment.library.isFavorite(current) ? DiegoTheme.red : DiegoTheme.midnightTextSecondary)
+                                    .foregroundStyle(environment.library.isFavorite(current) ? DiegoTheme.red : DiegoTheme.textSecondary)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(environment.library.isFavorite(current) ? "Quitar de favoritos" : "Añadir a favoritos")
@@ -352,7 +352,7 @@ struct PlayerDock: View {
                             Button(action: { player.toggleShuffle() }) {
                                 Image(systemName: "shuffle")
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(player.shuffleEnabled ? DiegoTheme.midnightAccent : DiegoTheme.midnightTextSecondary)
+                                    .foregroundStyle(player.shuffleEnabled ? DiegoTheme.accent : DiegoTheme.textSecondary)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Barajar")
@@ -405,7 +405,7 @@ struct PlayerDock: View {
                             Button(action: { player.cycleRepeat() }) {
                                 Image(systemName: repeatSymbol)
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(player.repeatMode == .off ? DiegoTheme.midnightTextSecondary : DiegoTheme.midnightAccent)
+                                    .foregroundStyle(player.repeatMode == .off ? DiegoTheme.textSecondary : DiegoTheme.accent)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Repetir")
@@ -511,7 +511,7 @@ struct PlayerDock: View {
                 lyricsSheet(current)
             }
         }
-        .tint(DiegoTheme.midnightAccent)
+        .tint(DiegoTheme.accent)
     }
 
     // MARK: - Lista de Cola de Reproducción Flotante en el fondo
@@ -539,7 +539,7 @@ struct PlayerDock: View {
                                         .fill(Color.black.opacity(0.40))
                                     Image(systemName: player.isPlaying ? "speaker.wave.2.fill" : "play.fill")
                                         .font(.caption.bold())
-                                        .foregroundStyle(DiegoTheme.midnightAccent)
+                                        .foregroundStyle(DiegoTheme.accent)
                                 }
                             }
 
@@ -547,12 +547,12 @@ struct PlayerDock: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.title)
                                     .font(.system(size: 15, weight: isCurrent ? .bold : .medium))
-                                    .foregroundStyle(isCurrent ? DiegoTheme.midnightAccent : DiegoTheme.textPrimary)
+                                    .foregroundStyle(isCurrent ? DiegoTheme.accent : DiegoTheme.textPrimary)
                                     .lineLimit(1)
 
                                 Text(item.channelTitle)
                                     .font(.system(size: 13))
-                                    .foregroundStyle(DiegoTheme.midnightTextSecondary)
+                                    .foregroundStyle(DiegoTheme.textSecondary)
                                     .lineLimit(1)
                             }
 
@@ -562,7 +562,7 @@ struct PlayerDock: View {
                             if let duration = item.durationSeconds, duration > 0 {
                                 Text(format(Double(duration)))
                                     .font(.system(size: 13, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(DiegoTheme.midnightTextSecondary)
+                                    .foregroundStyle(DiegoTheme.textSecondary)
                             }
                         }
                         .padding(.horizontal, 12)
@@ -676,7 +676,7 @@ struct PlayerDock: View {
         GeometryReader { geo in
             ZStack {
                 LinearGradient(
-                    colors: [DiegoTheme.midnightTop, DiegoTheme.midnightBottom],
+                    colors: [DiegoTheme.background, DiegoTheme.background],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -792,7 +792,7 @@ struct CircularHaloScrubber: View {
                 Circle()
                     .trim(from: 0, to: max(0.001, currentProgress))
                     .stroke(
-                        DiegoTheme.midnightCyan.opacity(0.70),
+                        DiegoTheme.accent.opacity(0.70),
                         style: StrokeStyle(lineWidth: 6, lineCap: .round)
                     )
                     .frame(width: 254, height: 254)
@@ -805,9 +805,9 @@ struct CircularHaloScrubber: View {
                     .stroke(
                         LinearGradient(
                             colors: [
-                                DiegoTheme.midnightCyan,
-                                DiegoTheme.midnightAccent,
-                                DiegoTheme.midnightCyan
+                                DiegoTheme.accent,
+                                DiegoTheme.accent,
+                                DiegoTheme.accent
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -854,14 +854,14 @@ struct CircularHaloScrubber: View {
                 Text(formatTime(displayedCurrentTime))
                     .monospacedDigit()
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(DiegoTheme.midnightTextSecondary)
+                    .foregroundStyle(DiegoTheme.textSecondary)
 
                 Spacer()
 
                 Text("-" + formatTime(displayedRemainingTime))
                     .monospacedDigit()
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(DiegoTheme.midnightTextSecondary)
+                    .foregroundStyle(DiegoTheme.textSecondary)
             }
             .padding(.horizontal, 36)
         }

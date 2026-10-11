@@ -5,55 +5,59 @@ import UIKit
 #elseif os(macOS)
 import AppKit
 #endif
-import SwiftUI
 
 enum DiegoTheme {
-    // MARK: - Tokens semánticos (estética Apple Music Web)
-
-    /// Rojo vibrante Apple Music `#FA2D48` (RGB: 250, 45, 72)
-    static let accent = Color(red: 250 / 255.0, green: 45 / 255.0, blue: 72 / 255.0)
+    // MARK: - Tokens semánticos (Donda)
 
     static let background = Color(
-        light: Color.white,
-        dark: Color.black
+        light: Color(red: 0xFF / 255.0, green: 0xFF / 255.0, blue: 0xFF / 255.0),
+        dark: Color(red: 0x00 / 255.0, green: 0x00 / 255.0, blue: 0x00 / 255.0)
     )
 
     static let surface = Color(
-        light: Color(red: 242 / 255.0, green: 242 / 255.0, blue: 247 / 255.0),
-        dark: Color(red: 28 / 255.0, green: 28 / 255.0, blue: 30 / 255.0)
+        light: Color(red: 0xFF / 255.0, green: 0xFF / 255.0, blue: 0xFF / 255.0),
+        dark: Color(red: 0x00 / 255.0, green: 0x00 / 255.0, blue: 0x00 / 255.0)
     )
+
+    static let textPrimary = Color(
+        light: Color(red: 0x11 / 255.0, green: 0x11 / 255.0, blue: 0x11 / 255.0),
+        dark: Color(red: 0xE9 / 255.0, green: 0xE9 / 255.0, blue: 0xE9 / 255.0)
+    )
+
+    static let textSecondary = Color(
+        light: Color(red: 0x8A / 255.0, green: 0x8A / 255.0, blue: 0x8A / 255.0),
+        dark: Color(red: 0x66 / 255.0, green: 0x66 / 255.0, blue: 0x66 / 255.0)
+    )
+
+    static let hairline = Color(
+        light: Color(red: 0xEC / 255.0, green: 0xEC / 255.0, blue: 0xEC / 255.0),
+        dark: Color(red: 0x1B / 255.0, green: 0x1B / 255.0, blue: 0x1B / 255.0)
+    )
+
+    static let outline = Color(
+        light: Color(red: 0xCF / 255.0, green: 0xCF / 255.0, blue: 0xCF / 255.0),
+        dark: Color(red: 0x33 / 255.0, green: 0x33 / 255.0, blue: 0x33 / 255.0)
+    )
+
+    /// En el sistema Donda no hay color de acento propio: coincide con `textPrimary`.
+    static let accent = textPrimary
 
     static let cardSurface = Color(
         light: Color.black.opacity(0.04),
         dark: Color.white.opacity(0.06)
     )
 
-    static let textPrimary = Color(
-        light: Color.black,
-        dark: Color.white
-    )
-
-    static let textSecondary = Color(
-        light: Color.black.opacity(0.60),
-        dark: Color.white.opacity(0.60)
-    )
-
     static let green = Color(red: 0.12, green: 0.84, blue: 0.38)
     static let red = Color(red: 250 / 255.0, green: 45 / 255.0, blue: 72 / 255.0)
 
-    // MARK: - Midnight Indigo Tokens
-    static let midnightTop = Color(red: 0x13 / 255.0, green: 0x18 / 255.0, blue: 0x36 / 255.0)       // #131836
-    static let midnightBottom = Color(red: 0x1A / 255.0, green: 0x22 / 255.0, blue: 0x47 / 255.0)    // #1A2247
-    static let midnightAccent = Color(red: 0x3E / 255.0, green: 0x7B / 255.0, blue: 0xFA / 255.0)    // #3E7BFA
-    static let midnightCyan = Color(red: 0x4C / 255.0, green: 0xC9 / 255.0, blue: 0xF0 / 255.0)      // #4CC9F0
-    static let midnightTextSecondary = Color(red: 0x8E / 255.0, green: 0x9B / 255.0, blue: 0xB5 / 255.0) // #8E9BB5
+    static let cornerRadius: CGFloat = 0
 
-    static let cornerRadius: CGFloat = 12
-
-    // MARK: - Adaptadores dinámicos por ColorScheme (Modo Claro / Oscuro)
+    // MARK: - Adaptadores dinámicos por ColorScheme (Modo Blanco / Negro)
 
     static func backgroundColor(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color.white : Color.black
+        scheme == .light
+            ? Color(red: 0xFF / 255.0, green: 0xFF / 255.0, blue: 0xFF / 255.0)
+            : Color(red: 0x00 / 255.0, green: 0x00 / 255.0, blue: 0x00 / 255.0)
     }
 
     static func background(for scheme: ColorScheme) -> Color {
@@ -62,8 +66,8 @@ enum DiegoTheme {
 
     static func surfaceColor(for scheme: ColorScheme) -> Color {
         scheme == .light
-            ? Color(red: 242 / 255.0, green: 242 / 255.0, blue: 247 / 255.0) // #F2F2F7
-            : Color(red: 28 / 255.0, green: 28 / 255.0, blue: 30 / 255.0)    // #1C1C1E
+            ? Color(red: 0xFF / 255.0, green: 0xFF / 255.0, blue: 0xFF / 255.0)
+            : Color(red: 0x00 / 255.0, green: 0x00 / 255.0, blue: 0x00 / 255.0)
     }
 
     static func surface(for scheme: ColorScheme) -> Color {
@@ -71,7 +75,9 @@ enum DiegoTheme {
     }
 
     static func textPrimaryColor(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color.black : Color.white
+        scheme == .light
+            ? Color(red: 0x11 / 255.0, green: 0x11 / 255.0, blue: 0x11 / 255.0)
+            : Color(red: 0xE9 / 255.0, green: 0xE9 / 255.0, blue: 0xE9 / 255.0)
     }
 
     static func textPrimary(for scheme: ColorScheme) -> Color {
@@ -80,12 +86,40 @@ enum DiegoTheme {
 
     static func textSecondaryColor(for scheme: ColorScheme) -> Color {
         scheme == .light
-            ? Color.black.opacity(0.60)
-            : Color.white.opacity(0.60)
+            ? Color(red: 0x8A / 255.0, green: 0x8A / 255.0, blue: 0x8A / 255.0)
+            : Color(red: 0x66 / 255.0, green: 0x66 / 255.0, blue: 0x66 / 255.0)
     }
 
     static func textSecondary(for scheme: ColorScheme) -> Color {
         textSecondaryColor(for: scheme)
+    }
+
+    static func hairlineColor(for scheme: ColorScheme) -> Color {
+        scheme == .light
+            ? Color(red: 0xEC / 255.0, green: 0xEC / 255.0, blue: 0xEC / 255.0)
+            : Color(red: 0x1B / 255.0, green: 0x1B / 255.0, blue: 0x1B / 255.0)
+    }
+
+    static func hairline(for scheme: ColorScheme) -> Color {
+        hairlineColor(for: scheme)
+    }
+
+    static func outlineColor(for scheme: ColorScheme) -> Color {
+        scheme == .light
+            ? Color(red: 0xCF / 255.0, green: 0xCF / 255.0, blue: 0xCF / 255.0)
+            : Color(red: 0x33 / 255.0, green: 0x33 / 255.0, blue: 0x33 / 255.0)
+    }
+
+    static func outline(for scheme: ColorScheme) -> Color {
+        outlineColor(for: scheme)
+    }
+
+    static func accentColor(for scheme: ColorScheme) -> Color {
+        textPrimaryColor(for: scheme)
+    }
+
+    static func accent(for scheme: ColorScheme) -> Color {
+        textPrimary(for: scheme)
     }
 }
 
@@ -157,13 +191,33 @@ struct MinimalCardModifier: ViewModifier {
         content
             .padding(16)
             .background(DiegoTheme.surfaceColor(for: colorScheme))
-            .clipShape(RoundedRectangle(cornerRadius: DiegoTheme.cornerRadius, style: .continuous))
+            .overlay(
+                Rectangle()
+                    .stroke(DiegoTheme.outlineColor(for: colorScheme), lineWidth: 1)
+            )
+            .clipShape(Rectangle())
     }
 }
 
 extension View {
     func minimalCard() -> some View {
         modifier(MinimalCardModifier())
+    }
+}
+
+// MARK: - Modificadores tipográficos Donda
+
+extension View {
+    func dondaLabel() -> some View {
+        font(.system(size: 11, design: .monospaced))
+            .textCase(.uppercase)
+            .tracking(1.4)
+    }
+
+    func dondaTitle(size: CGFloat = 20) -> some View {
+        font(.system(size: size, weight: .regular).width(.condensed))
+            .textCase(.uppercase)
+            .tracking(2.4)
     }
 }
 
@@ -190,19 +244,28 @@ extension View {
     }
 }
 
-// MARK: - Botón primario estilo Apple Music
+// MARK: - Botón primario Donda
 
 struct PrimaryButtonStyle: ButtonStyle {
     var color: Color = DiegoTheme.accent
+    @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let isDefaultPrimary = (color == DiegoTheme.accent || color == DiegoTheme.textPrimary)
+        let fill = isDefaultPrimary ? DiegoTheme.textPrimaryColor(for: colorScheme) : color
+        let labelColor = isDefaultPrimary ? DiegoTheme.backgroundColor(for: colorScheme) : Color.white
+
+        return configuration.label
             .font(.system(.body, design: .default, weight: .semibold))
             .padding(.horizontal, 16)
             .frame(minHeight: 44)
-            .foregroundStyle(.white)
-            .background(configuration.isPressed ? color.opacity(0.85) : color)
-            .clipShape(Capsule())
+            .foregroundStyle(labelColor)
+            .background(configuration.isPressed ? fill.opacity(0.85) : fill)
+            .overlay(
+                Rectangle()
+                    .stroke(DiegoTheme.outlineColor(for: colorScheme), lineWidth: 1)
+            )
+            .clipShape(Rectangle())
     }
 }
 
