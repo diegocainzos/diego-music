@@ -51,6 +51,19 @@ final class PodcastEpisodesTests: XCTestCase {
         XCTAssertEqual(requestCountAfterFirst, requestCountAfterSecond, "La segunda llamada debió servirse de la caché")
     }
 
+    func testPodcastEpisodesFollowsNextPageWhenFirstPageIsMostlyClips() async throws {
+        let transport = FakeYouTubeAPIEndpointTransport(paged: true)
+        let service = YouTubeDataService(
+            configuration: APIConfiguration(youtubeDataKey: "test-key"),
+            transport: transport
+        )
+
+        let result = try await service.podcastEpisodes(channelID: "UC_PAGED_TEST")
+
+        XCTAssertEqual(result.episodes.map(\.id), ["vid_long", "vid_long2"])
+        XCTAssertEqual(result.hiddenShortCount, 1)
+    }
+
     func testSearchChannelMapsChannelSnippet() async throws {
         let transport = FakeYouTubeAPIEndpointTransport()
         let service = YouTubeDataService(
@@ -69,13 +82,54 @@ final class PodcastEpisodesTests: XCTestCase {
 
 private actor FakeYouTubeAPIEndpointTransport: HTTPTransport {
     var requestCount: Int = 0
+    let paged: Bool
+
+    init(paged: Bool = false) {
+        self.paged = paged
+    }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         requestCount += 1
         let urlString = request.url?.absoluteString ?? ""
 
         let json: String
-        if urlString.contains("/channels") {
+        if paged, urlString.contains("/playlistItems"), urlString.contains("pageToken=P2") {
+            json = #"""
+            {
+              "items": [
+                {
+                  "id": "item_long2",
+                  "snippet": {
+                    "publishedAt": "2023-12-01T10:00:00Z",
+                    "title": "Episodio antiguo",
+                    "channelId": "UC_TEST",
+                    "channelTitle": "Canal Prueba",
+                    "thumbnails": {},
+                    "resourceId": { "videoId": "vid_long2" }
+                  }
+                }
+              ]
+            }
+            """#
+        } else if paged, urlString.contains("/videos"), urlString.contains("vid_long2") {
+            json = #"""
+            {
+              "items": [
+                {
+                  "id": "vid_long2",
+                  "snippet": {
+                    "publishedAt": "2023-12-01T10:00:00Z",
+                    "title": "Episodio antiguo",
+                    "channelId": "UC_TEST",
+                    "channelTitle": "Canal Prueba",
+                    "thumbnails": {}
+                  },
+                  "contentDetails": { "duration": "PT1H" }
+                }
+              ]
+            }
+            """#
+        } else if urlString.contains("/channels") {
             json = #"""
             {
               "items": [
@@ -124,7 +178,7 @@ private actor FakeYouTubeAPIEndpointTransport: HTTPTransport {
                     }
                   }
                 }
-              ]
+              ]\#(paged ? #", "nextPageToken": "P2""# : "")
             }
             """#
         } else if urlString.contains("/videos") {

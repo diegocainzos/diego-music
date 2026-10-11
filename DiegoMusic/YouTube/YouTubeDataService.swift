@@ -582,74 +582,76 @@ extension YouTubeDataService {
             return PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
         }
 
-        // 2. PlaylistItems de la lista de uploads (máximo 50)
-        let playlistData = try await executeWithRotation(
-            buildRequest: { apiKey in
-                try endpointRequest {
-                    YouTubeEndpoint(kind: .playlistItems(playlistID: uploadsPlaylistID, pageToken: nil), apiKey: apiKey, maxResults: 50)
-                }
-            },
-            responseType: YouTubePlaylistItemsResponseDTO.self
-        )
-
-        guard !playlistData.items.isEmpty else {
-            return PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
-        }
-
-        let itemsWithVideoIDs: [(String, YouTubePlaylistItemDTO)] = playlistData.items.compactMap { item in
-            guard let videoID = item.snippet.resourceId?.videoId ?? item.contentDetails?.videoId, !videoID.isEmpty else {
-                return nil
-            }
-            return (videoID, item)
-        }
-
-        guard !itemsWithVideoIDs.isEmpty else {
-            return PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
-        }
-
-        // 3. Videos para obtener duraciones ISO8601
-        let videoIDs = itemsWithVideoIDs.map(\.0)
-        let videosData = try await executeWithRotation(
-            buildRequest: { apiKey in
-                try endpointRequest {
-                    YouTubeEndpoint(kind: .videos(ids: videoIDs), apiKey: apiKey, maxResults: 50)
-                }
-            },
-            responseType: YouTubeVideoDetailsListResponseDTO.self
-        )
-
-        var durationByVideoID: [String: Int] = [:]
-        for video in videosData.items {
-            if let durationStr = video.contentDetails?.duration,
-               let seconds = parseISO8601Duration(durationStr) {
-                durationByVideoID[video.id] = seconds
-            }
-        }
-
-        // 4. Filtrar episodios: durationSeconds >= 2400 (40 minutos), más recientes primero
+        // 2-4. Recorre uploads por páginas de 50 hasta reunir suficientes episodios ≥ 40 min.
+        // Canales con muchos clips/shorts (p. ej. The Wild Project) apenas tienen episodios en la primera página.
+        // ponytail: tope fijo de páginas (2 unidades de cuota cada una); paginar bajo demanda si hace falta más historia.
+        let targetEpisodes = 30
+        let maxPages = 8
         var episodes: [MediaItem] = []
         var hiddenShortCount = 0
+        var pageToken: String?
 
-        for (videoID, playlistItem) in itemsWithVideoIDs {
-            let duration = durationByVideoID[videoID] ?? 0
-            if duration >= 2400 {
-                let snippet = playlistItem.snippet
-                let thumbnail = snippet.thumbnails["high"]
-                    ?? snippet.thumbnails["medium"]
-                    ?? snippet.thumbnails["default"]
-                let episode = MediaItem(
-                    id: videoID,
-                    kind: .video,
-                    title: snippet.title.decodingHTMLEntities,
-                    channelTitle: snippet.channelTitle.decodingHTMLEntities,
-                    thumbnailURL: thumbnail?.url,
-                    publishedAt: snippet.publishedAt,
-                    durationSeconds: duration
-                )
-                episodes.append(episode)
-            } else {
-                hiddenShortCount += 1
+        for _ in 0..<maxPages {
+            let token = pageToken
+            let playlistData = try await executeWithRotation(
+                buildRequest: { apiKey in
+                    try endpointRequest {
+                        YouTubeEndpoint(kind: .playlistItems(playlistID: uploadsPlaylistID, pageToken: token), apiKey: apiKey, maxResults: 50)
+                    }
+                },
+                responseType: YouTubePlaylistItemsResponseDTO.self
+            )
+
+            let itemsWithVideoIDs: [(String, YouTubePlaylistItemDTO)] = playlistData.items.compactMap { item in
+                guard let videoID = item.snippet.resourceId?.videoId ?? item.contentDetails?.videoId, !videoID.isEmpty else {
+                    return nil
+                }
+                return (videoID, item)
             }
+
+            if !itemsWithVideoIDs.isEmpty {
+                let videoIDs = itemsWithVideoIDs.map(\.0)
+                let videosData = try await executeWithRotation(
+                    buildRequest: { apiKey in
+                        try endpointRequest {
+                            YouTubeEndpoint(kind: .videos(ids: videoIDs), apiKey: apiKey, maxResults: 50)
+                        }
+                    },
+                    responseType: YouTubeVideoDetailsListResponseDTO.self
+                )
+
+                var durationByVideoID: [String: Int] = [:]
+                for video in videosData.items {
+                    if let durationStr = video.contentDetails?.duration,
+                       let seconds = parseISO8601Duration(durationStr) {
+                        durationByVideoID[video.id] = seconds
+                    }
+                }
+
+                for (videoID, playlistItem) in itemsWithVideoIDs {
+                    let duration = durationByVideoID[videoID] ?? 0
+                    guard duration >= 2400 else {
+                        hiddenShortCount += 1
+                        continue
+                    }
+                    let snippet = playlistItem.snippet
+                    let thumbnail = snippet.thumbnails["high"]
+                        ?? snippet.thumbnails["medium"]
+                        ?? snippet.thumbnails["default"]
+                    episodes.append(MediaItem(
+                        id: videoID,
+                        kind: .video,
+                        title: snippet.title.decodingHTMLEntities,
+                        channelTitle: snippet.channelTitle.decodingHTMLEntities,
+                        thumbnailURL: thumbnail?.url,
+                        publishedAt: snippet.publishedAt,
+                        durationSeconds: duration
+                    ))
+                }
+            }
+
+            pageToken = playlistData.nextPageToken
+            if episodes.count >= targetEpisodes || pageToken?.isEmpty ?? true { break }
         }
 
         episodes.sort {

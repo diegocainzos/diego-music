@@ -816,15 +816,17 @@ struct TrackArtwork: View {
     @State private var image: CGImage?
 
     var body: some View {
-        ZStack {
-            DiegoTheme.background
-            if let image {
-                Image(decorative: image, scale: 1)
-                    .resizable()
-                    .scaledToFill()
+        // El color fija el tamaño propuesto; la imagen en overlay no puede ensancharlo
+        // (una miniatura 16:9 con scaledToFill dentro de un ZStack desbordaba la pantalla).
+        DiegoTheme.background
+            .overlay {
+                if let image {
+                    Image(decorative: image, scale: 1)
+                        .resizable()
+                        .scaledToFill()
+                }
             }
-        }
-        .clipped()
+            .clipped()
         .overlay(
             Rectangle()
                 .stroke(DiegoTheme.hairline, lineWidth: 1)

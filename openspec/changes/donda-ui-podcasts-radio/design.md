@@ -49,7 +49,7 @@ Referencia visual: https://claude.ai/artifact/TKYerEN2DQGov5YL9LfvwJ (variantes 
 ### 5. Podcasts desde YouTube con cuota mínima
 
 - Un programa es un canal de YouTube. Se sigue desde Buscar (resultado de tipo `.channel`, botón «Seguir»).
-- Episodios: `channels.list(part=contentDetails)` → playlist `uploads`, luego `playlistItems.list(maxResults=50)` y `videos.list(part=contentDetails)` para las duraciones, filtrando `durationSeconds >= 2400`. Son unas 3 unidades de cuota por refresco, frente a las 100 de `search.list`. Se guarda en memoria con un TTL de 1 h.
+- Episodios: `channels.list(part=contentDetails)` → playlist `uploads`, luego `playlistItems.list(maxResults=50)` y `videos.list(part=contentDetails)` para las duraciones, filtrando `durationSeconds >= 2400`. Se pagina hasta reunir 30 episodios o un máximo de 8 páginas, porque canales con muchos clips (The Wild Project) apenas tienen episodios en la primera. Cuesta entre 3 y 17 unidades de cuota por refresco, frente a las 100 de `search.list`. Se guarda en memoria con un TTL de 1 h.
 - Primer arranque: se siembran JRE y TWP si `FollowedShow` está vacío. Los IDs de canal se resuelven en tiempo de ejecución con una única búsqueda de canal, para no fijarlos en el código, y se guardan.
 - Core Data (migración ligera e inferida):
   - `FollowedShow`: `channelID` (único), `title`, `thumbnailURLString?` y `followedAt`.
