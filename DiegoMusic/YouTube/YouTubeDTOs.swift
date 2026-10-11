@@ -112,8 +112,55 @@ struct YouTubePlaylistItemDTO: Decodable {
         let resourceId: ResourceId?
     }
 
+    struct ContentDetails: Decodable {
+        let videoId: String?
+    }
+
     let id: String
     let snippet: Snippet
+    let contentDetails: ContentDetails?
+}
+
+// MARK: - Canales (ContentDetails para subidas)
+
+struct YouTubeChannelContentDetailsResponseDTO: Decodable {
+    let items: [YouTubeChannelContentDetailsItemDTO]
+}
+
+struct YouTubeChannelContentDetailsItemDTO: Decodable {
+    struct ContentDetails: Decodable {
+        struct RelatedPlaylists: Decodable {
+            let uploads: String?
+        }
+        let relatedPlaylists: RelatedPlaylists?
+    }
+
+    let id: String
+    let contentDetails: ContentDetails?
+}
+
+// MARK: - Vídeos (Detalles de contenido y duración)
+
+struct YouTubeVideoDetailsListResponseDTO: Decodable {
+    let items: [YouTubeVideoDetailsItemDTO]
+}
+
+struct YouTubeVideoDetailsItemDTO: Decodable {
+    struct Snippet: Decodable {
+        let publishedAt: Date?
+        let title: String
+        let channelId: String?
+        let channelTitle: String
+        let thumbnails: [String: YouTubeThumbnail]
+    }
+
+    struct ContentDetails: Decodable {
+        let duration: String?
+    }
+
+    let id: String
+    let snippet: Snippet?
+    let contentDetails: ContentDetails?
 }
 
 extension JSONDecoder {

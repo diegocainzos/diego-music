@@ -198,3 +198,23 @@ struct DownloadedTrack: Identifiable, Equatable {
         )
     }
 }
+
+// MARK: - Podcasts y Progreso de Episodios
+
+@objc(FollowedShowRecord)
+final class FollowedShowRecord: NSManagedObject {
+    @NSManaged var channelID: String
+    @NSManaged var title: String
+    @NSManaged var thumbnailURLString: String?
+    @NSManaged var followedAt: Date
+}
+
+@objc(EpisodeProgressRecord)
+final class EpisodeProgressRecord: NSManagedObject {
+    @NSManaged var videoID: String
+    @NSManaged var channelID: String
+    @NSManaged var positionSeconds: Double
+    @NSManaged var durationSeconds: Double
+    @NSManaged var finished: Bool
+    @NSManaged var updatedAt: Date
+}

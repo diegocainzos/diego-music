@@ -64,6 +64,8 @@ protocol YouTubeDataServicing: Sendable {
     func artist(byChannelID: String) async throws -> ArtistDetail
     func album(byPlaylistID: String) async throws -> Album
     func fetchRelatedRadio(for item: MediaItem) async throws -> [MediaItem]
+    func podcastEpisodes(channelID: String) async throws -> PodcastEpisodePage
+    func searchChannel(_ query: String) async throws -> PodcastShow?
 }
 
 struct YouTubeDataService: YouTubeDataServicing {
@@ -545,4 +547,212 @@ private struct VPSArtistDetailResponseDTO: Decodable {
 
 private struct VPSSearchResponseDTO: Decodable {
     let items: [VPSTrackDTO]
+}
+
+// MARK: - Podcasts
+
+extension YouTubeDataService {
+    private static let podcastCache = PodcastEpisodesCache()
+
+    func podcastEpisodes(channelID: String) async throws -> PodcastEpisodePage {
+        guard !channelID.isEmpty else { throw YouTubeServiceError.invalidRequest }
+
+        if let cached = await Self.podcastCache.get(for: channelID) {
+            return cached
+        }
+
+        // 1. Canales -> contentDetails.relatedPlaylists.uploads
+        let channelData = try await executeWithRotation(
+            buildRequest: { apiKey in
+                try endpointRequest {
+                    YouTubeEndpoint(kind: .channelContentDetails(channelID: channelID), apiKey: apiKey)
+                }
+            },
+            responseType: YouTubeChannelContentDetailsResponseDTO.self
+        )
+
+        guard let uploadsPlaylistID = channelData.items.first?.contentDetails?.relatedPlaylists?.uploads,
+              !uploadsPlaylistID.isEmpty else {
+            return PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
+        }
+
+        // 2. PlaylistItems de la lista de uploads (máximo 50)
+        let playlistData = try await executeWithRotation(
+            buildRequest: { apiKey in
+                try endpointRequest {
+                    YouTubeEndpoint(kind: .playlistItems(playlistID: uploadsPlaylistID, pageToken: nil), apiKey: apiKey, maxResults: 50)
+                }
+            },
+            responseType: YouTubePlaylistItemsResponseDTO.self
+        )
+
+        guard !playlistData.items.isEmpty else {
+            return PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
+        }
+
+        let itemsWithVideoIDs: [(String, YouTubePlaylistItemDTO)] = playlistData.items.compactMap { item in
+            guard let videoID = item.snippet.resourceId?.videoId ?? item.contentDetails?.videoId, !videoID.isEmpty else {
+                return nil
+            }
+            return (videoID, item)
+        }
+
+        guard !itemsWithVideoIDs.isEmpty else {
+            return PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
+        }
+
+        // 3. Videos para obtener duraciones ISO8601
+        let videoIDs = itemsWithVideoIDs.map(\.0)
+        let videosData = try await executeWithRotation(
+            buildRequest: { apiKey in
+                try endpointRequest {
+                    YouTubeEndpoint(kind: .videos(ids: videoIDs), apiKey: apiKey, maxResults: 50)
+                }
+            },
+            responseType: YouTubeVideoDetailsListResponseDTO.self
+        )
+
+        var durationByVideoID: [String: Int] = [:]
+        for video in videosData.items {
+            if let durationStr = video.contentDetails?.duration,
+               let seconds = parseISO8601Duration(durationStr) {
+                durationByVideoID[video.id] = seconds
+            }
+        }
+
+        // 4. Filtrar episodios: durationSeconds >= 2400 (40 minutos), más recientes primero
+        var episodes: [MediaItem] = []
+        var hiddenShortCount = 0
+
+        for (videoID, playlistItem) in itemsWithVideoIDs {
+            let duration = durationByVideoID[videoID] ?? 0
+            if duration >= 2400 {
+                let snippet = playlistItem.snippet
+                let thumbnail = snippet.thumbnails["high"]
+                    ?? snippet.thumbnails["medium"]
+                    ?? snippet.thumbnails["default"]
+                let episode = MediaItem(
+                    id: videoID,
+                    kind: .video,
+                    title: snippet.title.decodingHTMLEntities,
+                    channelTitle: snippet.channelTitle.decodingHTMLEntities,
+                    thumbnailURL: thumbnail?.url,
+                    publishedAt: snippet.publishedAt,
+                    durationSeconds: duration
+                )
+                episodes.append(episode)
+            } else {
+                hiddenShortCount += 1
+            }
+        }
+
+        episodes.sort {
+            guard let d1 = $0.publishedAt, let d2 = $1.publishedAt else { return false }
+            return d1 > d2
+        }
+
+        let page = PodcastEpisodePage(episodes: episodes, hiddenShortCount: hiddenShortCount)
+        await Self.podcastCache.set(page, for: channelID)
+        return page
+    }
+
+    func searchChannel(_ query: String) async throws -> PodcastShow? {
+        let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { throw YouTubeServiceError.invalidRequest }
+
+        let data = try await executeWithRotation(
+            buildRequest: { apiKey in
+                try endpointRequest {
+                    YouTubeEndpoint(kind: .searchChannels(query: normalized), apiKey: apiKey, maxResults: 1)
+                }
+            },
+            responseType: YouTubeSearchResponseDTO.self
+        )
+
+        guard let item = data.items.first,
+              let channelID = item.id.channelId ?? item.snippet.channelId,
+              !channelID.isEmpty else {
+            return nil
+        }
+
+        let thumbnail = item.snippet.thumbnails["high"]
+            ?? item.snippet.thumbnails["medium"]
+            ?? item.snippet.thumbnails["default"]
+
+        return PodcastShow(
+            channelID: channelID,
+            title: item.snippet.title.decodingHTMLEntities,
+            thumbnailURL: thumbnail?.url
+        )
+    }
+}
+
+private actor PodcastEpisodesCache {
+    struct Entry: Sendable {
+        let page: PodcastEpisodePage
+        let timestamp: Date
+    }
+
+    private var storage: [String: Entry] = [:]
+    private let ttl: TimeInterval
+
+    init(ttl: TimeInterval = 3600) {
+        self.ttl = ttl
+    }
+
+    func get(for channelID: String) -> PodcastEpisodePage? {
+        guard let entry = storage[channelID] else { return nil }
+        if Date().timeIntervalSince(entry.timestamp) < ttl {
+            return entry.page
+        } else {
+            storage.removeValue(forKey: channelID)
+            return nil
+        }
+    }
+
+    func set(_ page: PodcastEpisodePage, for channelID: String) {
+        storage[channelID] = Entry(page: page, timestamp: Date())
+    }
+
+    func clear() {
+        storage.removeAll()
+    }
+}
+
+/// Parsea una duración en formato ISO 8601 (ej. "PT1H2M3S", "PT40M", "PT20S") a segundos.
+func parseISO8601Duration(_ string: String) -> Int? {
+    guard string.hasPrefix("P") else { return nil }
+
+    var days = 0
+    var hours = 0
+    var minutes = 0
+    var seconds = 0
+
+    let parts = string.components(separatedBy: "T")
+    let datePart = parts[0].dropFirst()
+    let timePart = parts.count > 1 ? parts[1] : ""
+
+    if let dIndex = datePart.firstIndex(of: "D") {
+        let daysStr = datePart[..<dIndex]
+        days = Int(daysStr) ?? 0
+    }
+
+    var currentDigits = ""
+    for char in timePart {
+        if char.isNumber {
+            currentDigits.append(char)
+        } else if char == "H" {
+            hours = Int(currentDigits) ?? 0
+            currentDigits = ""
+        } else if char == "M" {
+            minutes = Int(currentDigits) ?? 0
+            currentDigits = ""
+        } else if char == "S" {
+            seconds = Int(currentDigits) ?? 0
+            currentDigits = ""
+        }
+    }
+
+    let total = days * 86400 + hours * 3600 + minutes * 60 + seconds
+    return total >= 0 ? total : nil
 }

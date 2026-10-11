@@ -12,6 +12,9 @@ enum YouTubeEndpointKind {
     case playlists(channelID: String, pageToken: String?)
     case playlistItems(playlistID: String, pageToken: String?)
     case mostPopularVideo
+    case channelContentDetails(channelID: String)
+    case videos(ids: [String])
+    case searchChannels(query: String)
 }
 
 /// Construye peticiones a YouTube Data API v3. Solo metadatos (snippet).
@@ -106,7 +109,7 @@ struct YouTubeEndpoint {
         case let .playlistItems(playlistID, _):
             components.path = "/youtube/v3/playlistItems"
             components.queryItems = [
-                URLQueryItem(name: "part", value: "snippet"),
+                URLQueryItem(name: "part", value: "snippet,contentDetails"),
                 URLQueryItem(name: "playlistId", value: playlistID),
                 URLQueryItem(name: "maxResults", value: String(maxResults)),
                 URLQueryItem(name: "key", value: apiKey)
@@ -120,6 +123,32 @@ struct YouTubeEndpoint {
                 URLQueryItem(name: "part", value: "snippet"),
                 URLQueryItem(name: "chart", value: "mostPopular"),
                 URLQueryItem(name: "videoCategoryId", value: "10"),
+                URLQueryItem(name: "maxResults", value: String(maxResults)),
+                URLQueryItem(name: "key", value: apiKey)
+            ]
+        case let .channelContentDetails(channelID):
+            components.path = "/youtube/v3/channels"
+            components.queryItems = [
+                URLQueryItem(name: "part", value: "contentDetails"),
+                URLQueryItem(name: "id", value: channelID),
+                URLQueryItem(name: "key", value: apiKey)
+            ]
+        case let .videos(ids):
+            components.path = "/youtube/v3/videos"
+            components.queryItems = [
+                URLQueryItem(name: "part", value: "contentDetails,snippet"),
+                URLQueryItem(name: "id", value: ids.joined(separator: ",")),
+                URLQueryItem(name: "maxResults", value: String(maxResults)),
+                URLQueryItem(name: "key", value: apiKey)
+            ]
+        case let .searchChannels(query):
+            let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { throw YouTubeEndpointError.invalidQuery }
+            components.path = "/youtube/v3/search"
+            components.queryItems = [
+                URLQueryItem(name: "part", value: "snippet"),
+                URLQueryItem(name: "q", value: normalized),
+                URLQueryItem(name: "type", value: "channel"),
                 URLQueryItem(name: "maxResults", value: String(maxResults)),
                 URLQueryItem(name: "key", value: apiKey)
             ]

@@ -212,7 +212,7 @@ final class LibraryStore: ObservableObject {
 
     /// Purga todos los registros de usuario locales (favoritos, playlists, entradas, historial, álbumes guardados).
     func clearAllUserData() {
-        let entityNames = ["FavoriteTrack", "Playlist", "PlaylistEntry", "PlaybackHistory", "SavedAlbum"]
+        let entityNames = ["FavoriteTrack", "Playlist", "PlaylistEntry", "PlaybackHistory", "SavedAlbum", "FollowedShow", "EpisodeProgress"]
         for name in entityNames {
             let request = NSFetchRequest<NSManagedObject>(entityName: name)
             if let objects = try? context.fetch(request) {
@@ -410,5 +410,111 @@ final class LibraryStore: ObservableObject {
     private func saveAndReload() throws {
         try context.save()
         reload()
+    }
+
+    // MARK: - Podcasts y Programas Seguidos
+
+    func followedShows() -> [PodcastShow] {
+        let request = NSFetchRequest<FollowedShowRecord>(entityName: "FollowedShow")
+        request.sortDescriptors = [NSSortDescriptor(key: "followedAt", ascending: false)]
+        return (try? context.fetch(request))?.map {
+            PodcastShow(
+                channelID: $0.channelID,
+                title: $0.title,
+                thumbnailURL: $0.thumbnailURLString.flatMap(URL.init(string:))
+            )
+        } ?? []
+    }
+
+    func isFollowing(channelID: String) -> Bool {
+        let request = NSFetchRequest<FollowedShowRecord>(entityName: "FollowedShow")
+        request.fetchLimit = 1
+        request.predicate = NSPredicate(format: "channelID == %@", channelID)
+        return (try? context.count(for: request)) ?? 0 > 0
+    }
+
+    func follow(_ show: PodcastShow) throws {
+        if let existing = try followedShowRecord(channelID: show.channelID) {
+            existing.title = show.title
+            existing.thumbnailURLString = show.thumbnailURL?.absoluteString
+        } else {
+            let record: FollowedShowRecord = insertRecord(entityName: "FollowedShow")
+            record.channelID = show.channelID
+            record.title = show.title
+            record.thumbnailURLString = show.thumbnailURL?.absoluteString
+            record.followedAt = .now
+        }
+        try context.save()
+    }
+
+    func unfollow(channelID: String) throws {
+        if let existing = try followedShowRecord(channelID: channelID) {
+            context.delete(existing)
+            try context.save()
+        }
+    }
+
+    // MARK: - Progreso de Episodios
+
+    func progress(videoID: String) -> EpisodeProgressValue? {
+        guard let record = try? episodeProgressRecord(videoID: videoID) else { return nil }
+        return EpisodeProgressValue(
+            videoID: record.videoID,
+            channelID: record.channelID,
+            position: record.positionSeconds,
+            duration: record.durationSeconds,
+            finished: record.finished,
+            updatedAt: record.updatedAt
+        )
+    }
+
+    func saveProgress(videoID: String, channelID: String, position: Double, duration: Double) throws {
+        let isFinished = (duration - position) <= 60
+        if let existing = try episodeProgressRecord(videoID: videoID) {
+            existing.channelID = channelID
+            existing.positionSeconds = position
+            existing.durationSeconds = duration
+            existing.finished = isFinished
+            existing.updatedAt = .now
+        } else {
+            let record: EpisodeProgressRecord = insertRecord(entityName: "EpisodeProgress")
+            record.videoID = videoID
+            record.channelID = channelID
+            record.positionSeconds = position
+            record.durationSeconds = duration
+            record.finished = isFinished
+            record.updatedAt = .now
+        }
+        try context.save()
+    }
+
+    func latestUnfinishedEpisodeProgress() -> EpisodeProgressValue? {
+        let request = NSFetchRequest<EpisodeProgressRecord>(entityName: "EpisodeProgress")
+        request.predicate = NSPredicate(format: "finished == NO AND positionSeconds > 0")
+        request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
+        request.fetchLimit = 1
+        guard let record = try? context.fetch(request).first else { return nil }
+        return EpisodeProgressValue(
+            videoID: record.videoID,
+            channelID: record.channelID,
+            position: record.positionSeconds,
+            duration: record.durationSeconds,
+            finished: record.finished,
+            updatedAt: record.updatedAt
+        )
+    }
+
+    private func followedShowRecord(channelID: String) throws -> FollowedShowRecord? {
+        let request = NSFetchRequest<FollowedShowRecord>(entityName: "FollowedShow")
+        request.fetchLimit = 1
+        request.predicate = NSPredicate(format: "channelID == %@", channelID)
+        return try context.fetch(request).first
+    }
+
+    private func episodeProgressRecord(videoID: String) throws -> EpisodeProgressRecord? {
+        let request = NSFetchRequest<EpisodeProgressRecord>(entityName: "EpisodeProgress")
+        request.fetchLimit = 1
+        request.predicate = NSPredicate(format: "videoID == %@", videoID)
+        return try context.fetch(request).first
     }
 }
