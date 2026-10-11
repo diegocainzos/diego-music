@@ -47,4 +47,22 @@ final class NavigationStateTests: XCTestCase {
         XCTAssertTrue(navState.backStack.isEmpty)
         XCTAssertNotEqual(navState.rootResetTrigger, initialToken)
     }
+
+    func testPodcastDetailDestination() {
+        let destination = DiegoAppDestination.podcastDetail(channelID: "channel_123", title: "Test Podcast")
+        XCTAssertEqual(destination.id, "podcast_channel_123")
+        XCTAssertEqual(destination.title, "Test Podcast")
+        XCTAssertEqual(destination.symbol, "mic")
+
+        let navState = NavigationState(initialDestination: .home)
+        navState.navigate(to: destination)
+        XCTAssertEqual(navState.current, destination)
+        XCTAssertEqual(navState.backStack, [.home])
+    }
+
+    func testDiegoAppDestinationsProperties() {
+        XCTAssertEqual(DiegoAppDestination.home.title, "Inicio")
+        XCTAssertEqual(DiegoAppDestination.search.title, "Buscar")
+        XCTAssertEqual(DiegoAppDestination.library.title, "Biblioteca")
+    }
 }

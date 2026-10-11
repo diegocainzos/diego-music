@@ -1,28 +1,22 @@
 import SwiftUI
 
-enum LibrarySection: String, CaseIterable, Identifiable {
+enum LibrarySegment: String, CaseIterable, Identifiable {
+    case playlists = "Playlists"
+    case podcasts = "Podcasts"
     case songs = "Canciones"
     case albums = "Álbumes"
     case artists = "Artistas"
-    case lists = "Listas"
-    case downloads = "Descargados"
+    case downloads = "Descargas"
 
     var id: String { rawValue }
-
-    var symbol: String {
-        switch self {
-        case .songs: return "music.note"
-        case .albums: return "square.stack"
-        case .artists: return "music.mic"
-        case .lists: return "music.note.list"
-        case .downloads: return "arrow.down.circle.fill"
-        }
-    }
 }
 
-/// Contenedor de la Biblioteca estilo Apple Music Web:
-/// Sub-pestañas Canciones / Álbumes / Artistas / Listas / Descargados, búsqueda local instantánea.
+typealias LibrarySection = LibrarySegment
+
+/// Contenedor de la Biblioteca (Donda):
+/// Segmentos: Playlists, Podcasts, Canciones, Álbumes, Artistas, Descargas.
 struct LibraryView: View {
+    @EnvironmentObject private var environment: AppEnvironment
     @ObservedObject var library: LibraryStore
     let onPlay: (MediaItem) -> Void
     var onPlayQueue: (([MediaItem], Int) -> Void)? = nil
@@ -31,96 +25,125 @@ struct LibraryView: View {
     var resolver: (any AudioStreamResolving)? = nil
     var isOffline: Bool = false
 
-    @State private var section: LibrarySection = .songs
-    @State private var query = ""
+    @SceneStorage("library.segment") private var selectedSegment: LibrarySegment = .playlists
+    @State private var showSettings = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeader(eyebrow: "Tu colección", title: "Biblioteca", color: DiegoTheme.accent)
-                .responsiveHorizontalPadding()
-                .padding(.top, 14)
+        VStack(alignment: .leading, spacing: 12) {
+            header
 
-            HStack(spacing: 12) {
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(DiegoTheme.textSecondary)
-                        .accessibilityHidden(true)
-
-                    TextField("Buscar en tu biblioteca…", text: $query)
-                        .textFieldStyle(.plain)
-                        .font(.body)
-                        .autocorrectionDisabled()
-
-                    if !query.isEmpty {
-                        Button {
-                            query = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(DiegoTheme.textSecondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .frame(height: 44)
-                .background(DiegoTheme.surface)
-                .clipShape(Capsule())
-                .overlay { Capsule().stroke(DiegoTheme.textPrimary.opacity(0.12), lineWidth: 1) }
-            }
-            .responsiveHorizontalPadding()
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(LibrarySection.allCases) { sec in
-                        LibrarySectionChip(
-                            section: sec,
-                            isSelected: section == sec,
-                            hasDownloads: sec == .downloads
-                                ? !(downloadManager?.downloadedTracks.isEmpty ?? true)
-                                : false
-                        ) {
-                            section = sec
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
+            chipsScrollView
 
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .background(DiegoTheme.background)
+        .sheet(isPresented: $showSettings) {
+            NavigationStack {
+                SettingsView(
+                    playbackSettings: environment.playbackSettings,
+                    library: library,
+                    resolverConfigured: environment.resolverConfigured,
+                    downloadManager: downloadManager ?? environment.downloadManager
+                )
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cerrar") {
+                            showSettings = false
+                        }
+                    }
+                }
+            }
+        }
     }
+
+    // MARK: - Cabecera Donda
+
+    private var header: some View {
+        ZStack {
+            Text("BIBLIOTECA")
+                .dondaTitle(size: 14)
+                .tracking(6)
+                .foregroundStyle(DiegoTheme.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            HStack {
+                Spacer()
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 16))
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Ajustes")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+    }
+
+    // MARK: - Chips segmentados
+
+    private var chipsScrollView: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(LibrarySegment.allCases) { seg in
+                    let isSelected = selectedSegment == seg
+                    Button {
+                        selectedSegment = seg
+                    } label: {
+                        Text(seg.rawValue)
+                            .dondaLabel()
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(isSelected ? DiegoTheme.textPrimary : DiegoTheme.background)
+                            .foregroundStyle(isSelected ? DiegoTheme.background : DiegoTheme.textPrimary)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(DiegoTheme.outline, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    // MARK: - Contenido por segmento
 
     @ViewBuilder
     private var content: some View {
-        switch section {
+        switch selectedSegment {
+        case .playlists:
+            PlaylistsView(
+                library: library,
+                onPlay: onPlay,
+                onPlayQueue: onPlayQueue,
+                youtubeService: youtubeService ?? environment.youtubeService
+            )
+        case .podcasts:
+            PodcastsLibraryView(library: library)
         case .songs:
             SongsView(
                 library: library,
-                query: query,
+                query: "",
                 onPlay: onPlay,
                 onPlayQueue: onPlayQueue,
-                downloadManager: downloadManager,
-                resolver: resolver,
+                downloadManager: downloadManager ?? environment.downloadManager,
+                resolver: resolver ?? environment.player.resolver,
                 isOffline: isOffline
             )
         case .albums:
-            AlbumsView(library: library, query: query, onPlay: onPlay)
+            AlbumsView(library: library, query: "", onPlay: onPlay)
         case .artists:
-            ArtistsView(library: library, query: query, onPlay: onPlay)
-        case .lists:
-            ListaView(
-                library: library,
-                query: query,
-                onPlay: onPlay,
-                onPlayQueue: onPlayQueue,
-                youtubeService: youtubeService
-            )
-            .responsiveHorizontalPadding()
+            ArtistsView(library: library, query: "", onPlay: onPlay)
         case .downloads:
-            if let dm = downloadManager {
-                DownloadedView(downloadManager: dm, onPlay: onPlay, query: query)
-                    .responsiveHorizontalPadding()
+            if let dm = downloadManager ?? environment.downloadManager {
+                DownloadedView(downloadManager: dm, onPlay: onPlay, query: "")
             } else {
                 EmptyStateView(
                     title: "Descargas no disponibles",
@@ -129,42 +152,5 @@ struct LibraryView: View {
                 )
             }
         }
-    }
-}
-
-// MARK: - Chip de sección
-
-private struct LibrarySectionChip: View {
-    let section: LibrarySection
-    let isSelected: Bool
-    let hasDownloads: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: section.symbol)
-                    .font(.caption.weight(.semibold))
-                Text(section.rawValue)
-                    .font(.subheadline.weight(.semibold))
-                if section == .downloads && hasDownloads {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(DiegoTheme.green)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(isSelected ? DiegoTheme.accent : DiegoTheme.surface)
-            .foregroundStyle(isSelected ? Color.white : DiegoTheme.textSecondary)
-            .clipShape(Capsule())
-            .overlay {
-                if !isSelected {
-                    Capsule().stroke(DiegoTheme.textPrimary.opacity(0.12), lineWidth: 1)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.18), value: isSelected)
     }
 }

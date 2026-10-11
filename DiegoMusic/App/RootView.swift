@@ -87,7 +87,7 @@ struct RootView: View {
         }
     }
 
-    // MARK: - Rama iPhone (Layout Jerárquico: Contenido Z-0, PlayerDock Z-1, PhoneTabBar Z-2)
+    // MARK: - Rama iPhone (Layout Jerárquico: Contenido con Mini-player flotante ZStack + PhoneTabBar)
 
     private var phoneTabView: some View {
         VStack(spacing: 0) {
@@ -95,22 +95,35 @@ struct RootView: View {
             OfflineBanner(monitor: environment.networkMonitor)
                 .animation(.easeInOut(duration: 0.3), value: environment.networkMonitor.isConnected)
 
-            ZStack {
-                DiegoTheme.background.ignoresSafeArea()
-                destinationView(navState.current)
-                    .id(navState.rootResetTrigger)
+            ZStack(alignment: .bottom) {
+                ZStack {
+                    DiegoTheme.background.ignoresSafeArea()
+                    destinationView(navState.current)
+                        .id(navState.rootResetTrigger)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .safeAreaInset(edge: .bottom) {
+                    if environment.queue.current != nil {
+                        Color.clear.frame(height: 72)
+                    }
+                }
+
+                if environment.queue.current != nil {
+                    PlayerDock(
+                        player: environment.player,
+                        queue: environment.queue
+                    )
+                    .overlay(
+                        Rectangle().stroke(DiegoTheme.outline, lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.35), radius: 16, y: 8)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .zIndex(0)
-
-            PlayerDock(
-                player: environment.player,
-                queue: environment.queue
-            )
-            .zIndex(1)
 
             PhoneTabBar(navState: navState)
-                .zIndex(2)
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
     }
@@ -118,7 +131,7 @@ struct RootView: View {
     @ViewBuilder
     private func destinationView(_ destination: DiegoAppDestination) -> some View {
         switch destination {
-        case .home, .browse, .radio:
+        case .home:
             HomeView { navState.navigate(to: .search) }
         case .search:
             SearchView(
@@ -178,97 +191,47 @@ struct RootView: View {
                 service: environment.youtubeService,
                 onPlay: environment.play
             )
+        case let .podcastDetail(channelID, title):
+            PodcastDetailView(
+                channelID: channelID,
+                title: title
+            )
         }
     }
 }
 
-// MARK: - Sidebar Component (Apple Music Web style)
+// MARK: - Sidebar Component (Donda style)
 
 struct SidebarView: View {
     @ObservedObject var navState: NavigationState
-    @State private var sidebarSearchText = ""
+
+    private let items: [DiegoAppDestination] = [.home, .search, .library]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            // Header Logo
-            AppleMusicLogoView(size: 30, showText: true)
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-
-            // Search Bar in Sidebar
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.caption)
-                    .foregroundStyle(DiegoTheme.textSecondary)
-                TextField("Search", text: $sidebarSearchText)
-                    .font(.subheadline)
-                    .textFieldStyle(.plain)
-                    .onSubmit {
-                        if !sidebarSearchText.isEmpty {
-                            navState.navigate(to: .search)
-                        }
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(items) { destination in
+                let isSelected = navState.current == destination
+                Button {
+                    navState.navigate(to: destination)
+                } label: {
+                    HStack {
+                        Text(destination.title)
+                            .dondaLabel()
+                            .foregroundStyle(isSelected ? DiegoTheme.background : DiegoTheme.textSecondary)
+                        Spacer()
                     }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(DiegoTheme.background)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(.horizontal, 14)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Main Menu Section
-                    VStack(alignment: .leading, spacing: 4) {
-                        sidebarItem(.home, icon: "play.circle.fill", title: "Listen Now")
-                        sidebarItem(.browse, icon: "grid", title: "Browse")
-                        sidebarItem(.radio, icon: "radiowaves.left.and.right", title: "Radio")
-                    }
-
-                    // Library Section
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Library")
-                            .font(.caption.bold())
-                            .foregroundStyle(DiegoTheme.textSecondary)
-                            .padding(.horizontal, 12)
-                            .padding(.bottom, 2)
-
-                        sidebarItem(.playlists, icon: "music.note.list", title: "Playlists")
-                        sidebarItem(.songs, icon: "music.note", title: "Songs")
-                        sidebarItem(.albums, icon: "square.stack", title: "Albums")
-                        sidebarItem(.artists, icon: "music.mic", title: "Artists")
-                    }
-
-                    // Settings Section
-                    VStack(alignment: .leading, spacing: 4) {
-                        sidebarItem(.settings, icon: "gearshape", title: "Settings")
-                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(isSelected ? DiegoTheme.textPrimary : Color.clear)
+                    .contentShape(Rectangle())
                 }
-                .padding(.horizontal, 10)
+                .buttonStyle(.plain)
+                .accessibilityLabel(destination.title)
             }
+            Spacer()
         }
-    }
-
-    private func sidebarItem(_ destination: DiegoAppDestination, icon: String, title: String) -> some View {
-        let isSelected = navState.current == destination
-        return Button {
-            navState.navigate(to: destination)
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.body)
-                    .foregroundStyle(isSelected ? .white : DiegoTheme.accent)
-                    .frame(width: 22)
-                Text(title)
-                    .font(.subheadline.weight(isSelected ? .semibold : .medium))
-                    .foregroundStyle(isSelected ? .white : DiegoTheme.textPrimary)
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(isSelected ? DiegoTheme.accent : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .buttonStyle(.plain)
+        .padding(.top, 16)
+        .padding(.horizontal, 8)
     }
 }
 
@@ -356,12 +319,12 @@ struct HeaderView: View {
     }
 }
 
-// MARK: - Barra de Pestañas Inferior para iPhone (PhoneTabBar con z-index 2)
+// MARK: - Barra de Pestañas Inferior para iPhone (Donda)
 
 struct PhoneTabBar: View {
     @ObservedObject var navState: NavigationState
 
-    private let mainTabs: [DiegoAppDestination] = [.home, .search, .library, .playlists, .settings]
+    private let mainTabs: [DiegoAppDestination] = [.home, .search, .library]
 
     var body: some View {
         HStack(spacing: 0) {
@@ -369,26 +332,24 @@ struct PhoneTabBar: View {
                 Button {
                     navState.selectTab(destination)
                 } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: destination.symbol)
-                            .font(.system(size: 18, weight: navState.current == destination ? .bold : .regular))
-                        Text(destination.title)
-                            .font(.system(size: 10, weight: navState.current == destination ? .semibold : .medium))
-                    }
-                    .foregroundStyle(navState.current == destination ? DiegoTheme.accent : DiegoTheme.textSecondary)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
+                    Text(destination.title)
+                        .dondaLabel()
+                        .font(.system(size: 10, design: .monospaced))
+                        .tracking(3)
+                        .foregroundStyle(navState.current == destination ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(destination.title)
             }
         }
-        .padding(.top, 8)
-        .padding(.bottom, 22)
-        .background(DiegoTheme.surface)
+        .frame(height: 56)
+        .background(DiegoTheme.background.ignoresSafeArea(edges: .bottom))
         .overlay(alignment: .top) {
-            Divider()
-                .opacity(0.12)
+            Rectangle()
+                .fill(DiegoTheme.hairline)
+                .frame(height: 1)
         }
     }
 }

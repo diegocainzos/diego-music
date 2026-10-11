@@ -3,8 +3,6 @@ import SwiftUI
 
 enum DiegoAppDestination: Hashable, Identifiable {
     case home
-    case browse
-    case radio
     case search
     case library
     case playlists
@@ -14,20 +12,20 @@ enum DiegoAppDestination: Hashable, Identifiable {
     case settings
     case artistDetail(id: String, name: String)
     case albumDetail(id: String, title: String)
+    case podcastDetail(channelID: String, title: String)
 
     var id: String {
         switch self {
         case let .artistDetail(id, name): return "artist_\(id)_\(name)"
         case let .albumDetail(id, title): return "album_\(id)_\(title)"
+        case let .podcastDetail(channelID, _): return "podcast_\(channelID)"
         default: return String(describing: self)
         }
     }
 
     var title: String {
         switch self {
-        case .home: return "Escuchar"
-        case .browse: return "Explorar"
-        case .radio: return "Radio"
+        case .home: return "Inicio"
         case .search: return "Buscar"
         case .library: return "Biblioteca"
         case .playlists: return "Playlists"
@@ -37,20 +35,20 @@ enum DiegoAppDestination: Hashable, Identifiable {
         case .settings: return "Ajustes"
         case let .artistDetail(_, name): return name
         case let .albumDetail(_, title): return title
+        case let .podcastDetail(_, title): return title
         }
     }
 
     var symbol: String {
         switch self {
         case .home: return "play.circle.fill"
-        case .browse: return "grid"
-        case .radio: return "radiowaves.left.and.right"
         case .search: return "magnifyingglass"
         case .library: return "square.stack.3d.up"
         case .playlists: return "music.note.list"
         case .songs: return "music.note"
         case .albums, .albumDetail: return "square.stack"
         case .artists, .artistDetail: return "music.mic"
+        case .podcastDetail: return "mic"
         case .settings: return "gearshape"
         }
     }
