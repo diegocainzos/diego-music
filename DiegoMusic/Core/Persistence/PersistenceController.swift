@@ -85,6 +85,9 @@ final class PersistenceController {
             entity("EpisodeProgress", EpisodeProgressRecord.self, [
                 attribute("videoID", .stringAttributeType),
                 attribute("channelID", .stringAttributeType),
+                attribute("title", .stringAttributeType),
+                attribute("channelTitle", .stringAttributeType),
+                attribute("thumbnailURLString", .stringAttributeType, optional: true),
                 attribute("positionSeconds", .doubleAttributeType),
                 attribute("durationSeconds", .doubleAttributeType),
                 attribute("finished", .booleanAttributeType),

@@ -31,6 +31,25 @@ final class AudioPlayerCoordinator: ObservableObject {
         }
     }
 
+    enum PlaybackContext: Equatable, Sendable {
+        case music
+        case podcast(channelID: String)
+    }
+
+    @Published private(set) var context: PlaybackContext = .music {
+        didSet {
+            guard context != oldValue else { return }
+            updateRemoteCommandAvailability()
+        }
+    }
+    @Published private(set) var lastResumeSeconds: Double?
+
+    var episodeRate: Float = 1.0 {
+        didSet {
+            applyPlaybackRate()
+        }
+    }
+
     private let player = AVPlayer()
     private let queue: PlaybackQueue
     /// Resolver compartido; también lo usan las vistas (p. ej. DownloadAllButton).
@@ -51,6 +70,9 @@ final class AudioPlayerCoordinator: ObservableObject {
     private var lastPersistedPosition: Double = 0
     /// Callback para persistir la pista activa + posición ("continuar donde dejaste").
     var positionPersister: ((MediaItem, Double) -> Void)?
+    /// Callback para persistir progreso de episodio.
+    var episodeProgressPersister: ((MediaItem, String, Double, Double) -> Void)?
+    private var lastEpisodePersistedPosition: Double = 0
     private var periodicTimeObserver: Any?
     private var timeControlObservation: NSKeyValueObservation?
     private var itemStatusObservation: NSKeyValueObservation?
@@ -103,19 +125,63 @@ final class AudioPlayerCoordinator: ObservableObject {
     }
 
     func select(_ item: MediaItem) {
+        persistEpisodePosition(throttled: false)
+        lastResumeSeconds = nil
+        context = .music
         radioTask?.cancel()
         radioSeedTitle = nil
         savedUpcoming = []
         queue.play(item)
+        applyPlaybackRate()
         load(item, autoplay: true, resetRetryBudget: true)
     }
 
     func selectFromQueue(at index: Int) {
         guard queue.items.indices.contains(index) else { return }
+        persistEpisodePosition(throttled: false)
+        lastResumeSeconds = nil
+        context = .music
         queue.selectTrack(at: index)
+        applyPlaybackRate()
         if let item = queue.current {
             load(item, autoplay: true, resetRetryBudget: true)
         }
+    }
+
+    func playEpisode(_ item: MediaItem, channelID: String, resumeAt seconds: Double?) {
+        persistEpisodePosition(throttled: false)
+        radioTask?.cancel()
+        radioSeedTitle = nil
+        savedUpcoming = []
+        context = .podcast(channelID: channelID)
+        queue.replaceQueue(items: [item], startIndex: 0)
+        if let seconds, seconds > 0 {
+            pendingSeekSeconds = seconds
+            lastResumeSeconds = seconds
+        } else {
+            pendingSeekSeconds = nil
+            lastResumeSeconds = nil
+        }
+        applyPlaybackRate()
+        load(item, autoplay: true, resetRetryBudget: true)
+    }
+
+    private var currentTargetRate: Float {
+        switch context {
+        case .podcast:
+            return episodeRate
+        case .music:
+            return 1.0
+        }
+    }
+
+    private func applyPlaybackRate() {
+        let rate = currentTargetRate
+        player.defaultRate = rate
+        if isPlaying {
+            player.rate = rate
+        }
+        updateNowPlayingInfo()
     }
 
     func startRadio() {
@@ -155,6 +221,7 @@ final class AudioPlayerCoordinator: ObservableObject {
             player.pause()
             playbackState = .paused
             persistPosition(throttled: false)
+            persistEpisodePosition(throttled: false)
             updateNowPlayingInfo()
             return
         }
@@ -164,7 +231,12 @@ final class AudioPlayerCoordinator: ObservableObject {
             return
         }
         guard activatePlatformAudioSession() else { return }
+        let rate = currentTargetRate
+        player.defaultRate = rate
         player.play()
+        if player.rate != rate && rate > 0 {
+            player.rate = rate
+        }
         updateNowPlayingInfo()
     }
 
@@ -174,6 +246,7 @@ final class AudioPlayerCoordinator: ObservableObject {
     }
 
     func next() {
+        persistEpisodePosition(throttled: false)
         // Fin de cola con repetición desactivada: la reproducción se detiene.
         guard let item = queue.advance() else { return }
         load(item, autoplay: true, resetRetryBudget: true)
@@ -213,6 +286,7 @@ final class AudioPlayerCoordinator: ObservableObject {
     }
 
     func previous() {
+        persistEpisodePosition(throttled: false)
         guard let item = queue.retreat() else {
             seek(toSeconds: 0)
             return
@@ -222,6 +296,9 @@ final class AudioPlayerCoordinator: ObservableObject {
 
     func removeFromQueue(id: MediaItem.ID) {
         let removedCurrentItem = queue.current?.id == id
+        if removedCurrentItem {
+            persistEpisodePosition(throttled: false)
+        }
         queue.remove(id: id)
         guard removedCurrentItem else { return }
         if let replacement = queue.current {
@@ -232,6 +309,7 @@ final class AudioPlayerCoordinator: ObservableObject {
     }
 
     func clearQueue() {
+        persistEpisodePosition(throttled: false)
         queue.clear()
         stop()
     }
@@ -256,6 +334,12 @@ final class AudioPlayerCoordinator: ObservableObject {
         }
     }
 
+    func skip(by seconds: Double) {
+        let target = currentTime + seconds
+        let bounded = duration > 0 ? min(max(target, 0), duration) : max(target, 0)
+        seek(toSeconds: bounded)
+    }
+
     private func stop() {
         resolveTask?.cancel()
         recoveryTask?.cancel()
@@ -268,6 +352,8 @@ final class AudioPlayerCoordinator: ObservableObject {
         artworkTask?.cancel()
         #endif
         persistPosition(throttled: false)
+        persistEpisodePosition(throttled: false)
+        lastEpisodePersistedPosition = 0
         currentTime = 0
         duration = 0
         playbackState = .idle
@@ -293,6 +379,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         itemStatusObservation = nil
         currentTime = 0
         duration = 0
+        lastEpisodePersistedPosition = 0
         playbackState = .resolving
         errorMessage = nil
         updateNowPlayingInfo(item: item)
@@ -309,7 +396,10 @@ final class AudioPlayerCoordinator: ObservableObject {
                     player.replaceCurrentItem(with: playerItem)
                     playbackState = .buffering
                     schedulePrefetch()
-                    if autoplay, activatePlatformAudioSession() { player.play() }
+                    if autoplay, activatePlatformAudioSession() {
+                        player.defaultRate = currentTargetRate
+                        player.play()
+                    }
                     return
                 }
 
@@ -322,7 +412,10 @@ final class AudioPlayerCoordinator: ObservableObject {
                 player.replaceCurrentItem(with: playerItem)
                 playbackState = .buffering
                 schedulePrefetch()
-                if autoplay, activatePlatformAudioSession() { player.play() }
+                if autoplay, activatePlatformAudioSession() {
+                    player.defaultRate = currentTargetRate
+                    player.play()
+                }
             } catch is CancellationError {
                 return
             } catch {
@@ -417,6 +510,7 @@ final class AudioPlayerCoordinator: ObservableObject {
                 else { return }
                 self.playbackState = .ended
                 self.currentTime = self.duration
+                self.persistEpisodePosition(throttled: false)
                 self.updateNowPlayingInfo()
                 self.handleEndOfPlayback()
             }
@@ -437,6 +531,11 @@ final class AudioPlayerCoordinator: ObservableObject {
                     }
                     if self.player.timeControlStatus != .playing {
                         self.playbackState = .paused
+                    } else {
+                        let rate = self.currentTargetRate
+                        if self.player.rate != rate && rate > 0 {
+                            self.player.rate = rate
+                        }
                     }
                     self.errorMessage = nil
                     self.updateNowPlayingInfo()
@@ -457,6 +556,10 @@ final class AudioPlayerCoordinator: ObservableObject {
         case .playing:
             playbackState = .playing
             errorMessage = nil
+            let rate = currentTargetRate
+            if player.rate != rate && rate > 0 {
+                player.rate = rate
+            }
         case .paused:
             if playbackState != .failed && playbackState != .resolving {
                 playbackState = .paused
@@ -474,6 +577,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         if seconds.isFinite { currentTime = max(0, seconds) }
         if let item = player.currentItem { updateDuration(from: item) }
         persistPosition(throttled: true)
+        persistEpisodePosition(throttled: true)
         updateNowPlayingInfo()
     }
 
@@ -486,11 +590,22 @@ final class AudioPlayerCoordinator: ObservableObject {
         positionPersister?(current, currentTime)
     }
 
+    private func persistEpisodePosition(throttled: Bool) {
+        guard case .podcast(let channelID) = context, let current = queue.current else { return }
+        if throttled, abs(currentTime - lastEpisodePersistedPosition) < 15.0 { return }
+        lastEpisodePersistedPosition = currentTime
+        let dur = duration > 0 ? duration : Double(current.durationSeconds ?? 0)
+        episodeProgressPersister?(current, channelID, currentTime, dur)
+    }
+
     /// Restaura la reproducción tras reabrir: carga la pista y se posiciona sin
     /// auto-reproducción (queda en pausa).
     func restorePlayback(to item: MediaItem, at position: Double) {
+        lastResumeSeconds = nil
+        context = .music
         queue.play(item)
         pendingSeekSeconds = position
+        applyPlaybackRate()
         load(item, autoplay: false, resetRetryBudget: true)
     }
 
@@ -551,6 +666,8 @@ final class AudioPlayerCoordinator: ObservableObject {
         center.playCommand.isEnabled = true
         center.pauseCommand.isEnabled = true
         center.changePlaybackPositionCommand.isEnabled = true
+        center.skipBackwardCommand.preferredIntervals = [15]
+        center.skipForwardCommand.preferredIntervals = [30]
 
         addTarget(to: center.playCommand) { [weak self] _ in
             guard self != nil else { return .commandFailed }
@@ -572,6 +689,18 @@ final class AudioPlayerCoordinator: ObservableObject {
             Task { @MainActor [weak self] in self?.previous() }
             return .success
         }
+        addTarget(to: center.skipBackwardCommand) { [weak self] event in
+            guard self != nil else { return .commandFailed }
+            let interval = (event as? MPSkipIntervalCommandEvent)?.interval ?? 15
+            Task { @MainActor [weak self] in self?.skip(by: -interval) }
+            return .success
+        }
+        addTarget(to: center.skipForwardCommand) { [weak self] event in
+            guard self != nil else { return .commandFailed }
+            let interval = (event as? MPSkipIntervalCommandEvent)?.interval ?? 30
+            Task { @MainActor [weak self] in self?.skip(by: interval) }
+            return .success
+        }
         addTarget(to: center.changePlaybackPositionCommand) { [weak self] event in
             guard self != nil,
                   let positionEvent = event as? MPChangePlaybackPositionCommandEvent
@@ -580,6 +709,7 @@ final class AudioPlayerCoordinator: ObservableObject {
             Task { @MainActor [weak self] in self?.seek(toSeconds: position) }
             return .success
         }
+        updateRemoteCommandAvailability()
     }
 
     private func addTarget(
@@ -611,9 +741,28 @@ final class AudioPlayerCoordinator: ObservableObject {
 
         if AVAudioSession.InterruptionOptions(rawValue: rawOptions).contains(.shouldResume),
            activatePlatformAudioSession() {
+            player.defaultRate = currentTargetRate
             player.play()
         }
     }
+
+    private func updateRemoteCommandAvailability() {
+        let center = MPRemoteCommandCenter.shared()
+        switch context {
+        case .podcast:
+            center.skipBackwardCommand.isEnabled = true
+            center.skipForwardCommand.isEnabled = true
+            center.nextTrackCommand.isEnabled = false
+            center.previousTrackCommand.isEnabled = false
+        case .music:
+            center.skipBackwardCommand.isEnabled = false
+            center.skipForwardCommand.isEnabled = false
+            center.nextTrackCommand.isEnabled = queue.canAdvance
+            center.previousTrackCommand.isEnabled = queue.canRetreat || currentTime > 0
+        }
+    }
+    #else
+    private func updateRemoteCommandAvailability() {}
     #endif
 
     private func updateNowPlayingInfo(item explicitItem: MediaItem? = nil) {
@@ -622,11 +771,13 @@ final class AudioPlayerCoordinator: ObservableObject {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
             return
         }
+        let rate = Double(currentTargetRate)
         var information: [String: Any] = [
             MPMediaItemPropertyTitle: item.title,
             MPMediaItemPropertyArtist: item.channelTitle,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? rate : 0.0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: rate
         ]
         if duration > 0 { information[MPMediaItemPropertyPlaybackDuration] = duration }
         if let existingArtwork = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPMediaItemPropertyArtwork] {
@@ -635,9 +786,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = information
         publishArtwork(for: item)
 
-        let center = MPRemoteCommandCenter.shared()
-        center.nextTrackCommand.isEnabled = queue.canAdvance
-        center.previousTrackCommand.isEnabled = queue.canRetreat || currentTime > 0
+        updateRemoteCommandAvailability()
         #endif
     }
 

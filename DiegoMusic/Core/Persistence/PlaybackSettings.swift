@@ -81,12 +81,24 @@ final class PlaybackSettings: ObservableObject {
         }
     }
 
+    static let allowedPodcastRates: [Float] = [1.0, 1.25, 1.5, 1.75, 2.0]
+
+    @Published var podcastRate: Float {
+        didSet {
+            try? libraryStore.setPreference(
+                String(podcastRate),
+                for: Self.podcastRatePreferenceKey
+            )
+        }
+    }
+
     @Published private(set) var restoreState: (item: MediaItem, seconds: Double)?
 
     private let libraryStore: LibraryStore
     private static let themeModePreferenceKey = "playback.themeMode"
     private static let historyPreferenceKey = "playback.historyEnabled"
     private static let continuePlaybackPreferenceKey = "playback.continuePlaybackEnabled"
+    private static let podcastRatePreferenceKey = "playback.podcastRate"
     private static let restoreStatePreferenceKey = "playback.restoreState"
 
     init(libraryStore: LibraryStore) {
@@ -95,6 +107,13 @@ final class PlaybackSettings: ObservableObject {
         themeMode = AppThemeMode.migrating(rawTheme)
         historyEnabled = libraryStore.preference(for: Self.historyPreferenceKey) == "true"
         continuePlaybackEnabled = libraryStore.preference(for: Self.continuePlaybackPreferenceKey) == "true"
+        if let rawRate = libraryStore.preference(for: Self.podcastRatePreferenceKey),
+           let parsed = Float(rawRate),
+           Self.allowedPodcastRates.contains(where: { abs($0 - parsed) < 0.001 }) {
+            podcastRate = parsed
+        } else {
+            podcastRate = 1.0
+        }
         if continuePlaybackEnabled,
            let raw = libraryStore.preference(for: Self.restoreStatePreferenceKey),
            let data = raw.data(using: .utf8),
@@ -105,6 +124,15 @@ final class PlaybackSettings: ObservableObject {
                 channelTitle: decoded.channelTitle,
                 thumbnailURL: decoded.thumbnailURLString.flatMap(URL.init(string:))
             ), decoded.seconds)
+        }
+    }
+
+    func cyclePodcastRate() {
+        if let currentIndex = Self.allowedPodcastRates.firstIndex(where: { abs($0 - podcastRate) < 0.001 }) {
+            let nextIndex = (currentIndex + 1) % Self.allowedPodcastRates.count
+            podcastRate = Self.allowedPodcastRates[nextIndex]
+        } else {
+            podcastRate = 1.0
         }
     }
 
