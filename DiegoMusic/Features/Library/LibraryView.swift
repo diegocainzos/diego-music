@@ -142,15 +142,7 @@ struct LibraryView: View {
         case .artists:
             ArtistsView(library: library, query: "", onPlay: onPlay)
         case .downloads:
-            if let dm = downloadManager ?? environment.downloadManager {
-                DownloadedView(downloadManager: dm, onPlay: onPlay, query: "")
-            } else {
-                EmptyStateView(
-                    title: "Descargas no disponibles",
-                    symbol: "arrow.down.circle",
-                    description: "El gestor de descargas no está configurado."
-                )
-            }
+            DownloadedView(downloadManager: downloadManager ?? environment.downloadManager, onPlay: onPlay, query: "")
         }
     }
 }

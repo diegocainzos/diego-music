@@ -15,6 +15,8 @@ final class EpisodePlaybackTests: XCTestCase {
 
     func testPlaybackSettingsRateCycleAndPersistence() throws {
         let store = makeStore()
+        // El almacén en memoria se comparte entre tests: partimos de un valor conocido.
+        try store.setPreference("1.0", for: "playback.podcastRate")
         let settings = PlaybackSettings(libraryStore: store)
 
         // Valor por defecto: 1.0
