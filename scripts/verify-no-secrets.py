@@ -6,6 +6,8 @@ ROOT = Path(__file__).resolve().parents[1]
 ENV = ROOT / ".env"
 EXCLUDED_PARTS = {
     ".git",
+    ".gradle",
+    ".kotlin",
     ".pi-subagents",
     ".pytest_cache",
     ".venv",

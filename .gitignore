@@ -30,3 +30,16 @@ __pycache__/
 
 # Informes locales
 .pi/reports/
+
+# Android
+android/.gradle/
+android/.kotlin/
+android/local.properties
+
+# Web
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+web/downloads/*
+!web/downloads/.gitkeep
+.playwright-mcp/

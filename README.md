@@ -10,8 +10,8 @@ DiegoMusic no es una aplicación oficial ni está afiliada con YouTube o Google.
 
 - **Ecosistema Multiplataforma Unificado**:
   - **iOS / iPadOS 17+ y macOS 14.8.5+**: App nativa Swift / SwiftUI con `AVPlayer`, Core Data, Now Playing y soporte completo para pantalla de bloqueo y Centro de control.
-  - **Android**: App nativa en Kotlin con Jetpack Compose y ExoPlayer/Media3 (`diego-music-android`).
-  - **Web**: Cliente web responsive en React 19, TypeScript, Vite y Tailwind CSS (`diego-music-web`), integrado en Docker Compose detrás de Traefik.
+  - **Android**: App nativa en Kotlin con Jetpack Compose y Media3 (`android/`), port 1:1 de la app Swift con la interfaz Donda.
+  - **Web**: Cliente web responsive Donda en React 19, TypeScript y Vite (`web/`), integrado en Docker Compose detrás de Traefik, con botón «DESCARGAR APK».
 - **Letras sincronizadas en vivo (Live Lyrics)**:
   - Integración con la API pública de LRCLIB (`lrclib.net`), resaltado de línea activa en tiempo real, autoscroll, tap-to-seek y fondo glassmorphism con carátula difuminada.
   - **Normalización profunda de metadatos de YouTube**: Limpieza de sufijos de canales (`- Topic`, `VEVO` con división CamelCase `LadyGagaVEVO` → `Lady Gaga`, `Official`, `Music`), separación de colaboraciones y eliminación de etiquetas audiovisuales (`(Official Video)`, `(Video Oficial)`, `(Audio)`, `(Remastered ...)`, `[4K]`, `(feat. ...)`).
@@ -98,8 +98,8 @@ ResolverService/           Servicio resolutor de audio (FastAPI + yt-dlp)
 app/                       Backend API de usuarios (FastAPI + SQLite); la imagen lo copia como backend_app
   └── routers/             Endpoints de autenticación, favoritos, historial y playlists
 
-diego-music-android/       App nativa para Android (Kotlin, Jetpack Compose, Media3)
-diego-music-web/           Cliente web (React 19, TypeScript, Vite, Tailwind CSS)
+android/                   App nativa para Android (Kotlin, Jetpack Compose, Media3, Room)
+web/                       Cliente web Donda (React 19, TypeScript, Vite) + descarga del APK
 openspec/                  Especificaciones formales, diseño y tareas (OpenSpec)
 ```
 
@@ -164,10 +164,11 @@ curl --fail https://music.diegocainzos.cv/health
 ## Descargas y Ejecución
 
 - **iOS / macOS**: Abrir `DiegoMusic.xcodeproj` en Xcode 15+, configurar Team de firma y ejecutar con `⌘R`.
-- **Android**:
-  - Código fuente en `diego-music-android`.
-  - Descarga directa de APK precompilada: [https://music.diegocainzos.cv/diegomusic.apk](https://music.diegocainzos.cv/diegomusic.apk)
-- **Web**: Acceso directo en el navegador mediante el dominio configurado en Traefik.
+- **Android** (`android/`):
+  - Requiere JDK 17 y Android SDK 35. `./scripts/publish-apk.sh` compila el APK y lo deja en `web/downloads/diegomusic.apk`.
+  - El APK lee `YOUTUBE_DATA_KEY` y `AUDIO_RESOLVER_BASE_URL` del `.env` raíz al compilar. **No** lleva el token del resolutor: usa el JWT del usuario. Como se publica en la web, restringe la clave de YouTube en Google Cloud al paquete `com.diegocainzos.diegomusic` y al SHA‑1 que imprime el script.
+  - Descarga: botón «DESCARGAR APK» de la web, o [https://music.diegocainzos.cv/downloads/diegomusic.apk](https://music.diegocainzos.cv/downloads/diegomusic.apk) (el enlace antiguo `/diegomusic.apk` redirige).
+- **Web** (`web/`): `npm install && npm run dev` (proxy de `/api` y `/v1` al VPS). En producción la construye `compose.yml` y Traefik la sirve en el dominio del resolutor. Usa solo el JWT del usuario: no lleva claves.
 
 ---
 
@@ -198,7 +199,13 @@ xcodebuild -project DiegoMusic.xcodeproj -scheme DiegoMusic \
 Pruebas de Android:
 
 ```bash
-cd diego-music-android && ./gradlew testDebugUnitTest
+cd android && ./gradlew :app:testDebugUnitTest :app:assembleDebug
+```
+
+Pruebas de la web:
+
+```bash
+cd web && npm test && npm run build
 ```
 
 ---

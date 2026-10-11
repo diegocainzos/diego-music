@@ -52,12 +52,17 @@ services:
 
   web:
     build:
-      context: ../diego-music-web
+      context: ./web
       dockerfile: Dockerfile
     container_name: diegomusic-web
     restart: unless-stopped
     ports:
       - "8082:80"
+    volumes:
+      # APK publicado con scripts/publish-apk.sh (no versionado).
+      - ./web/downloads:/usr/share/nginx/html/downloads:ro
+    security_opt:
+      - no-new-privileges:true
     labels:
       - traefik.enable=true
       - traefik.docker.network=proxy

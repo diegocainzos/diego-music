@@ -105,6 +105,22 @@ Cambio de referencia: `openspec/changes/donda-ui-podcasts-radio/`.
 - **Recomendaciones («PARA TI»):** `POST /v1/recommendations` en el resolutor llama a OpenRouter con `OPENROUTER_API_KEY` (solo en `ResolverService/.env`, nunca en el cliente) y mapea cada sugerencia con `ytsearch1` (máximo 2 a la vez). Sin clave responde 503 y la sección no aparece.
 - **Radio:** solo se activa de forma explícita (`startRadio()` / `stopRadio()`) y la sirve `GET /v1/radio/{video_id}` (Mix de YouTube con `yt-dlp --flat-playlist`). Reproducir una pista nunca añade elementos a la cola por su cuenta.
 
+### Cliente Android (`android/`)
+
+Cambio de referencia: `openspec/changes/android-donda-client/`.
+
+- Port 1:1 del cliente Swift: un único ExoPlayer en `PlayerCoordinator` con una pista cargada; la cola vive en `PlaybackQueue`. `PlaybackService` solo lo publica en una `MediaSession` (música: anterior/siguiente; episodio: −15/+30).
+- Room replica las entidades de Core Data; `LibraryStore` es síncrono y publica `StateFlow`.
+- El APK **no** lleva `AUDIO_RESOLVER_API_TOKEN`: `/v1/*` usa el JWT del usuario. `YOUTUBE_DATA_KEY` sí va dentro y se envía con `X-Android-Package`/`X-Android-Cert` para poder restringirla.
+- Interfaz Donda con los mismos tokens que `DesignSystem.swift` (`ui/theme/Donda.kt`).
+
+### Cliente web (`web/`)
+
+Cambio de referencia: `openspec/changes/web-donda-unified/`.
+
+- Misma interfaz Donda y estructura que las apps. Todo con el JWT del usuario; el navegador nunca recibe claves ni el token estático.
+- El APK se publica con `./scripts/publish-apk.sh` en `web/downloads/` (no versionado) y nginx lo sirve en `/downloads/diegomusic.apk`.
+
 ## Fuente de verdad del proyecto Xcode
 
 - `project.yml` es la fuente de verdad.
@@ -157,6 +173,18 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 xcodebuild -project DiegoMusic.xcodeproj -scheme DiegoMusic \
   -destination 'generic/platform=iOS Simulator' \
   CODE_SIGNING_ALLOWED=NO build-for-testing
+```
+
+Para cambios en Android:
+
+```bash
+cd android && ./gradlew :app:testDebugUnitTest :app:assembleDebug
+```
+
+Para cambios en la web:
+
+```bash
+cd web && npm test && npm run build
 ```
 
 Para cambios OpenSpec:
