@@ -8,7 +8,7 @@ final class PodcastStoreTests: XCTestCase {
     private func makeStore() -> LibraryStore {
         let store = LibraryStore(context: Self.persistence.container.viewContext)
         store.clearAllUserData()
-        try? store.setPreference("false", for: "podcasts.seeded")
+        try? store.setPreference("false", for: "podcasts.defaults.v2")
         return store
     }
 
@@ -133,89 +133,31 @@ final class PodcastStoreTests: XCTestCase {
         XCTAssertEqual(fallbackToFirst.videoID, "vid_first")
     }
 
-    func testSeedDefaultShowsIfNeeded() async throws {
+    func testSeedDefaultShowsFollowsJREAndTWPOnce() throws {
         let store = makeStore()
-        let fakeService = FakeSeedingYouTubeService(
-            showsByQuery: [
-                "The Joe Rogan Experience PowerfulJRE": PodcastShow(channelID: "UC_JRE", title: "Joe Rogan"),
-                "The Wild Project Jordi Wild": PodcastShow(channelID: "UC_TWP", title: "The Wild Project")
-            ]
-        )
 
-        await seedDefaultShowsIfNeeded(store: store, service: fakeService)
+        seedDefaultShowsIfNeeded(store: store)
+
+        XCTAssertEqual(Set(store.followedShows().map(\.channelID)), ["UCzQUP1qoWDoEbmsQxvdjxgQ", "UCBYyJBCtCvgqA4NwtoPMwpQ"])
+
+        // Dejar de seguir uno es definitivo: la siembra no vuelve a añadirlo
+        try store.unfollow(channelID: "UCBYyJBCtCvgqA4NwtoPMwpQ")
+        seedDefaultShowsIfNeeded(store: store)
+        XCTAssertEqual(store.followedShows().map(\.channelID), ["UCzQUP1qoWDoEbmsQxvdjxgQ"])
+    }
+
+    func testBackendSyncWipeKeepsPodcastsAndProgress() throws {
+        let store = makeStore()
+        seedDefaultShowsIfNeeded(store: store)
+        let episode = MediaItem(id: "vid_keep", title: "Ep", channelTitle: "JRE")
+        try store.saveProgress(item: episode, channelID: "UCzQUP1qoWDoEbmsQxvdjxgQ", position: 600, duration: 7200)
+
+        store.clearAllUserData(keepingPodcasts: true)
 
         XCTAssertEqual(store.followedShows().count, 2)
-        XCTAssertTrue(store.isFollowing(channelID: "UC_JRE"))
-        XCTAssertTrue(store.isFollowing(channelID: "UC_TWP"))
-        XCTAssertEqual(store.preference(for: "podcasts.seeded"), "true")
+        XCTAssertEqual(store.progress(videoID: "vid_keep")?.position, 600)
 
-        // Segunda llamada no vuelve a sembrar
-        let anotherService = FakeSeedingYouTubeService(showsByQuery: [:])
-        await seedDefaultShowsIfNeeded(store: store, service: anotherService)
-        XCTAssertEqual(store.followedShows().count, 2)
-    }
-
-    func testSeedDefaultShowsSkippedIfPreferenceAlreadySet() async {
-        let store = makeStore()
-        try? store.setPreference("true", for: "podcasts.seeded")
-
-        let fakeService = FakeSeedingYouTubeService(
-            showsByQuery: [
-                "The Joe Rogan Experience PowerfulJRE": PodcastShow(channelID: "UC_JRE", title: "Joe Rogan")
-            ]
-        )
-
-        await seedDefaultShowsIfNeeded(store: store, service: fakeService)
+        store.clearAllUserData()
         XCTAssertTrue(store.followedShows().isEmpty)
-    }
-
-    func testSeedDefaultShowsDoesNotSetPreferenceIfNoneFound() async {
-        let store = makeStore()
-        let emptyService = FakeSeedingYouTubeService(showsByQuery: [:])
-
-        await seedDefaultShowsIfNeeded(store: store, service: emptyService)
-        XCTAssertTrue(store.followedShows().isEmpty)
-        XCTAssertNotEqual(store.preference(for: "podcasts.seeded"), "true")
-    }
-}
-
-private final class FakeSeedingYouTubeService: YouTubeDataServicing, @unchecked Sendable {
-    var showsByQuery: [String: PodcastShow]
-
-    init(showsByQuery: [String: PodcastShow]) {
-        self.showsByQuery = showsByQuery
-    }
-
-    func searchChannel(_ query: String) async throws -> PodcastShow? {
-        showsByQuery[query]
-    }
-
-    func podcastEpisodes(channelID: String) async throws -> PodcastEpisodePage {
-        PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
-    }
-
-    func search(query: String, pageToken: String?) async throws -> SearchPage {
-        SearchPage(items: [], nextPageToken: nil)
-    }
-
-    func discover() async throws -> DiscoveryFeed {
-        DiscoveryFeed(novedades: [], artistas: [])
-    }
-
-    func artist(byChannelID: String) async throws -> ArtistDetail {
-        ArtistDetail(
-            artist: Artist(id: byChannelID, title: "", bio: nil, thumbnailURL: nil),
-            topTracks: [],
-            related: [],
-            albums: []
-        )
-    }
-
-    func album(byPlaylistID: String) async throws -> Album {
-        Album(id: byPlaylistID, title: "", channelTitle: nil, thumbnailURL: nil, tracks: [])
-    }
-
-    func radio(seed videoID: String) async throws -> [MediaItem] {
-        []
     }
 }

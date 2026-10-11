@@ -245,7 +245,7 @@ struct PlayerDock: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Cerrar")
-            .frame(width: 80, alignment: .leading)
+            .frame(width: 116, alignment: .leading)
 
             Spacer()
 
@@ -285,11 +285,13 @@ struct PlayerDock: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Letras de la canción")
+
+                    FavoriteButton(library: environment.library, item: current)
                 }
 
                 ellipsisMenu(current)
             }
-            .frame(width: 80, alignment: .trailing)
+            .frame(width: 116, alignment: .trailing)
         }
     }
 
@@ -836,5 +838,24 @@ struct TrackArtwork: View {
             guard let url else { return }
             image = await ArtworkCache.shared.image(for: url)
         }
+    }
+}
+
+/// Observa la biblioteca para que el corazón cambie al instante.
+private struct FavoriteButton: View {
+    @ObservedObject var library: LibraryStore
+    let item: MediaItem
+
+    var body: some View {
+        let isFavorite = library.isFavorite(item)
+        Button { try? library.toggleFavorite(item) } label: {
+            Image(systemName: isFavorite ? "heart.fill" : "heart")
+                .font(.system(size: 16))
+                .foregroundStyle(isFavorite ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isFavorite ? "Quitar de favoritos" : "Añadir a favoritos")
     }
 }

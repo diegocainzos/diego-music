@@ -64,8 +64,15 @@ protocol YouTubeDataServicing: Sendable {
     func artist(byChannelID: String) async throws -> ArtistDetail
     func album(byPlaylistID: String) async throws -> Album
     func radio(seed videoID: String) async throws -> [MediaItem]
-    func podcastEpisodes(channelID: String) async throws -> PodcastEpisodePage
+    func podcastEpisodes(channelID: String, pageToken: String?) async throws -> PodcastEpisodePage
     func searchChannel(_ query: String) async throws -> PodcastShow?
+    func recommendations(basedOn tracks: [MediaItem]) async throws -> [MediaItem]
+}
+
+extension YouTubeDataServicing {
+    func recommendations(basedOn tracks: [MediaItem]) async throws -> [MediaItem] {
+        throw YouTubeServiceError.unavailable
+    }
 }
 
 struct YouTubeDataService: YouTubeDataServicing {
@@ -353,15 +360,34 @@ struct YouTubeDataService: YouTubeDataServicing {
         guard videoID.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) != nil else {
             throw YouTubeServiceError.invalidRequest
         }
-        let dto = try await vpsGET(path: "/v1/radio/\(videoID)", decoding: VPSRadioResponseDTO.self)
+        let dto = try await vpsRequest(path: "/v1/radio/\(videoID)", decoding: VPSRadioResponseDTO.self)
         return dto.items.map(\.mediaItem)
+    }
+
+    private static let recommendationsCache = RecommendationsCache()
+
+    /// Recomendaciones del LLM (vía resolutor) a partir de las últimas escuchas; se recuerdan mientras no cambien.
+    func recommendations(basedOn tracks: [MediaItem]) async throws -> [MediaItem] {
+        let seeds = Array(tracks.prefix(20))
+        guard !seeds.isEmpty else { return [] }
+        let key = seeds.map(\.id).joined(separator: ",")
+        if let cached = await Self.recommendationsCache.get(key) { return cached }
+
+        let body = try JSONEncoder().encode(VPSRecommendationsRequestDTO(
+            tracks: seeds.map { .init(title: String($0.title.prefix(200)), channel: String($0.channelTitle.prefix(200))) }
+        ))
+        let dto = try await vpsRequest(path: "/v1/recommendations", body: body, decoding: VPSSearchResponseDTO.self)
+        let seedIDs = Set(seeds.map(\.id))
+        let items = dto.items.map(\.mediaItem).filter { !seedIDs.contains($0.id) }
+        await Self.recommendationsCache.set(items, for: key)
+        return items
     }
 
     // MARK: - Helpers
 
     private func fetchArtistVPSService(artistID: String) async throws -> ArtistDetail {
         let encodedID = artistID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? artistID
-        let dto = try await vpsGET(path: "/v1/artist/\(encodedID)", decoding: VPSArtistDetailResponseDTO.self)
+        let dto = try await vpsRequest(path: "/v1/artist/\(encodedID)", decoding: VPSArtistDetailResponseDTO.self)
         return ArtistDetail(
             artist: Artist(
                 id: dto.artist.id,
@@ -375,7 +401,7 @@ struct YouTubeDataService: YouTubeDataServicing {
     }
 
     private func searchVPSService(query: String) async throws -> SearchPage {
-        let dto = try await vpsGET(
+        let dto = try await vpsRequest(
             path: "/v1/search",
             queryItems: [URLQueryItem(name: "q", value: query)],
             decoding: VPSSearchResponseDTO.self
@@ -383,12 +409,13 @@ struct YouTubeDataService: YouTubeDataServicing {
         return SearchPage(items: dto.items.map(\.mediaItem), nextPageToken: nil)
     }
 
-    /// GET autenticado contra el resolutor VPS. Cualquier fallo de configuración,
+    /// GET (o POST con `body`) autenticado contra el resolutor VPS. Cualquier fallo de configuración,
     /// red o estado se reporta como `quotaExceeded`, que es lo que espera el
     /// fallback de los llamadores.
-    private func vpsGET<Response: Decodable>(
+    private func vpsRequest<Response: Decodable>(
         path: String,
         queryItems: [URLQueryItem]? = nil,
+        body: Data? = nil,
         decoding responseType: Response.Type
     ) async throws -> Response {
         guard let resolverConfiguration else { throw YouTubeServiceError.quotaExceeded }
@@ -400,7 +427,11 @@ struct YouTubeDataService: YouTubeDataServicing {
         guard let url = components?.url else { throw YouTubeServiceError.quotaExceeded }
 
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        request.httpMethod = body == nil ? "GET" : "POST"
+        if let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         request.setValue("Bearer \(resolverConfiguration.apiToken)", forHTTPHeaderField: "Authorization")
 
         let data: Data
@@ -528,6 +559,28 @@ private struct VPSSearchResponseDTO: Decodable {
     let items: [VPSTrackDTO]
 }
 
+private struct VPSRecommendationsRequestDTO: Encodable {
+    struct Track: Encodable {
+        let title: String
+        let channel: String
+    }
+    let tracks: [Track]
+}
+
+private actor RecommendationsCache {
+    private var key = ""
+    private var items: [MediaItem] = []
+
+    func get(_ key: String) -> [MediaItem]? {
+        key == self.key && !items.isEmpty ? items : nil
+    }
+
+    func set(_ items: [MediaItem], for key: String) {
+        self.key = key
+        self.items = items
+    }
+}
+
 private struct VPSRadioResponseDTO: Decodable {
     struct Item: Decodable {
         let id: String
@@ -560,10 +613,11 @@ private struct VPSRadioResponseDTO: Decodable {
 extension YouTubeDataService {
     private static let podcastCache = PodcastEpisodesCache()
 
-    func podcastEpisodes(channelID: String) async throws -> PodcastEpisodePage {
+    /// `pageToken` continúa desde una página anterior (episodios más antiguos); solo la primera se cachea.
+    func podcastEpisodes(channelID: String, pageToken startToken: String? = nil) async throws -> PodcastEpisodePage {
         guard !channelID.isEmpty else { throw YouTubeServiceError.invalidRequest }
 
-        if let cached = await Self.podcastCache.get(for: channelID) {
+        if startToken == nil, let cached = await Self.podcastCache.get(for: channelID) {
             return cached
         }
 
@@ -584,12 +638,12 @@ extension YouTubeDataService {
 
         // 2-4. Recorre uploads por páginas de 50 hasta reunir suficientes episodios ≥ 40 min.
         // Canales con muchos clips/shorts (p. ej. The Wild Project) apenas tienen episodios en la primera página.
-        // ponytail: tope fijo de páginas (2 unidades de cuota cada una); paginar bajo demanda si hace falta más historia.
+        // ponytail: tope fijo de páginas por llamada (2 unidades de cuota cada una); «Cargar más» continúa con el cursor.
         let targetEpisodes = 30
         let maxPages = 8
         var episodes: [MediaItem] = []
         var hiddenShortCount = 0
-        var pageToken: String?
+        var pageToken = startToken
 
         for _ in 0..<maxPages {
             let token = pageToken
@@ -650,8 +704,8 @@ extension YouTubeDataService {
                 }
             }
 
-            pageToken = playlistData.nextPageToken
-            if episodes.count >= targetEpisodes || pageToken?.isEmpty ?? true { break }
+            pageToken = playlistData.nextPageToken.flatMap { $0.isEmpty ? nil : $0 }
+            if episodes.count >= targetEpisodes || pageToken == nil { break }
         }
 
         episodes.sort {
@@ -659,8 +713,10 @@ extension YouTubeDataService {
             return d1 > d2
         }
 
-        let page = PodcastEpisodePage(episodes: episodes, hiddenShortCount: hiddenShortCount)
-        await Self.podcastCache.set(page, for: channelID)
+        let page = PodcastEpisodePage(episodes: episodes, hiddenShortCount: hiddenShortCount, nextPageToken: pageToken)
+        if startToken == nil {
+            await Self.podcastCache.set(page, for: channelID)
+        }
         return page
     }
 

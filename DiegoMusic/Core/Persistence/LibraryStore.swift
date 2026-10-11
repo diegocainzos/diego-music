@@ -211,8 +211,13 @@ final class LibraryStore: ObservableObject {
     // MARK: - Sincronización y Limpieza de Usuario
 
     /// Purga todos los registros de usuario locales (favoritos, playlists, entradas, historial, álbumes guardados).
-    func clearAllUserData() {
-        let entityNames = ["FavoriteTrack", "Playlist", "PlaylistEntry", "PlaybackHistory", "SavedAlbum", "FollowedShow", "EpisodeProgress"]
+    /// Los podcasts seguidos y su progreso solo viven en el dispositivo (el backend no los guarda), así que
+    /// la sincronización los conserva con `keepingPodcasts: true`; solo el cierre de sesión los borra.
+    func clearAllUserData(keepingPodcasts: Bool = false) {
+        var entityNames = ["FavoriteTrack", "Playlist", "PlaylistEntry", "PlaybackHistory", "SavedAlbum"]
+        if !keepingPodcasts {
+            entityNames += ["FollowedShow", "EpisodeProgress"]
+        }
         for name in entityNames {
             let request = NSFetchRequest<NSManagedObject>(entityName: name)
             if let objects = try? context.fetch(request) {
@@ -444,13 +449,13 @@ final class LibraryStore: ObservableObject {
             record.thumbnailURLString = show.thumbnailURL?.absoluteString
             record.followedAt = .now
         }
-        try context.save()
+        try saveAndReload()
     }
 
     func unfollow(channelID: String) throws {
         if let existing = try followedShowRecord(channelID: channelID) {
             context.delete(existing)
-            try context.save()
+            try saveAndReload()
         }
     }
 

@@ -12,6 +12,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     @Published private(set) var state: FeedState = .idle
+    @Published private(set) var recommendations: [MediaItem] = []
 
     private var service: (any YouTubeDataServicing)?
     private var loadTask: Task<Void, Never>?
@@ -27,6 +28,14 @@ final class HomeViewModel: ObservableObject {
     func configure(service: any YouTubeDataServicing) {
         self.service = service
         if state == .idle { load() }
+    }
+
+    /// Best-effort: si el LLM o el resolutor fallan, la sección simplemente no aparece.
+    func loadRecommendations(basedOn history: [MediaItem]) async {
+        guard let service, !history.isEmpty else { return }
+        if let items = try? await service.recommendations(basedOn: history) {
+            recommendations = items
+        }
     }
 
     func load() {

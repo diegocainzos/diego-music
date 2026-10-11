@@ -204,7 +204,7 @@ private final class StubYouTubeDataService: YouTubeDataServicing, @unchecked Sen
         throw YouTubeServiceError.unavailable
     }
 
-    func podcastEpisodes(channelID: String) async throws -> PodcastEpisodePage {
+    func podcastEpisodes(channelID: String, pageToken: String?) async throws -> PodcastEpisodePage {
         PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
     }
 

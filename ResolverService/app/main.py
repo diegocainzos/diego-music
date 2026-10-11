@@ -16,7 +16,16 @@ from starlette.background import BackgroundTask
 from .artist_cache import ArtistCache
 from .audio_cache import PersistentAudioCache
 from .config import Settings
-from .models import ArtistDetailResponse, HealthResponse, RadioResponse, ResolveRequest, ResolveResponse, SearchResponse
+from .models import (
+    ArtistDetailResponse,
+    HealthResponse,
+    RadioResponse,
+    RecommendationsRequest,
+    ResolveRequest,
+    ResolveResponse,
+    SearchResponse,
+)
+from .recommendations import RecommendationError, recommend_queries
 from .resolution_cache import CachingAudioResolver
 from .resolver import AudioResolutionError, AudioResolving, YTDLPResolver
 from .sessions import SessionExpiredError, SessionNotFoundError, SessionStore
@@ -230,6 +239,44 @@ def create_app(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Radio no disponible.",
             ) from error
+
+    # ponytail: 2 búsquedas yt-dlp simultáneas para no disparar la RAM del VPS; sin caché (el cliente ya cachea).
+    search_slots = asyncio.Semaphore(2)
+
+    async def first_match(query: str) -> list[dict[str, str]]:
+        async with search_slots:
+            try:
+                return (await base_resolver.search(query, limit=1))[:1]
+            except Exception:
+                return []
+
+    @app.post(
+        "/v1/recommendations",
+        response_model=SearchResponse,
+        dependencies=[Depends(require_api_token)],
+    )
+    async def get_recommendations(payload: RecommendationsRequest, request: Request) -> SearchResponse:
+        if not service_settings.openrouter_api_key:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Recomendaciones no configuradas.")
+        seeds = [f"{t.channel} - {t.title}" if t.channel else t.title for t in payload.tracks]
+        try:
+            queries = await recommend_queries(
+                request.app.state.upstream_client,
+                service_settings.openrouter_api_key,
+                service_settings.openrouter_model,
+                seeds,
+            )
+        except RecommendationError as error:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Recomendaciones no disponibles.") from error
+
+        matches = await asyncio.gather(*(first_match(query) for query in queries))
+        seen: set[str] = set()
+        items = []
+        for item in (match for found in matches for match in found):
+            if item["id"] not in seen:
+                seen.add(item["id"])
+                items.append(item)
+        return SearchResponse(items=items)
 
     async def proxy_audio(request: Request, token: str, head_only: bool) -> Response:
         try:

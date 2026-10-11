@@ -61,36 +61,40 @@ struct EpisodeProgressValue: Identifiable, Equatable, Sendable {
 struct PodcastEpisodePage: Equatable, Sendable {
     let episodes: [MediaItem]
     let hiddenShortCount: Int
+    /// Cursor de uploads para pedir episodios más antiguos; nil si no hay más.
+    let nextPageToken: String?
 
-    init(episodes: [MediaItem], hiddenShortCount: Int) {
+    init(episodes: [MediaItem], hiddenShortCount: Int, nextPageToken: String? = nil) {
         self.episodes = episodes
         self.hiddenShortCount = hiddenShortCount
+        self.nextPageToken = nextPageToken
     }
 }
 
-@MainActor
-func seedDefaultShowsIfNeeded(store: LibraryStore, service: any YouTubeDataServicing) async {
-    guard store.followedShows().isEmpty else { return }
-    guard store.preference(for: "podcasts.seeded") != "true" else { return }
-
-    let defaultQueries = [
-        "The Joe Rogan Experience PowerfulJRE",
-        "The Wild Project Jordi Wild"
+extension PodcastShow {
+    /// Programas fijos: IDs de canal directos, sin gastar cuota en `search.list`.
+    static let defaults = [
+        PodcastShow(
+            channelID: "UCzQUP1qoWDoEbmsQxvdjxgQ",
+            title: "The Joe Rogan Experience",
+            thumbnailURL: URL(string: "https://yt3.googleusercontent.com/ytc/AIdro_kIOv8XSayB3mVzdmGH6r6nOuncclc_QxWr7TYTXM4dFrs=s400")
+        ),
+        PodcastShow(
+            channelID: "UCBYyJBCtCvgqA4NwtoPMwpQ",
+            title: "The Wild Project",
+            thumbnailURL: URL(string: "https://yt3.googleusercontent.com/1yaek3C9bqi0LWWOfATgD067T9RuP1rcXxzzObHIYIi0sIcNiyjYo_jYzRtf0eO2UN_GfhXnIg=s400")
+        )
     ]
+}
 
-    var followedAny = false
-    for query in defaultQueries {
-        do {
-            if let show = try await service.searchChannel(query) {
-                try store.follow(show)
-                followedAny = true
-            }
-        } catch {
-            // Best effort; continuar con el siguiente canal
-        }
+/// Sigue JRE y The Wild Project una sola vez; si luego dejas de seguir uno, no vuelve.
+/// La clave `v2` re-siembra a quien los perdió por el borrado de la sincronización.
+@MainActor
+func seedDefaultShowsIfNeeded(store: LibraryStore) {
+    let key = "podcasts.defaults.v2"
+    guard store.preference(for: key) != "true" else { return }
+    for show in PodcastShow.defaults where !store.isFollowing(channelID: show.channelID) {
+        try? store.follow(show)
     }
-
-    if followedAny {
-        try? store.setPreference("true", for: "podcasts.seeded")
-    }
+    try? store.setPreference("true", for: key)
 }

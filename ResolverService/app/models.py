@@ -59,6 +59,15 @@ class ArtistDetailResponse(BaseModel):
     related: list[SearchResultItem] = Field(default_factory=list)
 
 
+class RecommendationSeed(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    channel: str = Field(default="", max_length=200)
+
+
+class RecommendationsRequest(BaseModel):
+    tracks: list[RecommendationSeed] = Field(min_length=1, max_length=20)
+
+
 class RadioItem(BaseModel):
     id: str
     title: str

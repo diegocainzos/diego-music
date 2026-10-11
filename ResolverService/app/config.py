@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -32,6 +32,8 @@ class Settings:
     artist_cache_max_entries: int = 1000
     artist_cache_ttl_seconds: int = 86_400
     seed_demo_data: bool = False
+    openrouter_api_key: str = field(default="", repr=False)
+    openrouter_model: str = "openrouter/free"
 
     def __post_init__(self) -> None:
         if len(self.api_token) < 32:
@@ -104,4 +106,6 @@ class Settings:
             artist_cache_max_entries=artist_entries,
             artist_cache_ttl_seconds=artist_ttl,
             seed_demo_data=seed_demo_data,
+            openrouter_api_key=os.getenv("OPENROUTER_API_KEY", "").strip(),
+            openrouter_model=os.getenv("OPENROUTER_MODEL", "").strip() or "openrouter/free",
         )

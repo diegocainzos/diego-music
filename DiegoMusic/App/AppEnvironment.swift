@@ -83,9 +83,9 @@ final class AppEnvironment: ObservableObject {
         // Configurar sincronización en tiempo real desde LibraryStore hacia el Backend
         setupRealtimeLibrarySync(library: library, tokenManager: manager, backendClient: self.backendClient)
 
-        Task { @MainActor [library, youtubeService] in
+        Task { @MainActor [library] in
             await checkInitialAuthState()
-            await seedDefaultShowsIfNeeded(store: library, service: youtubeService)
+            seedDefaultShowsIfNeeded(store: library)
         }
     }
 
@@ -295,8 +295,8 @@ final class AppEnvironment: ObservableObject {
     func syncAllUserDataWithBackend() async {
         guard let token = tokenManager.getToken(), authState.isAuthenticated else { return }
         do {
-            // 1. Purgar caché local previa para aislar sesión limpia
-            library.clearAllUserData()
+            // 1. Purgar caché local previa para aislar sesión limpia (los podcasts no están en el backend)
+            library.clearAllUserData(keepingPodcasts: true)
 
             // 2. Sincronizar Favoritos desde el backend
             if let remoteFavs = try? await backendClient.fetchFavorites(token: token, entityType: "track") {

@@ -37,6 +37,8 @@ struct HomeView: View {
                 // 4. Secciones posteriores de catálogo y favoritos restilizadas con tokens Donda
                 favoritesSection
 
+                recommendationsSection
+
                 discoverySection
 
                 featuredArtistsSection
@@ -53,6 +55,7 @@ struct HomeView: View {
         .task {
             model.configure(service: environment.youtubeService)
             model.load()
+            await model.loadRecommendations(basedOn: environment.library.history.map(\.mediaItem))
         }
     }
 
@@ -325,49 +328,65 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 sectionHeader("DESCUBRIMIENTO")
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(Array(feed.novedades.enumerated()), id: \.element.id) { index, item in
-                            Button {
-                                environment.play(item)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    AsyncImage(url: item.thumbnailURL) { phase in
-                                        switch phase {
-                                        case let .success(image):
-                                            image
-                                                .resizable()
-                                                .scaledToFill()
-                                        default:
-                                            DiegoTheme.background
-                                        }
-                                    }
-                                    .frame(width: 128, height: 128)
-                                    .clipped()
-                                    .overlay(
-                                        Rectangle()
-                                            .stroke(DiegoTheme.hairline, lineWidth: 1)
-                                    )
+                mediaCarousel(feed.novedades)
+            }
+        }
+    }
 
-                                    Text(item.title)
-                                        .font(.system(size: 13, weight: .regular))
-                                        .foregroundStyle(DiegoTheme.textPrimary)
-                                        .lineLimit(1)
+    // MARK: - Para ti (LLM)
 
-                                    Text(item.channelTitle)
-                                        .dondaLabel()
-                                        .foregroundStyle(DiegoTheme.textSecondary)
-                                        .lineLimit(1)
+    @ViewBuilder
+    private var recommendationsSection: some View {
+        if !model.recommendations.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                sectionHeader("PARA TI")
+                mediaCarousel(model.recommendations)
+            }
+        }
+    }
+
+    private func mediaCarousel(_ items: [MediaItem]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 16) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    Button {
+                        environment.play(item)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            AsyncImage(url: item.thumbnailURL) { phase in
+                                switch phase {
+                                case let .success(image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                default:
+                                    DiegoTheme.background
                                 }
-                                .frame(width: 128, alignment: .leading)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Reproducir \(item.title)")
+                            .frame(width: 128, height: 128)
+                            .clipped()
+                            .overlay(
+                                Rectangle()
+                                    .stroke(DiegoTheme.hairline, lineWidth: 1)
+                            )
+
+                            Text(item.title)
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundStyle(DiegoTheme.textPrimary)
+                                .lineLimit(1)
+
+                            Text(item.channelTitle)
+                                .dondaLabel()
+                                .foregroundStyle(DiegoTheme.textSecondary)
+                                .lineLimit(1)
                         }
+                        .frame(width: 128, alignment: .leading)
                     }
-                    .padding(.vertical, 4)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Reproducir \(item.title)")
                 }
             }
+            .padding(.vertical, 4)
         }
     }
 
@@ -524,7 +543,7 @@ private struct UnavailableDiscoveryService: YouTubeDataServicing {
     func artist(byChannelID: String) async throws -> ArtistDetail { throw YouTubeServiceError.unavailable }
     func album(byPlaylistID: String) async throws -> Album { throw YouTubeServiceError.unavailable }
     func radio(seed videoID: String) async throws -> [MediaItem] { [] }
-    func podcastEpisodes(channelID: String) async throws -> PodcastEpisodePage {
+    func podcastEpisodes(channelID: String, pageToken: String?) async throws -> PodcastEpisodePage {
         PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
     }
     func searchChannel(_ query: String) async throws -> PodcastShow? { nil }

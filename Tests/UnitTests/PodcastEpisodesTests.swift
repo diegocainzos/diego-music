@@ -62,6 +62,20 @@ final class PodcastEpisodesTests: XCTestCase {
 
         XCTAssertEqual(result.episodes.map(\.id), ["vid_long", "vid_long2"])
         XCTAssertEqual(result.hiddenShortCount, 1)
+        XCTAssertNil(result.nextPageToken)
+    }
+
+    func testPodcastEpisodesContinuesFromPageToken() async throws {
+        let transport = FakeYouTubeAPIEndpointTransport(paged: true)
+        let service = YouTubeDataService(
+            configuration: APIConfiguration(youtubeDataKey: "test-key"),
+            transport: transport
+        )
+
+        let result = try await service.podcastEpisodes(channelID: "UC_CONTINUE_TEST", pageToken: "P2")
+
+        XCTAssertEqual(result.episodes.map(\.id), ["vid_long2"])
+        XCTAssertNil(result.nextPageToken)
     }
 
     func testSearchChannelMapsChannelSnippet() async throws {

@@ -12,6 +12,8 @@ struct PodcastDetailView: View {
 
     @State private var episodes: [MediaItem] = []
     @State private var hiddenShortCount: Int = 0
+    @State private var nextPageToken: String? = nil
+    @State private var isLoadingMore: Bool = false
     @State private var isLoading: Bool = true
     @State private var errorMessage: String? = nil
     @State private var isFollowing: Bool = false
@@ -227,6 +229,20 @@ struct PodcastDetailView: View {
                             .frame(height: 1)
                     }
                 }
+
+                if nextPageToken != nil {
+                    Button(action: loadMoreEpisodes) {
+                        Text(isLoadingMore ? "CARGANDO…" : "CARGAR MÁS EPISODIOS")
+                            .dondaLabel()
+                            .foregroundStyle(DiegoTheme.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLoadingMore)
+                    .padding(16)
+                }
             }
         }
     }
@@ -413,14 +429,28 @@ struct PodcastDetailView: View {
         errorMessage = nil
         Task {
             do {
-                let page = try await environment.youtubeService.podcastEpisodes(channelID: channelID)
+                let page = try await environment.youtubeService.podcastEpisodes(channelID: channelID, pageToken: nil)
                 self.episodes = page.episodes
                 self.hiddenShortCount = page.hiddenShortCount
+                self.nextPageToken = page.nextPageToken
                 self.isLoading = false
             } catch {
                 self.errorMessage = "NO SE PUDIERON CARGAR LOS EPISODIOS."
                 self.isLoading = false
             }
+        }
+    }
+
+    private func loadMoreEpisodes() {
+        guard let token = nextPageToken, !isLoadingMore else { return }
+        isLoadingMore = true
+        Task {
+            defer { isLoadingMore = false }
+            guard let page = try? await environment.youtubeService.podcastEpisodes(channelID: channelID, pageToken: token) else { return }
+            let known = Set(episodes.map(\.id))
+            episodes += page.episodes.filter { !known.contains($0.id) }
+            hiddenShortCount += page.hiddenShortCount
+            nextPageToken = page.nextPageToken
         }
     }
 

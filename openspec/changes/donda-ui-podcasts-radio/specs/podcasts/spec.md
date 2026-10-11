@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Seguir programas
-The user SHALL be able to follow and unfollow YouTube channels as podcast shows from Buscar and from the show detail; followed shows MUST persist in Core Data (`FollowedShow`). On first launch with no followed shows, The Joe Rogan Experience and The Wild Project SHALL be seeded.
+The user SHALL be able to follow and unfollow YouTube channels as podcast shows from Buscar and from the show detail; followed shows MUST persist in Core Data (`FollowedShow`). The Joe Rogan Experience and The Wild Project SHALL be seeded once by fixed channel ID (no search request), and an explicit unfollow MUST stick. Followed shows and episode progress are device-local: the backend sync wipe MUST NOT delete them; only logout does.
 
 #### Scenario: Seguir desde Buscar
 - **WHEN** the user searches a channel and taps «Seguir»

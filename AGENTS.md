@@ -102,6 +102,7 @@ Cambio de referencia: `openspec/changes/donda-ui-podcasts-radio/`.
 - **Mini‑player:** flota sobre el contenido y por encima de la barra de pestañas.
 - **Reproductor expandido (`PlayerDock`):** progreso lineal (no hay halo circular). Música: `shuffle`, `previous`, Play/Pause, `next` y `repeat`, más el botón de radio y la cola. Episodio: velocidad (1×–2×), −15 s, Play/Pause, +30 s y descarga.
 - **Podcasts:** son canales de YouTube seguidos (`FollowedShow`). Solo se listan episodios de 40 min o más, obtenidos de la playlist de uploads con `videos.list` (nunca con `search.list`). El progreso por episodio se guarda en `EpisodeProgress`. La velocidad solo se aplica en `PlaybackContext.podcast`; la música siempre suena a 1×. Con un episodio, los comandos remotos son skip −15 s y +30 s.
+- **Recomendaciones («PARA TI»):** `POST /v1/recommendations` en el resolutor llama a OpenRouter con `OPENROUTER_API_KEY` (solo en `ResolverService/.env`, nunca en el cliente) y mapea cada sugerencia con `ytsearch1` (máximo 2 a la vez). Sin clave responde 503 y la sección no aparece.
 - **Radio:** solo se activa de forma explícita (`startRadio()` / `stopRadio()`) y la sirve `GET /v1/radio/{video_id}` (Mix de YouTube con `yt-dlp --flat-playlist`). Reproducir una pista nunca añade elementos a la cola por su cuenta.
 
 ## Fuente de verdad del proyecto Xcode
