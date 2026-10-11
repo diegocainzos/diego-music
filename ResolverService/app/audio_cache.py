@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from pathlib import Path
 import re
 import secrets
+import shutil
 from typing import Final
 
 from .resolver import ResolvedAudio
@@ -29,7 +30,9 @@ class PersistentAudioCache:
         self.directory = directory
         self.max_bytes = max_bytes
         self.max_file_bytes = max_file_bytes
-        self.ffmpeg_binary = ffmpeg_binary
+        # yt-dlp trata `--ffmpeg-location ffmpeg` como ruta literal (no busca en PATH):
+        # se resuelve aquí a ruta absoluta para no perder el postprocesado.
+        self.ffmpeg_binary = shutil.which(ffmpeg_binary) or ffmpeg_binary
         self.ytdlp_binary = ytdlp_binary
         self.cookies_file = cookies_file
         self._downloads: dict[str, asyncio.Task[None]] = {}

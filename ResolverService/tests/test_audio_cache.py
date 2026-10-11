@@ -256,3 +256,14 @@ async def test_zero_size_disables_cache(tmp_path: Path) -> None:
     assert not cache.enabled
     assert await cache.get(VIDEO_ID) is None
     assert ytdlp.calls == []
+
+
+def test_bare_ffmpeg_name_is_resolved_to_absolute_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    ffmpeg = tmp_path / "bin" / "ffmpeg"
+    ffmpeg.parent.mkdir()
+    ffmpeg.write_text("#!/bin/sh\n")
+    ffmpeg.chmod(0o755)
+    monkeypatch.setenv("PATH", str(ffmpeg.parent))
+    cache = PersistentAudioCache(directory=tmp_path / "cache", max_bytes=1, max_file_bytes=1, ffmpeg_binary="ffmpeg")
+    command = cache._ytdlp_command("abcdefghijk", tmp_path / "out.%(ext)s")
+    assert command[command.index("--ffmpeg-location") + 1] == str(ffmpeg)
