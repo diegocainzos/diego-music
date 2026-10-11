@@ -1,5 +1,7 @@
 # Cambio: cola automática inteligente y encolado prioritario
 
+> **Sustituido en parte** por `donda-ui-podcasts-radio`: la radio automática y `fetchRelatedRadio` se eliminaron y ahora la radio es explícita y se sirve desde `/v1/radio/{video_id}`. `enqueueNext` sigue vigente.
+
 ## Why
 
 Cuando el usuario selecciona una canción desde la búsqueda o el inicio, la lista de reproducción actual se limita a esa única pista o a las canciones visibles en pantalla. Al terminar la pista, la música se detiene. Para ofrecer una experiencia de reproducción fluida e idéntica a YouTube Music, es necesario generar automáticamente una radio/cola inteligente (~15 pistas) basada en el artista y artistas afines del mismo género/época, además de permitir insertar manualmente pistas al principio de la cola posterior (Play Next).

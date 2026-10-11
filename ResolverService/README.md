@@ -82,7 +82,7 @@ Después ejecuta:
 ./scripts/generate-project.sh
 ```
 
-El token se usa únicamente en `POST /v1/audio/resolve`. Las URLs de stream contienen capacidades aleatorias temporales y no deben registrarse.
+El token protege `POST /v1/audio/resolve`, `/v1/search`, `/v1/artist/{id}` y `GET /v1/radio/{video_id}` (radio Mix de YouTube, máximo 30 pistas). Las URLs de stream contienen capacidades aleatorias temporales y no deben registrarse.
 
 ## Operación
 

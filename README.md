@@ -24,9 +24,9 @@ DiegoMusic no es una aplicación oficial ni está afiliada con YouTube o Google.
   - Sincronización bidireccional en el backend de favoritos, playlists e historial de reproducción con SQLite WAL.
 - **Búsqueda optimizada y gestión de cuota**:
   - Búsqueda bajo demanda, pool de claves con rotación automática (`KeyPool`) ante errores 403 (cuota) / 429, y deduplicación con caché local (`SearchCache`).
-  - Endpoints alternativos en el VPS (`/v1/search` y `/v1/artist/{artist_id}`) impulsados por `yt-dlp` y caché LRU de artistas (`ArtistCache`) cuando se agota la cuota oficial.
+  - Endpoints alternativos en el VPS (`/v1/search`, `/v1/artist/{artist_id}` y `/v1/radio/{video_id}`, este último para la radio Mix) impulsados por `yt-dlp` y caché LRU de artistas (`ArtistCache`) cuando se agota la cuota oficial.
 - **Reproductor Atmosférico y Temas Personalizados**:
-  - **Nuevo Tema *Midnight Indigo***: Paleta ambient dark con degradado azul noche (`#131836` a `#1A2247`), acento cobalto/cian (`#3E7BFA` / `#4CC9F0`), textos secundarios suaves (`#8E9BB5`) y acabado glassmorphism, integrado junto a los modos Oscuro, Claro y Sistema.
+  - **Interfaz Donda**: monocromo absoluto en negro o blanco, tipografía monoespaciada y condensada en mayúsculas, tres pestañas y mini‑player flotante. Incluye podcasts de YouTube (seguir programas, reanudar episodios, velocidad, saltos de −15/+30 s y descarga) y una radio bajo demanda basada en el Mix de YouTube.
   - **Halo Circular de Progreso (`CircularHaloScrubber`)**: Carátula central recortada en disco circular perfecto encuadrada dentro de un anillo de progreso reactivo con resplandor ambiental y soporte para gestos táctiles angulares de búsqueda de tiempo.
   - **Cabecera Minimalista**: Repliegue rápido con botón circular, sin títulos redundantes, con acceso directo a Letras (`quote.bubble`) y menú contextual de 3 puntos (`ellipsis`).
   - **Consola de 5 Controles**: Botón central elevado en disco blanco de alto contraste para Play/Pause, junto a anterior/siguiente y modos aleatorio/repetir.
@@ -59,7 +59,7 @@ El bundle ID de Apple es `com.diegocainzos.DiegoMusic`.
                            CATÁLOGO Y AUTENTICACIÓN
 DiegoMusic (iOS/Android/Web) ──> YouTube Data API v3 (KeyPool) ──> Búsqueda y catálogo
    │                               │
-   │                               └── Fallback a VPS (/v1/search, /v1/artist)
+   │                               └── Fallback a VPS (/v1/search, /v1/artist) + radio (/v1/radio)
    │
    └── Backend FastAPI (/api/v1/auth, /api/v1/users/me, /api/v1/playlists) ──> SQLite WAL
 
@@ -89,7 +89,7 @@ DiegoMusic/                App nativa para iOS y macOS (Swift / SwiftUI)
   ├── YouTube/             YouTube Data API, KeyPool, SearchCache y DTOs
   ├── Lyrics/              Cliente LRCLIB, extractor de metadatos, parser LRC y LyricsView
   ├── Features/Player/     PlayerDock, reproductor ampliado y gestión de cola
-  └── Design/              Sistema de diseño Bauhaus Hi‑Fi
+  └── Design/              Sistema de diseño Donda
 
 ResolverService/           Servicio resolutor de audio (FastAPI + yt-dlp)
   ├── app/                 Resolución de audio, streaming, caché M4A y sesiones

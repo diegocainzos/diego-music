@@ -89,16 +89,19 @@ Si un secreto aparece accidentalmente en una salida o artefacto, detener el trab
   - Dentro de `ScrollView`, `LazyVStack` **DEBE** tener su anchura estrictamente fijada a la ventana visible (`.frame(width: viewportWidth, alignment: .leading)`).
   - Si no se fija la anchura horizontal, los textos largos expanden el ancho intrínseco del contenedor, provocando que `ScrollView` centre el contenido y desplace el inicio de las frases fuera de la pantalla por la izquierda en orientación vertical.
 
-### Sistema de Diseño y Reproductor (Design System & Player UX)
+### Sistema de Diseño Donda, Navegación y Reproductor
 
-- **Modos de Tema (`AppThemeMode`):**
-  - Soporta `.midnight` (Midnight Indigo: gradiente `#131836` a `#1A2247`, acento cobalto `#3E7BFA` / cian `#4CC9F0`, textos secundarios `#8E9BB5`), `.dark`, `.light` y `.system`.
-  - Los temas aplican paletas consistentes y fondos ambientales con desenfoque de carátula en reproducción.
-- **Reproductor Expandido (`PlayerDock`):**
-  - **Halo de Progreso Circular (`CircularHaloScrubber`):** La carátula central debe recortarse en círculo (`.clipShape(Circle())`) para encuadrarla exactamente dentro del anillo de progreso circular interactivo con resplandor ambiental y soporte para gestos angulares (`atan2`).
-  - **Cabecera Minimalista:** Botón `chevron.down` circular a la izquierda, sin título superior de cabecera ("REPRODUCIENDO AHORA"), y botones de Letras (`quote.bubble`) y 3 puntos (`ellipsis`) a la derecha preservando todas las acciones de navegación y gestión de biblioteca.
-  - **Consola de Controles:** Fila de 5 controles (`shuffle`, `previous`, Play/Pause central elevado en disco blanco de alto contraste, `next`, `repeat`).
-  - **Cola de Reproducción Flotante:** Las canciones de la cola flotan directamente sobre el fondo ambiental sin contenedores tipo caja pesada ni cabeceras redundantes ("A continuación" o contador). Cada fila incluye miniatura redondeada, título y artista centrados, duración a la derecha e indicador animado de reproducción activa.
+Cambio de referencia: `openspec/changes/donda-ui-podcasts-radio/`.
+
+- **Temas (`AppThemeMode`):** solo `.black` (por defecto) y `.white`. `AppThemeMode.migrating(_:)` convierte los valores antiguos: `light` pasa a `.white` y cualquier otro a `.black`.
+- **Tokens:** usar únicamente `DiegoTheme.background`, `textPrimary`, `textSecondary`, `hairline` y `outline` (`accent` es igual que `textPrimary`). Están prohibidos los colores de acento, degradados, materiales, desenfoques y sombras decorativas; la única sombra permitida es la del mini‑player flotante. El radio es 0 y los bordes son de 1 pt. Los estados activos se marcan invirtiendo el componente.
+- **Tipografía:** `.dondaLabel()` (monoespaciada, mayúsculas, con tracking) y `.dondaTitle(size:)` (condensada, peso regular). No se empaquetan fuentes.
+- **Carátulas:** reales y a color, cuadradas y con borde `hairline`.
+- **Navegación:** tres pestañas (Inicio, Buscar, Biblioteca). La Biblioteca se divide en Playlists, Podcasts, Canciones, Álbumes, Artistas y Descargas, y Ajustes se abre en `sheet` desde su cabecera. Inicio no muestra «Nuevos episodios».
+- **Mini‑player:** flota sobre el contenido y por encima de la barra de pestañas.
+- **Reproductor expandido (`PlayerDock`):** progreso lineal (no hay halo circular). Música: `shuffle`, `previous`, Play/Pause, `next` y `repeat`, más el botón de radio y la cola. Episodio: velocidad (1×–2×), −15 s, Play/Pause, +30 s y descarga.
+- **Podcasts:** son canales de YouTube seguidos (`FollowedShow`). Solo se listan episodios de 40 min o más, obtenidos de la playlist de uploads con `videos.list` (nunca con `search.list`). El progreso por episodio se guarda en `EpisodeProgress`. La velocidad solo se aplica en `PlaybackContext.podcast`; la música siempre suena a 1×. Con un episodio, los comandos remotos son skip −15 s y +30 s.
+- **Radio:** solo se activa de forma explícita (`startRadio()` / `stopRadio()`) y la sirve `GET /v1/radio/{video_id}` (Mix de YouTube con `yt-dlp --flat-playlist`). Reproducir una pista nunca añade elementos a la cola por su cuenta.
 
 ## Fuente de verdad del proyecto Xcode
 
@@ -169,7 +172,7 @@ Las capacidades de pantalla bloqueada, auriculares, interrupciones y controles r
 - Pruebas: no contactar YouTube ni Googlevideo; usar dobles locales y datos ficticios.
 - No añadir analytics, tracking, telemetría o logs sensibles.
 - No sustituir Core Data, AVPlayer, FastAPI, Traefik o `yt-dlp` sin justificarlo en OpenSpec.
-- Mantener la interfaz experimental, tranquila y lúdica dentro del sistema Bauhaus Hi‑Fi existente.
+- Mantener la interfaz dentro del sistema Donda (monocromo, sin acentos ni radios).
 
 ## Operación Docker
 
