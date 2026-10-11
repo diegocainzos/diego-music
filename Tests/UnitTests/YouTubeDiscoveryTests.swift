@@ -24,6 +24,34 @@ final class YouTubeDiscoveryTests: XCTestCase {
         XCTAssertEqual(values["pageToken"], "PAGE")
     }
 
+    func testChannelPlaylistsEndpointShape() throws {
+        let request = try YouTubeEndpoint(
+            kind: .playlists(channelID: "UC123", pageToken: "PAGE"),
+            apiKey: "k",
+            maxResults: 15
+        ).makeRequest()
+        let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+        let values = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(components.path, "/youtube/v3/playlists")
+        XCTAssertEqual(values["channelId"], "UC123")
+        XCTAssertEqual(values["pageToken"], "PAGE")
+        XCTAssertEqual(values["maxResults"], "15")
+    }
+
+    func testSearchPlaylistsEndpointShape() throws {
+        let request = try YouTubeEndpoint(
+            kind: .searchPlaylists(query: "Queen album", pageToken: nil),
+            apiKey: "k",
+            maxResults: 10
+        ).makeRequest()
+        let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+        let values = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(components.path, "/youtube/v3/search")
+        XCTAssertEqual(values["q"], "Queen album")
+        XCTAssertEqual(values["type"], "playlist")
+        XCTAssertEqual(values["maxResults"], "10")
+    }
+
     func testDiscoverBuildsFeedWithArtists() async throws {
         let fixture = #"""
         {

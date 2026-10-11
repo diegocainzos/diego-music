@@ -11,6 +11,7 @@ struct SongsView: View {
     var resolver: (any AudioStreamResolving)? = nil
     var isOffline: Bool = false
 
+    @EnvironmentObject private var navState: NavigationState
     @State private var showOnlyDownloaded = false
 
     private var filtered: [SavedTrack] {
@@ -129,11 +130,16 @@ struct SongsView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Text(track.channelTitle)
-                        .font(.subheadline)
-                        .foregroundStyle(DiegoTheme.textSecondary)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        navState.navigate(to: .artistDetail(id: track.channelTitle, name: track.channelTitle))
+                    } label: {
+                        Text(track.channelTitle)
+                            .font(.subheadline)
+                            .foregroundStyle(DiegoTheme.textSecondary)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .contentShape(Rectangle())
             }
@@ -161,6 +167,11 @@ struct SongsView: View {
                         onPlay(track.mediaItem)
                     } label: {
                         Label("Reproducir", systemImage: "play.fill")
+                    }
+                    Button {
+                        navState.navigate(to: .artistDetail(id: track.channelTitle, name: track.channelTitle))
+                    } label: {
+                        Label("Ir al artista (\(track.channelTitle))", systemImage: "person.wave.2")
                     }
                     if let dm = downloadManager, let res = resolver {
                         if dm.isDownloaded(videoID: track.videoID) {
