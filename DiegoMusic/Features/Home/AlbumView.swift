@@ -90,8 +90,13 @@ struct AlbumView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
 
                     case let .loaded(album):
-                        header(album)
-                        tracklistTable(album.tracks)
+                        VStack(alignment: .leading, spacing: 32) {
+                            header(album)
+                            tracklistTable(album.tracks)
+                        }
+                        .task(id: album.id) {
+                            environment.player.warm(album.tracks)
+                        }
                     }
                 }
                 .responsiveHorizontalPadding()

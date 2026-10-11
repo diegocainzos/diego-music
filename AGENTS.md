@@ -68,6 +68,7 @@ Si un secreto aparece accidentalmente en una salida o artefacto, detener el trab
 - La caché M4A persistente solo puede escribir en el volumen `audio_cache`.
 - Las descargas usan únicamente `yt-dlp` y deben usar archivos temporales, validación de tamaño (descartar vacíos o mayores que `min(AUDIO_CACHE_MAX_FILE_BYTES, AUDIO_CACHE_MAX_BYTES)`) y renombrado atómico.
 - Nunca servir un archivo parcial.
+- La descarga reutiliza el JSON recortado de la resolución (`--load-info-json`, temporal `0600` borrado siempre) y no vuelve a extraer. Ni la caché de resolución ni las sesiones conservan ese JSON. Como máximo hay 2 descargas simultáneas y un único ffmpeg (remux) por pista.
 - Aplicar límite global, límite por pista y expulsión LRU.
 - Un token emitido antes de terminar el calentamiento debe poder cambiar a disco sin revelar la ruta ni exigir otro resolve.
 - Los fallos de calentamiento son best-effort: no deben interrumpir la reproducción upstream existente.

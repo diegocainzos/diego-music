@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
+import os
 from pathlib import Path
 import re
 import secrets
 import shutil
+import tempfile
 from typing import Final
 
 from .resolver import ResolvedAudio
@@ -26,6 +28,8 @@ class PersistentAudioCache:
         ffmpeg_binary: str = "ffmpeg",
         ytdlp_binary: str = "yt-dlp",
         cookies_file: Path | None = None,
+        info_directory: Path | None = None,
+        max_concurrent_downloads: int = 2,
     ) -> None:
         self.directory = directory
         self.max_bytes = max_bytes
@@ -35,6 +39,8 @@ class PersistentAudioCache:
         self.ffmpeg_binary = shutil.which(ffmpeg_binary) or ffmpeg_binary
         self.ytdlp_binary = ytdlp_binary
         self.cookies_file = cookies_file
+        self.info_directory = Path(tempfile.gettempdir()) if info_directory is None else info_directory
+        self._download_slots = asyncio.Semaphore(max_concurrent_downloads)
         self._downloads: dict[str, asyncio.Task[None]] = {}
         self._maintenance_lock = asyncio.Lock()
 
@@ -46,6 +52,7 @@ class PersistentAudioCache:
         if not self.enabled or self.directory is None:
             return
         await asyncio.to_thread(self.directory.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(self.info_directory.mkdir, parents=True, exist_ok=True)
         await asyncio.to_thread(self._remove_partial_files)
         await self._evict_if_needed()
 
@@ -71,14 +78,14 @@ class PersistentAudioCache:
         await asyncio.to_thread(path.touch)
         return ResolvedAudio.from_cached_file(path=path, size=stat.st_size)
 
-    def schedule(self, video_id: str) -> None:
+    def schedule(self, video_id: str, info: bytes | None = None) -> None:
         if not self.enabled or video_id in self._downloads:
             return
         path = self._path(video_id)
         if path is None or path.exists():
             return
 
-        task = asyncio.create_task(self._download(video_id))
+        task = asyncio.create_task(self._download(video_id, info))
         self._downloads[video_id] = task
         task.add_done_callback(lambda completed, key=video_id: self._finish_download(key, completed))
 
@@ -87,54 +94,90 @@ class PersistentAudioCache:
         if task is not None:
             await asyncio.shield(task)
 
-    async def _download(self, video_id: str) -> None:
+    async def _download(self, video_id: str, info: bytes | None = None) -> None:
         """Descarga con yt-dlp a un temporal oculto y lo publica con un renombrado atómico."""
         assert self.directory is not None
         destination = self.directory / f"{video_id}.m4a"
         stem = f".{video_id}.{secrets.token_hex(8)}"
         downloaded = self.directory / f"{stem}.m4a"
 
-        try:
-            returncode = await self._run(self._ytdlp_command(video_id, self.directory / f"{stem}.%(ext)s"))
-            if returncode != 0 or not await asyncio.to_thread(self._is_within_limits, downloaded):
-                return
-            # Los fMP4 de YouTube declaran la duración en mvhd Y en los
-            # fragmentos; AVFoundation los suma y muestra el doble. Remux a
-            # MP4 progresivo (stream copy) para dejar una única fuente.
-            final = await self._defragment(downloaded)
-            if final is None or not await asyncio.to_thread(self._is_within_limits, final):
-                final = downloaded
-            await asyncio.to_thread(final.replace, destination)
-            await asyncio.to_thread(destination.touch)
-            await self._evict_if_needed()
-        except OSError:
-            return  # el calentamiento es best-effort: la reproducción upstream continúa
-        finally:
-            for leftover in self.directory.glob(f"{stem}.*"):
-                try:
-                    leftover.unlink()
-                except OSError:
-                    pass
+        async with self._download_slots:
+            info_path: Path | None = None
+            try:
+                if info is not None:
+                    def _write_info() -> str:
+                        self.info_directory.mkdir(parents=True, exist_ok=True)
+                        fd, path_str = tempfile.mkstemp(
+                            prefix=".info-",
+                            suffix=".json",
+                            dir=str(self.info_directory),
+                        )
+                        try:
+                            os.write(fd, info)
+                        finally:
+                            os.close(fd)
+                        return path_str
 
-    def _ytdlp_command(self, video_id: str, output_template: Path) -> list[str]:
-        command = [
+                    info_path = Path(await asyncio.to_thread(_write_info))
+
+                returncode = await self._run(
+                    self._ytdlp_command(
+                        video_id,
+                        self.directory / f"{stem}.%(ext)s",
+                        info_path=info_path,
+                    )
+                )
+                if returncode != 0 or not await asyncio.to_thread(self._is_within_limits, downloaded):
+                    return
+                # Los fMP4 de YouTube declaran la duración en mvhd Y en los
+                # fragmentos; AVFoundation los suma y muestra el doble. Remux a
+                # MP4 progresivo (stream copy) para dejar una única fuente.
+                final = await self._defragment(downloaded)
+                if final is None or not await asyncio.to_thread(self._is_within_limits, final):
+                    final = downloaded
+                await asyncio.to_thread(final.replace, destination)
+                await asyncio.to_thread(destination.touch)
+                await self._evict_if_needed()
+            except OSError:
+                return  # el calentamiento es best-effort: la reproducción upstream continúa
+            finally:
+                if info_path is not None:
+                    try:
+                        os.unlink(info_path)
+                    except OSError:
+                        pass
+                for leftover in self.directory.glob(f"{stem}.*"):
+                    try:
+                        leftover.unlink()
+                    except OSError:
+                        pass
+
+    def _ytdlp_command(
+        self,
+        video_id: str,
+        output_template: Path,
+        info_path: Path | None = None,
+    ) -> list[str]:
+        common = [
             self.ytdlp_binary,
-            "--no-playlist",
             "--no-warnings",
             "--quiet",
             "--no-cache-dir",
-            "-f",
-            "bestaudio[ext=m4a][acodec^=mp4a]/bestaudio[ext=m4a]/bestaudio",
-            "--extractor-args",
-            "youtube:player_client=ios,web,mweb,web_embedded",
-            "-x",
-            "--audio-format",
-            "m4a",
-            "--ffmpeg-location",
-            self.ffmpeg_binary,
+            "--fixup",
+            "never",
             "-o",
             str(output_template),
             "--force-overwrites",
+        ]
+        if info_path is not None:
+            return common + ["--load-info-json", str(info_path)]
+
+        command = common + [
+            "--no-playlist",
+            "-f",
+            "bestaudio[ext=m4a][acodec^=mp4a]/bestaudio[ext=m4a]",
+            "--extractor-args",
+            "youtube:player_client=ios,web,mweb,web_embedded",
         ]
         if self.cookies_file is not None:
             command.extend(["--cookies", str(self.cookies_file)])

@@ -79,7 +79,7 @@ class CachingAudioResolver:
             return
 
         self._entries[video_id] = ResolutionCacheEntry(
-            audio=replace(audio, cache_status="resolution"),
+            audio=replace(audio, cache_status="resolution", download_info=None),
             expires_at=expires_at,
         )
         self._entries.move_to_end(video_id)

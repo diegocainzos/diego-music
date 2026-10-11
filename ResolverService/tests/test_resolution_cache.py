@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+import json
+from pathlib import Path
 
 import pytest
 
+from app.config import Settings
 from app.resolution_cache import CachingAudioResolver
-from app.resolver import ResolvedAudio
+from app.resolver import ResolvedAudio, YTDLPResolver
+from fake_binaries import fake_ytdlp
 
 
 class CountingResolver:
@@ -117,3 +121,53 @@ async def test_upstream_expiration_limits_cache_entry() -> None:
     await subject.resolve("M7lc1UVf-VE")
 
     assert resolver.calls == ["M7lc1UVf-VE", "M7lc1UVf-VE"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_download_info_and_caching(tmp_path: Path) -> None:
+    info_json = json.dumps({
+        "url": "https://rr1.googlevideo.com/videoplayback?expire=1893456000",
+        "ext": "m4a",
+        "acodec": "mp4a.40.2",
+        "vcodec": "none",
+        "formats": [{"format_id": "140"}],
+        "requested_formats": [{"format_id": "140"}],
+        "thumbnails": [{"url": "https://example.com/thumb.jpg"}],
+        "automatic_captions": {"en": []},
+        "subtitles": {},
+        "heatmap": [1, 2, 3],
+        "description": "test description",
+        "title": "Song Title",
+    })
+    ytdlp = fake_ytdlp(tmp_path / "bin", payload=None, stdout=info_json)
+    base_resolver = YTDLPResolver(
+        Settings(
+            api_token="test-token-with-at-least-thirty-two-characters",
+            public_base_url="https://audio.example.test",
+            ytdlp_binary=str(ytdlp.path),
+        )
+    )
+    subject = CachingAudioResolver(
+        resolver=base_resolver,
+        max_entries=5,
+        ttl_seconds=300,
+        safety_margin_seconds=30,
+    )
+
+    first = await subject.resolve("M7lc1UVf-VE")
+    assert first.cache_status == "miss"
+    assert first.download_info is not None
+    parsed = json.loads(first.download_info)
+    assert "formats" not in parsed
+    assert "requested_formats" not in parsed
+    assert "thumbnails" not in parsed
+    assert "automatic_captions" not in parsed
+    assert "subtitles" not in parsed
+    assert "heatmap" not in parsed
+    assert "description" not in parsed
+    assert parsed.get("title") == "Song Title"
+    assert parsed.get("url") == "https://rr1.googlevideo.com/videoplayback?expire=1893456000"
+
+    second = await subject.resolve("M7lc1UVf-VE")
+    assert second.cache_status == "resolution"
+    assert second.download_info is None

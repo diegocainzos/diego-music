@@ -25,6 +25,8 @@ def make_cache(
     max_bytes: int = 100,
     max_file_bytes: int = 50,
     cookies_file: Path | None = None,
+    info_directory: Path | None = None,
+    max_concurrent_downloads: int = 2,
 ) -> PersistentAudioCache:
     return PersistentAudioCache(
         tmp_path / "cache",
@@ -33,6 +35,8 @@ def make_cache(
         ffmpeg_binary=str(ffmpeg) if ffmpeg is not None else "/nonexistent-ffmpeg",
         ytdlp_binary=str(ytdlp),
         cookies_file=cookies_file,
+        info_directory=info_directory,
+        max_concurrent_downloads=max_concurrent_downloads,
     )
 
 
@@ -265,5 +269,86 @@ def test_bare_ffmpeg_name_is_resolved_to_absolute_path(tmp_path: Path, monkeypat
     ffmpeg.chmod(0o755)
     monkeypatch.setenv("PATH", str(ffmpeg.parent))
     cache = PersistentAudioCache(directory=tmp_path / "cache", max_bytes=1, max_file_bytes=1, ffmpeg_binary="ffmpeg")
-    command = cache._ytdlp_command("abcdefghijk", tmp_path / "out.%(ext)s")
-    assert command[command.index("--ffmpeg-location") + 1] == str(ffmpeg)
+    assert cache.ffmpeg_binary == str(ffmpeg)
+
+
+@pytest.mark.asyncio
+async def test_schedule_with_info_uses_load_info_json_cleans_temp_and_publishes(tmp_path: Path) -> None:
+    ytdlp = fake_ytdlp(tmp_path / "bin", payload=b"audio-payload")
+    ffmpeg = fake_ffmpeg(tmp_path / "bin")
+    cache = make_cache(tmp_path, ytdlp.path, ffmpeg.path, info_directory=tmp_path)
+    await cache.initialize()
+    fake_info = b'{"id": "M7lc1UVf-VE", "title": "Test"}'
+    cache.schedule(VIDEO_ID, info=fake_info)
+    await cache.wait_for_download(VIDEO_ID)
+
+    assert len(ytdlp.calls) == 1
+    (arguments,) = ytdlp.calls
+    assert "--load-info-json" in arguments
+    assert not any("https://www.youtube.com" in arg for arg in arguments)
+    assert not any(arg == "-f" for arg in arguments)
+    assert list(tmp_path.glob(".info-*.json")) == []
+    published = await cache.get(VIDEO_ID)
+    assert published is not None
+    assert (tmp_path / "cache" / f"{VIDEO_ID}.m4a").exists()
+
+
+@pytest.mark.asyncio
+async def test_download_without_info_arguments(tmp_path: Path) -> None:
+    ytdlp = fake_ytdlp(tmp_path / "bin")
+    cache = make_cache(tmp_path, ytdlp.path)
+    await cache.initialize()
+    cache.schedule(VIDEO_ID)
+    await cache.wait_for_download(VIDEO_ID)
+
+    (arguments,) = ytdlp.calls
+    assert "-f" in arguments
+    assert arguments[arguments.index("-f") + 1] == "bestaudio[ext=m4a][acodec^=mp4a]/bestaudio[ext=m4a]"
+    assert f"https://www.youtube.com/watch?v={VIDEO_ID}" in arguments
+    assert "--fixup" in arguments
+    assert arguments[arguments.index("--fixup") + 1] == "never"
+    assert "-x" not in arguments
+    assert "--audio-format" not in arguments
+    assert "--ffmpeg-location" not in arguments
+
+
+@pytest.mark.asyncio
+async def test_exactly_one_ffmpeg_call_per_successful_download(tmp_path: Path) -> None:
+    ytdlp = fake_ytdlp(tmp_path / "bin", payload=b"audio")
+    ffmpeg = fake_ffmpeg(tmp_path / "bin")
+    cache = make_cache(tmp_path, ytdlp.path, ffmpeg.path)
+    await cache.initialize()
+    cache.schedule(VIDEO_ID)
+    await cache.wait_for_download(VIDEO_ID)
+
+    assert len(ffmpeg.calls) == 1
+    (ffmpeg_args,) = ffmpeg.calls
+    assert "-movflags" in ffmpeg_args
+    assert "+faststart" in ffmpeg_args
+
+
+@pytest.mark.asyncio
+async def test_max_concurrent_downloads_limits_parallel_runs(tmp_path: Path) -> None:
+    ytdlp = fake_ytdlp(tmp_path / "bin", payload=b"audio", sleep=0.3)
+    ffmpeg = fake_ffmpeg(tmp_path / "bin")
+    cache = make_cache(tmp_path, ytdlp.path, ffmpeg.path, max_concurrent_downloads=2)
+    await cache.initialize()
+
+    video_ids = ["AAAAAAAAAAA", "BBBBBBBBBBB", "CCCCCCCCCCC", "DDDDDDDDDDD"]
+    for vid in video_ids:
+        cache.schedule(vid)
+
+    while len(ytdlp.calls) < 2:
+        await asyncio.sleep(0.01)
+    assert len(ytdlp.calls) == 2
+
+    # While the first 2 are still executing, verify concurrency does not exceed 2
+    await asyncio.sleep(0.1)
+    assert len(ytdlp.calls) == 2
+
+    for vid in video_ids:
+        await cache.wait_for_download(vid)
+
+    assert len(ytdlp.calls) == 4
+    for vid in video_ids:
+        assert await cache.get(vid) is not None

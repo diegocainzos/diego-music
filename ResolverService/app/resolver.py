@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+import dataclasses
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
-from typing import Any, Literal, Mapping, Protocol
+from typing import Any, Final, Literal, Mapping, Protocol
 from urllib.parse import parse_qs, urlsplit
 
 from .config import Settings
@@ -24,6 +25,16 @@ _ALLOWED_UPSTREAM_HEADERS = {
 
 _VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
+_DOWNLOAD_INFO_DROP: Final = frozenset({
+    "formats",
+    "requested_formats",
+    "thumbnails",
+    "automatic_captions",
+    "subtitles",
+    "heatmap",
+    "description",
+})
+
 
 class AudioResolutionError(RuntimeError):
     def __init__(self, public_message: str = "No se pudo resolver una pista de audio compatible.") -> None:
@@ -40,6 +51,7 @@ class ResolvedAudio:
     cached_path: Path | None = None
     content_length: int | None = None
     cache_status: Literal["miss", "resolution", "disk"] = "miss"
+    download_info: bytes | None = field(default=None, repr=False, compare=False)
 
     @classmethod
     def from_cached_file(cls, path: Path, size: int) -> "ResolvedAudio":
@@ -92,7 +104,9 @@ class YTDLPResolver:
         except (json.JSONDecodeError, UnicodeDecodeError) as error:
             raise AudioResolutionError("El resolutor devolvió una respuesta inválida.") from error
 
-        return self._parse_info(info)
+        audio = self._parse_info(info)
+        slim = {k: v for k, v in info.items() if k not in _DOWNLOAD_INFO_DROP}
+        return dataclasses.replace(audio, download_info=json.dumps(slim).encode())
 
     async def search(self, query: str, limit: int = 15) -> list[dict[str, str]]:
         arguments = [

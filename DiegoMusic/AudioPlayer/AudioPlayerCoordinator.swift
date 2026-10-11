@@ -61,6 +61,7 @@ final class AudioPlayerCoordinator: ObservableObject {
     private var resolveTask: Task<Void, Never>?
     private var recoveryTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
+    private var warmTask: Task<Void, Never>?
     private var queueObservation: AnyCancellable?
     private var loadGeneration = 0
     private var automaticRetryAvailable = true
@@ -100,6 +101,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         resolveTask?.cancel()
         recoveryTask?.cancel()
         prefetchTask?.cancel()
+        warmTask?.cancel()
         radioTask?.cancel()
         queueObservation?.cancel()
         if let periodicTimeObserver {
@@ -344,6 +346,7 @@ final class AudioPlayerCoordinator: ObservableObject {
         resolveTask?.cancel()
         recoveryTask?.cancel()
         prefetchTask?.cancel()
+        warmTask?.cancel()
         loadGeneration += 1
         player.pause()
         player.replaceCurrentItem(with: nil)
@@ -452,6 +455,20 @@ final class AudioPlayerCoordinator: ObservableObject {
                 _ = try await resolver.resolve(videoID: nextVideoID)
             } catch {
                 // La precarga es especulativa y nunca interrumpe la pista actual.
+            }
+        }
+    }
+
+    /// Precalienta en el VPS hasta 2 pistas (resolve programa su descarga). Especulativo: nunca toca la cola.
+    func warm(_ items: [MediaItem]) {
+        warmTask?.cancel()
+        let ids = items.lazy.map(\.id).filter { $0 != self.queue.current?.id }.prefix(2)
+        let videoIDs = Array(ids)
+        guard !videoIDs.isEmpty else { return }
+        warmTask = Task { [resolver] in
+            for id in videoIDs {
+                guard !Task.isCancelled else { return }
+                _ = try? await resolver.resolve(videoID: id)
             }
         }
     }

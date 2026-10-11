@@ -3,6 +3,7 @@ import SwiftUI
 /// Listas de reproducción locales: crear, renombrar, borrar y reordenar
 /// elementos (la gestión completa vive aquí; reutiliza `LibraryStore`).
 struct ListaView: View {
+    @EnvironmentObject private var environment: AppEnvironment
     @ObservedObject var library: LibraryStore
     let query: String
     let onPlay: (MediaItem) -> Void
@@ -169,6 +170,9 @@ struct ListaView: View {
                 .accessibilityLabel("Eliminar de la playlist")
             }
             .padding(.vertical, 4)
+        }
+        .task {
+            environment.player.warm(sortedEntries.map(\.mediaItem))
         }
     }
 

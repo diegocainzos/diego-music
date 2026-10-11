@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from contextlib import asynccontextmanager
 import hmac
 from typing import AsyncIterator
@@ -159,8 +160,9 @@ def create_app(
             audio = await persistent_cache.get(payload.video_id)
             if audio is None:
                 audio = await service_resolver.resolve(payload.video_id)
-                persistent_cache.schedule(payload.video_id)
-            session = session_store.create(payload.video_id, audio)
+                persistent_cache.schedule(payload.video_id, audio.download_info)
+            # La sesión no necesita el JSON de descarga (contiene la URL upstream y ocupa RAM).
+            session = session_store.create(payload.video_id, replace(audio, download_info=None))
         except AudioResolutionError as error:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error.public_message) from error
         except SessionExpiredError as error:
