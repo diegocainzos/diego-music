@@ -57,3 +57,14 @@ class ArtistDetailResponse(BaseModel):
     artist: ArtistInfo
     top_tracks: list[SearchResultItem] = Field(alias="topTracks")
     related: list[SearchResultItem] = Field(default_factory=list)
+
+
+class RadioItem(BaseModel):
+    id: str
+    title: str
+    channel: str
+    duration_seconds: int | None = None
+
+
+class RadioResponse(BaseModel):
+    items: list[RadioItem]

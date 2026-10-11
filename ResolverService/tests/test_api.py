@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import json
 from pathlib import Path
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from app.audio_cache import PersistentAudioCache
@@ -366,3 +368,100 @@ def test_artist_detail_is_cached_and_uses_the_shared_item_shape() -> None:
     assert body["topTracks"][0]["channelTitle"] == "Canal"
     assert body["related"][0]["id"] == "M7lc1UVf-VE"
     assert resolver.artist_calls == ["Coldplay"]
+
+
+class RadioResolver(FakeResolver):
+    def __init__(self, radio_items: list[dict[str, object]] | Exception | None = None) -> None:
+        super().__init__(audio())
+        self.radio_items = radio_items if radio_items is not None else []
+        self.radio_calls: list[str] = []
+
+    async def radio(self, video_id: str, limit: int = 30) -> list[dict[str, object]]:
+        self.radio_calls.append(video_id)
+        if isinstance(self.radio_items, Exception):
+            raise self.radio_items
+        return self.radio_items
+
+
+def test_radio_requires_authentication() -> None:
+    resolver = RadioResolver()
+    with TestClient(create_app(settings(), resolver=resolver)) as client:
+        response = client.get("/v1/radio/M7lc1UVf-VE")
+
+    assert response.status_code == 401
+    assert resolver.radio_calls == []
+
+
+@pytest.mark.parametrize("invalid_id", ["short", "toolongvideoideee", "invalid!char"])
+def test_radio_rejects_invalid_video_id_with_422_before_running_resolver(invalid_id: str) -> None:
+    resolver = RadioResolver()
+    with TestClient(create_app(settings(), resolver=resolver)) as client:
+        response = client.get(f"/v1/radio/{invalid_id}", headers=authorization())
+
+    assert response.status_code == 422
+    assert resolver.radio_calls == []
+
+
+def test_radio_endpoint_returns_items() -> None:
+    items = [
+        {"id": "11111111111", "title": "Track 1", "channel": "Artist 1", "duration_seconds": 180},
+        {"id": "22222222222", "title": "Track 2", "channel": "Artist 2", "duration_seconds": None},
+    ]
+    resolver = RadioResolver(items)
+    with TestClient(create_app(settings(), resolver=resolver)) as client:
+        response = client.get("/v1/radio/M7lc1UVf-VE", headers=authorization())
+
+    assert response.status_code == 200
+    assert response.json() == {"items": items}
+    assert resolver.radio_calls == ["M7lc1UVf-VE"]
+
+
+def test_radio_endpoint_failure_and_timeout_return_502_sanitized() -> None:
+    resolver = RadioResolver(AudioResolutionError("No se pudo generar la radio."))
+    with TestClient(create_app(settings(), resolver=resolver)) as client:
+        response = client.get("/v1/radio/M7lc1UVf-VE", headers=authorization())
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "Radio no disponible."}
+    assert "yt-dlp" not in response.text
+
+
+def test_radio_endpoint_with_fake_ytdlp_filters_seed_and_invalid(tmp_path: Path) -> None:
+    fake_output = {
+        "entries": [
+            {"id": "M7lc1UVf-VE", "title": "Seed", "channel": "Seed Artist", "duration": 200},
+            {"id": "bad_id", "title": "Bad", "channel": "Bad"},
+            {"id": "AAAAAAAAAAA", "title": "Track A", "channel": "Artist A", "duration": 150},
+        ]
+    }
+    ytdlp = fake_ytdlp(tmp_path, payload=None, stdout=json.dumps(fake_output))
+    app_settings = Settings(
+        api_token=API_TOKEN,
+        public_base_url="https://audio.example.test",
+        ytdlp_binary=str(ytdlp.path),
+    )
+    with TestClient(create_app(app_settings)) as client:
+        response = client.get("/v1/radio/M7lc1UVf-VE", headers=authorization())
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {"id": "AAAAAAAAAAA", "title": "Track A", "channel": "Artist A", "duration_seconds": 150}
+        ]
+    }
+
+
+def test_radio_endpoint_with_fake_ytdlp_timeout_returns_502(tmp_path: Path) -> None:
+    slow_ytdlp = fake_ytdlp(tmp_path, payload=None, sleep=0.5)
+    app_settings = Settings(
+        api_token=API_TOKEN,
+        public_base_url="https://audio.example.test",
+        ytdlp_binary=str(slow_ytdlp.path),
+        resolve_timeout_seconds=0.05,
+    )
+    with TestClient(create_app(app_settings)) as client:
+        response = client.get("/v1/radio/M7lc1UVf-VE", headers=authorization())
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "Radio no disponible."}
+    assert "timeout" not in response.text.lower()

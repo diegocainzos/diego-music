@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import re
 from typing import Any, Literal, Mapping, Protocol
 from urllib.parse import parse_qs, urlsplit
 
@@ -20,6 +21,8 @@ _ALLOWED_UPSTREAM_HEADERS = {
     "referer",
     "user-agent",
 }
+
+_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
 
 class AudioResolutionError(RuntimeError):
@@ -146,6 +149,94 @@ class YTDLPResolver:
                 "channelTitle": str(channel),
                 "thumbnailURL": thumbnail,
             })
+        return results
+
+    async def radio(self, video_id: str, limit: int = 30) -> list[dict[str, str | int | None]]:
+        arguments = [
+            self.settings.ytdlp_binary,
+            "--dump-single-json",
+            "--no-warnings",
+            "--quiet",
+            "--no-cache-dir",
+            "--skip-download",
+            "--flat-playlist",
+            "--playlist-end",
+            str(limit),
+            "--extractor-args",
+            "youtube:player_client=ios,web,mweb,web_embedded",
+            f"https://www.youtube.com/watch?v={video_id}&list=RD{video_id}",
+        ]
+        if self.settings.cookies_file is not None:
+            arguments.extend(["--cookies", str(self.settings.cookies_file)])
+
+        process: asyncio.subprocess.Process | None = None
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *arguments,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(
+                process.communicate(),
+                timeout=self.settings.resolve_timeout_seconds,
+            )
+        except TimeoutError as error:
+            if process is not None:
+                process.kill()
+                await process.communicate()
+            raise AudioResolutionError("No se pudo generar la radio.") from error
+        except OSError as error:
+            raise AudioResolutionError("No se pudo generar la radio.") from error
+
+        if process.returncode != 0 or not stdout:
+            return []
+
+        try:
+            info = json.loads(stdout)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return []
+
+        if not isinstance(info, dict):
+            return []
+
+        entries = info.get("entries", [])
+        if not isinstance(entries, list):
+            return []
+
+        results: list[dict[str, str | int | None]] = []
+        seen_ids: set[str] = set()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            entry_id = entry.get("id")
+            if (
+                not isinstance(entry_id, str)
+                or not _VIDEO_ID_PATTERN.match(entry_id)
+                or entry_id == video_id
+            ):
+                continue
+            if entry_id in seen_ids:
+                continue
+            seen_ids.add(entry_id)
+
+            raw_duration = entry.get("duration") if entry.get("duration") is not None else entry.get("duration_seconds")
+            duration_seconds: int | None = None
+            if raw_duration is not None:
+                try:
+                    duration_seconds = int(raw_duration)
+                except (ValueError, TypeError):
+                    duration_seconds = None
+
+            channel = entry.get("channel") or entry.get("uploader") or ""
+            results.append({
+                "id": entry_id,
+                "title": str(entry.get("title") or ""),
+                "channel": str(channel),
+                "duration_seconds": duration_seconds,
+            })
+            if len(results) >= limit:
+                break
+
         return results
 
     async def get_artist_detail(self, artist_id: str) -> dict[str, Any]:

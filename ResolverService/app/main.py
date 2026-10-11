@@ -7,7 +7,7 @@ from typing import AsyncIterator
 
 import httpx
 import jwt
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Path, Request, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.background import BackgroundTask
@@ -15,7 +15,7 @@ from starlette.background import BackgroundTask
 from .artist_cache import ArtistCache
 from .audio_cache import PersistentAudioCache
 from .config import Settings
-from .models import ArtistDetailResponse, HealthResponse, ResolveRequest, ResolveResponse, SearchResponse
+from .models import ArtistDetailResponse, HealthResponse, RadioResponse, ResolveRequest, ResolveResponse, SearchResponse
 from .resolution_cache import CachingAudioResolver
 from .resolver import AudioResolutionError, AudioResolving, YTDLPResolver
 from .sessions import SessionExpiredError, SessionNotFoundError, SessionStore
@@ -211,6 +211,22 @@ def create_app(
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Error al resolver información del artista en el VPS.",
+            ) from error
+
+    @app.get(
+        "/v1/radio/{video_id}",
+        response_model=RadioResponse,
+        dependencies=[Depends(require_api_token)],
+    )
+    async def get_radio(
+        video_id: str = Path(pattern=r"^[A-Za-z0-9_-]{11}$"),
+    ) -> RadioResponse:
+        try:
+            return RadioResponse(items=await base_resolver.radio(video_id))
+        except Exception as error:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Radio no disponible.",
             ) from error
 
     async def proxy_audio(request: Request, token: str, head_only: bool) -> Response:
