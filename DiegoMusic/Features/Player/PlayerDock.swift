@@ -174,7 +174,7 @@ struct PlayerDock: View {
                 .padding(.bottom, 32)
             }
             .background(DiegoTheme.background.ignoresSafeArea())
-            .toolbar(.hidden, for: .navigationBar)
+            .toolbar(.hidden, for: .automatic)
             .overlay(alignment: .bottom) {
                 if let message = toastMessage {
                     Text(message)
