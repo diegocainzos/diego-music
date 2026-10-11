@@ -17,14 +17,30 @@ struct EpisodeProgressValue: Identifiable, Equatable, Sendable {
     var id: String { videoID }
     let videoID: String
     let channelID: String
+    let title: String
+    let channelTitle: String
+    let thumbnailURL: URL?
     let position: Double
     let duration: Double
     let finished: Bool
     let updatedAt: Date
 
+    var mediaItem: MediaItem {
+        MediaItem(
+            id: videoID,
+            title: title,
+            channelTitle: channelTitle,
+            thumbnailURL: thumbnailURL,
+            durationSeconds: Int(duration)
+        )
+    }
+
     init(
         videoID: String,
         channelID: String,
+        title: String,
+        channelTitle: String,
+        thumbnailURL: URL? = nil,
         position: Double,
         duration: Double,
         finished: Bool,
@@ -32,6 +48,9 @@ struct EpisodeProgressValue: Identifiable, Equatable, Sendable {
     ) {
         self.videoID = videoID
         self.channelID = channelID
+        self.title = title
+        self.channelTitle = channelTitle
+        self.thumbnailURL = thumbnailURL
         self.position = position
         self.duration = duration
         self.finished = finished

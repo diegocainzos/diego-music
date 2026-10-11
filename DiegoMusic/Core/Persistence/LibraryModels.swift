@@ -213,6 +213,9 @@ final class FollowedShowRecord: NSManagedObject {
 final class EpisodeProgressRecord: NSManagedObject {
     @NSManaged var videoID: String
     @NSManaged var channelID: String
+    @NSManaged var title: String
+    @NSManaged var channelTitle: String
+    @NSManaged var thumbnailURLString: String?
     @NSManaged var positionSeconds: Double
     @NSManaged var durationSeconds: Double
     @NSManaged var finished: Bool

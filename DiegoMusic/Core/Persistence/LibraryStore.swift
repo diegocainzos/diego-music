@@ -461,6 +461,9 @@ final class LibraryStore: ObservableObject {
         return EpisodeProgressValue(
             videoID: record.videoID,
             channelID: record.channelID,
+            title: record.title,
+            channelTitle: record.channelTitle,
+            thumbnailURL: record.thumbnailURLString.flatMap(URL.init(string:)),
             position: record.positionSeconds,
             duration: record.durationSeconds,
             finished: record.finished,
@@ -468,18 +471,24 @@ final class LibraryStore: ObservableObject {
         )
     }
 
-    func saveProgress(videoID: String, channelID: String, position: Double, duration: Double) throws {
+    func saveProgress(item: MediaItem, channelID: String, position: Double, duration: Double) throws {
         let isFinished = (duration - position) <= 60
-        if let existing = try episodeProgressRecord(videoID: videoID) {
+        if let existing = try episodeProgressRecord(videoID: item.id) {
             existing.channelID = channelID
+            existing.title = item.title
+            existing.channelTitle = item.channelTitle
+            existing.thumbnailURLString = item.thumbnailURL?.absoluteString
             existing.positionSeconds = position
             existing.durationSeconds = duration
             existing.finished = isFinished
             existing.updatedAt = .now
         } else {
             let record: EpisodeProgressRecord = insertRecord(entityName: "EpisodeProgress")
-            record.videoID = videoID
+            record.videoID = item.id
             record.channelID = channelID
+            record.title = item.title
+            record.channelTitle = item.channelTitle
+            record.thumbnailURLString = item.thumbnailURL?.absoluteString
             record.positionSeconds = position
             record.durationSeconds = duration
             record.finished = isFinished
@@ -497,6 +506,9 @@ final class LibraryStore: ObservableObject {
         return EpisodeProgressValue(
             videoID: record.videoID,
             channelID: record.channelID,
+            title: record.title,
+            channelTitle: record.channelTitle,
+            thumbnailURL: record.thumbnailURLString.flatMap(URL.init(string:)),
             position: record.positionSeconds,
             duration: record.durationSeconds,
             finished: record.finished,

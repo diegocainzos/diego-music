@@ -22,6 +22,7 @@ final class AppEnvironment: ObservableObject {
     let authClient: AuthClient
     let backendClient: BackendAPIClient
     let tokenManager: KeychainTokenManager
+    private var cancellables = Set<AnyCancellable>()
 
     init(
         modelContext: NSManagedObjectContext,
@@ -65,6 +66,15 @@ final class AppEnvironment: ObservableObject {
         player.positionPersister = { [weak playbackSettings] item, seconds in
             playbackSettings?.persist(item: item, seconds: seconds)
         }
+        player.episodeRate = playbackSettings.podcastRate
+        playbackSettings.$podcastRate
+            .sink { [weak player] rate in
+                player?.episodeRate = rate
+            }
+            .store(in: &cancellables)
+        player.episodeProgressPersister = { [weak library] item, channelID, position, duration in
+            try? library?.saveProgress(item: item, channelID: channelID, position: position, duration: duration)
+        }
         if let restore = playbackSettings.restoreState {
             player.restorePlayback(to: restore.item, at: restore.seconds)
         }
@@ -73,8 +83,9 @@ final class AppEnvironment: ObservableObject {
         // Configurar sincronización en tiempo real desde LibraryStore hacia el Backend
         setupRealtimeLibrarySync(library: library, tokenManager: manager, backendClient: self.backendClient)
 
-        Task {
+        Task { @MainActor [library, youtubeService] in
             await checkInitialAuthState()
+            await seedDefaultShowsIfNeeded(store: library, service: youtubeService)
         }
     }
 
@@ -184,6 +195,33 @@ final class AppEnvironment: ObservableObject {
                     thumbnailUrl: item.thumbnailURL?.absoluteString,
                     durationSeconds: item.durationSeconds,
                     playedSeconds: 0
+                )
+            }
+        }
+    }
+
+    func playEpisode(_ item: MediaItem, channelID: String) {
+        let savedProgress = library.progress(videoID: item.id)
+        let resumeSeconds: Double?
+        if let savedProgress, !savedProgress.finished, savedProgress.position > 0 {
+            resumeSeconds = savedProgress.position
+        } else {
+            resumeSeconds = nil
+        }
+        player.playEpisode(item, channelID: channelID, resumeAt: resumeSeconds)
+        if playbackSettings.historyEnabled {
+            try? library.addHistory(item)
+        }
+        if let token = tokenManager.getToken(), authState.isAuthenticated {
+            Task {
+                _ = try? await backendClient.recordPlayHistory(
+                    token: token,
+                    youtubeVideoId: item.id,
+                    title: item.title,
+                    channelTitle: item.channelTitle,
+                    thumbnailUrl: item.thumbnailURL?.absoluteString,
+                    durationSeconds: item.durationSeconds,
+                    playedSeconds: Int(resumeSeconds ?? 0)
                 )
             }
         }
