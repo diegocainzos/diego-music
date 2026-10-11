@@ -24,7 +24,12 @@ struct SignUpView: View {
                 .background(DiegoTheme.background.ignoresSafeArea())
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancelar") { dismiss() }
+                        Button {
+                            dismiss()
+                        } label: {
+                            Text("CANCELAR").dondaLabel()
+                        }
+                        .tint(DiegoTheme.textPrimary)
                     }
                 }
             }
@@ -33,15 +38,11 @@ struct SignUpView: View {
 
     private var formContent: some View {
         VStack(spacing: 24) {
-            if !isEmbedded {
-                AppleMusicLogoView(size: 40, showText: true)
-                    .padding(.top, 24)
-            }
-
             VStack(spacing: 8) {
-                Text("Crear Cuenta")
-                    .font(.title2.bold())
+                Text("CREAR CUENTA")
+                    .dondaTitle(size: 22)
                     .foregroundStyle(DiegoTheme.textPrimary)
+                    .padding(.top, isEmbedded ? 0 : 32)
 
                 Text("Registra tu usuario en el backend privado")
                     .font(.callout)
@@ -50,47 +51,56 @@ struct SignUpView: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Nombre Completo (Opcional)")
-                        .font(.caption.bold())
+                    Text("NOMBRE COMPLETO (OPCIONAL)")
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
                     TextField("Diego Cainzos", text: $fullName)
-                        .textFieldStyle(.roundedBorder)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 40)
+                        .background(DiegoTheme.background)
+                        .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Correo Electrónico")
-                        .font(.caption.bold())
+                    Text("CORREO ELECTRÓNICO")
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
                     TextField("usuario@ejemplo.com", text: $email)
                         #if os(iOS)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
                         #endif
-                        .textFieldStyle(.roundedBorder)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 40)
+                        .background(DiegoTheme.background)
+                        .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Contraseña")
-                        .font(.caption.bold())
+                    Text("CONTRASEÑA")
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
                     SecureField("Entre 10 y 25 caracteres", text: $password)
-                        .textFieldStyle(.roundedBorder)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 40)
+                        .background(DiegoTheme.background)
+                        .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
 
                     // Feedback en tiempo real de requisitos de contraseña
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
-                            Image(systemName: isPasswordLengthValid ? "checkmark.circle.fill" : "circle")
+                            Image(systemName: isPasswordLengthValid ? "checkmark.circle" : "circle")
                                 .font(.caption2)
-                                .foregroundStyle(isPasswordLengthValid ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                                .foregroundStyle(isPasswordLengthValid ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                             Text("Entre 10 y 25 caracteres (\(password.count)/25)")
                                 .font(.caption2)
                                 .foregroundStyle(isPasswordLengthValid ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                         }
 
                         HStack(spacing: 6) {
-                            Image(systemName: isPasswordUppercaseValid ? "checkmark.circle.fill" : "circle")
+                            Image(systemName: isPasswordUppercaseValid ? "checkmark.circle" : "circle")
                                 .font(.caption2)
-                                .foregroundStyle(isPasswordUppercaseValid ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                                .foregroundStyle(isPasswordUppercaseValid ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                             Text("Al menos una letra mayúscula")
                                 .font(.caption2)
                                 .foregroundStyle(isPasswordUppercaseValid ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
@@ -100,29 +110,32 @@ struct SignUpView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Confirmar Contraseña")
-                        .font(.caption.bold())
+                    Text("CONFIRMAR CONTRASEÑA")
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
                     SecureField("Repite tu contraseña", text: $confirmPassword)
-                        .textFieldStyle(.roundedBorder)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 40)
+                        .background(DiegoTheme.background)
+                        .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
                     
                     if !confirmPassword.isEmpty {
                         HStack(spacing: 6) {
-                            Image(systemName: password == confirmPassword ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            Image(systemName: password == confirmPassword ? "checkmark.circle" : "xmark.circle")
                                 .font(.caption2)
-                                .foregroundStyle(password == confirmPassword ? DiegoTheme.accent : DiegoTheme.red)
+                                .foregroundStyle(password == confirmPassword ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                             Text(password == confirmPassword ? "Las contraseñas coinciden" : "Las contraseñas no coinciden")
                                 .font(.caption2)
-                                .foregroundStyle(password == confirmPassword ? DiegoTheme.textPrimary : DiegoTheme.red)
+                                .foregroundStyle(password == confirmPassword ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                         }
                         .padding(.top, 2)
                     }
                 }
 
                 if let errorMessage {
-                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    Label(errorMessage, systemImage: "exclamationmark.triangle")
                         .font(.caption)
-                        .foregroundStyle(DiegoTheme.red)
+                        .foregroundStyle(DiegoTheme.textSecondary)
                         .padding(.vertical, 4)
                 }
 
@@ -132,11 +145,11 @@ struct SignUpView: View {
                     HStack {
                         if isSubmitting {
                             ProgressView()
-                                .tint(.white)
+                                .tint(DiegoTheme.background)
                                 .padding(.trailing, 6)
                         }
-                        Text("Crear Cuenta")
-                            .fontWeight(.bold)
+                        Text("CREAR CUENTA")
+                            .dondaLabel()
                     }
                     .frame(maxWidth: .infinity)
                 }

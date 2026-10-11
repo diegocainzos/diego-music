@@ -30,8 +30,8 @@ struct ListaView: View {
 
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(DiegoTheme.red)
+                    .dondaLabel()
+                    .foregroundStyle(DiegoTheme.textSecondary)
                     .accessibilityLabel(errorMessage)
             }
 
@@ -61,16 +61,19 @@ struct ListaView: View {
     private var createRow: some View {
         HStack(spacing: 10) {
             TextField("Nombre de la nueva playlist", text: $newName)
-                .textFieldStyle(.roundedBorder)
-                .frame(minHeight: 44)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 40)
+                .background(DiegoTheme.background)
+                .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
                 .onSubmit(createPlaylist)
                 .accessibilityLabel("Nombre de la nueva playlist")
+
             Button(action: createPlaylist) {
                 Image(systemName: "plus")
-                    .frame(width: 44, height: 44)
-                    .background(DiegoTheme.accent)
-                    .foregroundStyle(.white)
-                    .clipShape(Circle())
+                    .font(.system(size: 14, weight: .bold))
+                    .frame(width: 40, height: 40)
+                    .background(DiegoTheme.textPrimary)
+                    .foregroundStyle(DiegoTheme.background)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Crear playlist")
@@ -78,16 +81,16 @@ struct ListaView: View {
             Button {
                 isShowingCreateSheet = true
             } label: {
-                Label("Nueva Playlist", systemImage: "plus.circle.fill")
-                    .font(.subheadline.weight(.semibold))
+                Text("NUEVA PLAYLIST")
+                    .dondaLabel()
             }
             .buttonStyle(PrimaryButtonStyle())
 
             Button {
                 isShowingImportSheet = true
             } label: {
-                Label("Importar YouTube", systemImage: "arrow.down.doc.fill")
-                    .font(.subheadline.weight(.semibold))
+                Text("IMPORTAR YOUTUBE")
+                    .dondaLabel()
             }
             .buttonStyle(PrimaryButtonStyle())
         }
@@ -110,7 +113,7 @@ struct ListaView: View {
                 } label: {
                     playlistRow(playlist)
                 }
-                .tint(DiegoTheme.accent)
+                .tint(DiegoTheme.textPrimary)
             }
         }
         .scrollContentBackground(.hidden)
@@ -130,9 +133,14 @@ struct ListaView: View {
                         onPlay(entry.mediaItem)
                     }
                 } label: {
-                    VStack(alignment: .leading) {
-                        Text(entry.title).font(.headline).lineLimit(1)
-                        Text(entry.channelTitle).font(.caption).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entry.title)
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(DiegoTheme.textPrimary)
+                            .lineLimit(1)
+                        Text(entry.channelTitle)
+                            .dondaLabel()
+                            .foregroundStyle(DiegoTheme.textSecondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -166,18 +174,23 @@ struct ListaView: View {
 
     private func playlistRow(_ playlist: LocalPlaylist) -> some View {
         HStack {
-            Circle()
-                .fill(DiegoTheme.accent.opacity(0.85))
+            Rectangle()
+                .fill(DiegoTheme.surface)
                 .frame(width: 44, height: 44)
+                .overlay(Rectangle().stroke(DiegoTheme.hairline, lineWidth: 1))
                 .overlay {
                     Image(systemName: "music.note")
                         .font(.callout)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(DiegoTheme.textPrimary)
                 }
                 .accessibilityHidden(true)
-            VStack(alignment: .leading) {
-                Text(playlist.name).font(.title3.bold())
-                Text("\(playlist.entries.count) elementos").font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(playlist.name)
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(DiegoTheme.textPrimary)
+                Text("\(playlist.entries.count) ELEMENTOS")
+                    .dondaLabel()
+                    .foregroundStyle(DiegoTheme.textSecondary)
             }
             Spacer()
             Button { beginRename(playlist) } label: {
@@ -196,16 +209,22 @@ struct ListaView: View {
 
     private func renameSheet(_ playlist: LocalPlaylist) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Renombrar playlist").font(.title2.bold())
+            Text("RENOMBRAR PLAYLIST")
+                .dondaTitle(size: 18)
+                .foregroundStyle(DiegoTheme.textPrimary)
             TextField("Nombre de la playlist", text: $draftName)
-                .textFieldStyle(.roundedBorder)
-                .frame(minHeight: 44)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 40)
+                .background(DiegoTheme.background)
+                .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
                 .accessibilityLabel("Nuevo nombre de la playlist")
             HStack {
-                Button("Cancelar") { renamingPlaylist = nil }
-                    .buttonStyle(PrimaryButtonStyle())
+                Button { renamingPlaylist = nil } label: {
+                    Text("CANCELAR").dondaLabel()
+                }
+                .buttonStyle(PrimaryButtonStyle())
                 Spacer()
-                Button("Guardar") {
+                Button {
                     do {
                         try library.rename(playlist, to: draftName)
                         errorMessage = nil
@@ -213,6 +232,8 @@ struct ListaView: View {
                         errorMessage = "No se pudo renombrar la playlist."
                     }
                     renamingPlaylist = nil
+                } label: {
+                    Text("GUARDAR").dondaLabel()
                 }
                 .buttonStyle(PrimaryButtonStyle())
             }

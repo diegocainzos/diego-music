@@ -67,9 +67,9 @@ struct AlbumView: View {
                     switch model.state {
                     case .loading:
                         HStack(spacing: 12) {
-                            ProgressView().controlSize(.regular).tint(DiegoTheme.accent)
-                            Text("Cargando álbum…")
-                                .font(.callout.weight(.medium))
+                            ProgressView().controlSize(.regular).tint(DiegoTheme.textPrimary)
+                            Text("CARGANDO ÁLBUM…")
+                                .dondaLabel()
                                 .foregroundStyle(DiegoTheme.textSecondary)
                         }
                         .padding(.top, 60)
@@ -78,12 +78,12 @@ struct AlbumView: View {
                     case let .failed(message):
                         VStack(spacing: 14) {
                             Image(systemName: "exclamationmark.triangle")
-                                .font(.largeTitle)
-                                .foregroundStyle(DiegoTheme.accent)
+                                .font(.title2)
+                                .foregroundStyle(DiegoTheme.textSecondary)
                             Text(message)
                                 .font(.callout)
                                 .foregroundStyle(DiegoTheme.textSecondary)
-                            Button("Reintentar") { model.load() }
+                            Button("REINTENTAR") { model.load() }
                                 .buttonStyle(PrimaryButtonStyle())
                         }
                         .padding(.top, 60)
@@ -105,15 +105,17 @@ struct AlbumView: View {
         .overlay(alignment: .bottom) {
             if let toastMessage {
                 Text(toastMessage)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .dondaLabel()
+                    .foregroundStyle(DiegoTheme.background)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(DiegoTheme.accent)
-                    .clipShape(Capsule())
-                    .shadow(radius: 6)
+                    .padding(.vertical, 8)
+                    .background(DiegoTheme.textPrimary)
+                    .overlay(
+                        Rectangle()
+                            .stroke(DiegoTheme.outline, lineWidth: 1)
+                    )
                     .padding(.bottom, 24)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(.opacity)
             }
         }
     }
@@ -128,15 +130,17 @@ struct AlbumView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "chevron.left")
-                            .font(.body.weight(.bold))
-                        Text("Atrás")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.system(size: 13, weight: .bold))
+                        Text("ATRÁS")
+                            .dondaLabel()
                     }
-                    .foregroundStyle(DiegoTheme.accent)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(DiegoTheme.surface)
-                    .clipShape(Capsule())
+                    .foregroundStyle(DiegoTheme.textPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .overlay(
+                        Rectangle()
+                            .stroke(DiegoTheme.outline, lineWidth: 1)
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Volver atrás")
@@ -144,9 +148,8 @@ struct AlbumView: View {
 
             Spacer()
 
-            Text("Álbum")
-                .font(.caption.bold())
-                .tracking(1.2)
+            Text("ÁLBUM")
+                .dondaLabel()
                 .foregroundStyle(DiegoTheme.textSecondary)
 
             Spacer()
@@ -168,7 +171,7 @@ struct AlbumView: View {
         }
     }
 
-    // MARK: - Header Inmersivo (Título Arriba, Carátula al Centro, Autores Abajo)
+    // MARK: - Header Donda (Título Arriba, Carátula al Centro, Autores Abajo)
 
     @ViewBuilder
     private func header(_ album: Album) -> some View {
@@ -178,37 +181,26 @@ struct AlbumView: View {
             // 1. TÍTULO ARRIBA
             VStack(spacing: 6) {
                 Text("ÁLBUM")
-                    .font(.caption.weight(.bold))
-                    .tracking(2.0)
-                    .foregroundStyle(DiegoTheme.accent)
+                    .dondaLabel()
+                    .foregroundStyle(DiegoTheme.textSecondary)
 
                 Text(album.title)
-                    .font(isCompact ? .title.weight(.bold) : .system(size: 32, weight: .bold))
+                    .dondaTitle(size: isCompact ? 24 : 32)
                     .foregroundStyle(DiegoTheme.textPrimary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity)
 
-            // 2. CARÁTULA EN EL CENTRO CON RESPLANDOR AMBIENTAL
-            ZStack {
-                // Ambient Glow difuminado
-                TrackArtwork(url: album.thumbnailURL)
-                    .frame(width: isCompact ? 180 : 230, height: isCompact ? 180 : 230)
-                    .blur(radius: 26)
-                    .opacity(0.35)
-                    .offset(y: 10)
-
-                TrackArtwork(url: album.thumbnailURL)
-                    .frame(width: isCompact ? 190 : 240, height: isCompact ? 190 : 240)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.35), radius: 18, x: 0, y: 8)
-            }
-            .accessibilityHidden(true)
+            // 2. CARÁTULA EN EL CENTRO
+            TrackArtwork(url: album.thumbnailURL)
+                .frame(width: isCompact ? 190 : 240, height: isCompact ? 190 : 240)
+                .clipped()
+                .overlay(
+                    Rectangle()
+                        .stroke(DiegoTheme.hairline, lineWidth: 1)
+                )
+                .accessibilityHidden(true)
 
             // 3. AUTORES / ARTISTAS Y METADATOS ABAJO
             VStack(spacing: 8) {
@@ -217,36 +209,35 @@ struct AlbumView: View {
                         navState.navigate(to: .artistDetail(id: channel, name: channel))
                     } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: "person.circle.fill")
-                                .font(.subheadline)
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 11))
                             Text(channel)
-                                .font(.headline.weight(.semibold))
+                                .dondaLabel()
                         }
-                        .foregroundStyle(DiegoTheme.accent)
-                        .padding(.horizontal, 14)
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                        .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(DiegoTheme.cardSurface.opacity(0.8))
-                        .clipShape(Capsule())
                         .overlay(
-                            Capsule().stroke(DiegoTheme.accent.opacity(0.3), lineWidth: 1)
+                            Rectangle()
+                                .stroke(DiegoTheme.outline, lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
                 }
 
-                Text("\(album.tracks.count) canciones")
-                    .font(.caption.weight(.medium))
+                Text("\(album.tracks.count) CANCIONES")
+                    .dondaLabel()
                     .foregroundStyle(DiegoTheme.textSecondary)
             }
 
-            // 4. BARRA DE ACCIONES FLOTANTE
+            // 4. BARRA DE ACCIONES
             actionButtons(album)
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 8)
     }
 
-    // MARK: - Botones de Acción (Barra Flotante en Cristal)
+    // MARK: - Botones de Acción Donda
 
     private func actionButtons(_ album: Album) -> some View {
         HStack(spacing: 12) {
@@ -259,16 +250,14 @@ struct AlbumView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "play.fill")
-                        .font(.subheadline.weight(.bold))
-                    Text("Reproducir")
-                        .font(.subheadline.weight(.bold))
+                        .font(.system(size: 11))
+                    Text("REPRODUCIR")
+                        .dondaLabel()
                 }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 11)
-                .background(DiegoTheme.accent)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
-                .shadow(color: DiegoTheme.accent.opacity(0.35), radius: 8, y: 4)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(DiegoTheme.textPrimary)
+                .foregroundStyle(DiegoTheme.background)
             }
             .buttonStyle(.plain)
 
@@ -281,12 +270,13 @@ struct AlbumView: View {
                 }
             } label: {
                 Image(systemName: "shuffle")
-                    .font(.body.weight(.bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(DiegoTheme.textPrimary)
-                    .frame(width: 42, height: 42)
-                    .background(DiegoTheme.cardSurface)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                    .frame(width: 38, height: 38)
+                    .overlay(
+                        Rectangle()
+                            .stroke(DiegoTheme.outline, lineWidth: 1)
+                    )
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Reproducir álbum en modo aleatorio")
@@ -312,12 +302,14 @@ struct AlbumView: View {
                 }
             } label: {
                 Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                    .font(.body.weight(.bold))
-                    .foregroundStyle(isSaved ? DiegoTheme.accent : DiegoTheme.textPrimary)
-                    .frame(width: 42, height: 42)
-                    .background(isSaved ? DiegoTheme.accent.opacity(0.15) : DiegoTheme.cardSurface)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(isSaved ? DiegoTheme.accent.opacity(0.5) : Color.white.opacity(0.12), lineWidth: 1))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(isSaved ? DiegoTheme.background : DiegoTheme.textPrimary)
+                    .frame(width: 38, height: 38)
+                    .background(isSaved ? DiegoTheme.textPrimary : DiegoTheme.background)
+                    .overlay(
+                        Rectangle()
+                            .stroke(DiegoTheme.outline, lineWidth: 1)
+                    )
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isSaved ? "Eliminar álbum de la biblioteca" : "Guardar álbum en la biblioteca")
@@ -330,19 +322,20 @@ struct AlbumView: View {
         environment.queue.replaceQueue(items: items, startIndex: index)
     }
 
-    // MARK: - Tabla de Pistas Secuencial (Sin Enumerar `#`, Orden Estricto)
+    // MARK: - Tabla de Pistas Donda
 
     private func tracklistTable(_ items: [MediaItem]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Canciones")
-                    .font(.title3.bold())
-                    .foregroundStyle(DiegoTheme.textPrimary)
+                Text("CANCIONES")
+                    .dondaLabel()
+                    .tracking(4)
+                    .foregroundStyle(DiegoTheme.textSecondary)
 
                 Spacer()
 
-                Text("\(items.count) pistas")
-                    .font(.caption.weight(.medium))
+                Text("\(items.count) PISTAS")
+                    .dondaLabel()
                     .foregroundStyle(DiegoTheme.textSecondary)
             }
 
@@ -372,25 +365,25 @@ struct AlbumView: View {
                             )
 
                             if item.id != items.last?.id {
-                                Divider()
-                                    .background(Color.white.opacity(0.06))
+                                Rectangle()
+                                    .fill(DiegoTheme.hairline)
+                                    .frame(height: 1)
                                     .padding(.leading, 48)
                             }
                         }
                     }
                 }
-                .background(DiegoTheme.surface.opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(DiegoTheme.surface)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    Rectangle()
+                        .stroke(DiegoTheme.hairline, lineWidth: 1)
                 )
             }
         }
     }
 }
 
-// MARK: - Fila de Canción Secuencial (Limpia, Sin Número `#`, Con Estado Activo)
+// MARK: - Fila de Canción Donda
 
 private struct AlbumTrackRow: View {
     let item: MediaItem
@@ -411,25 +404,25 @@ private struct AlbumTrackRow: View {
                     Group {
                         if isCurrent {
                             Image(systemName: isPlaying ? "waveform" : "pause.fill")
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(DiegoTheme.accent)
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(DiegoTheme.textPrimary)
                                 .symbolEffect(.variableColor.iterative, isActive: isPlaying)
                         } else {
                             Image(systemName: "play.fill")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(isHovered ? DiegoTheme.accent : DiegoTheme.textSecondary.opacity(0.6))
+                                .font(.system(size: 11))
+                                .foregroundStyle(isHovered ? DiegoTheme.textPrimary : DiegoTheme.textSecondary.opacity(0.6))
                         }
                     }
                     .frame(width: 24, height: 24, alignment: .center)
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(item.title)
-                            .font(.body.weight(isCurrent ? .bold : .medium))
-                            .foregroundStyle(isCurrent ? DiegoTheme.accent : DiegoTheme.textPrimary)
+                            .font(.system(size: 14, weight: isCurrent ? .medium : .regular))
+                            .foregroundStyle(DiegoTheme.textPrimary)
                             .lineLimit(1)
 
                         Text(item.channelTitle)
-                            .font(.caption)
+                            .dondaLabel()
                             .foregroundStyle(DiegoTheme.textSecondary)
                             .lineLimit(1)
                     }
@@ -443,7 +436,7 @@ private struct AlbumTrackRow: View {
             Button { try? library.toggleFavorite(item) } label: {
                 Image(systemName: library.isFavorite(item) ? "heart.fill" : "heart")
                     .font(.caption)
-                    .foregroundStyle(library.isFavorite(item) ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                    .foregroundStyle(library.isFavorite(item) ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(.plain)
@@ -483,7 +476,7 @@ private struct AlbumTrackRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(isCurrent ? DiegoTheme.accent.opacity(0.08) : (isHovered ? Color.white.opacity(0.05) : Color.clear))
+        .background(isCurrent ? DiegoTheme.hairline : (isHovered ? DiegoTheme.surface : Color.clear))
         .onHover { isHovered = $0 }
     }
 }

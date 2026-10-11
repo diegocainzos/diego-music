@@ -14,14 +14,17 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                SectionHeader(eyebrow: "Control local", title: "Ajustes", color: DiegoTheme.accent)
+                Text("AJUSTES")
+                    .dondaTitle(size: 20)
+                    .foregroundStyle(DiegoTheme.textPrimary)
 
                 // MARK: - Cuenta de Usuario (Backend)
                 accountSection
 
                 VStack(alignment: .leading, spacing: 14) {
-                    Label("Apariencia", systemImage: "paintpalette.fill")
-                        .font(.title2.bold())
+                    Text("APARIENCIA")
+                        .dondaLabel()
+                        .foregroundStyle(DiegoTheme.textSecondary)
 
                     Text("Selecciona la apariencia preferida para la interfaz de la aplicación.")
                         .font(.callout)
@@ -33,18 +36,22 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .tint(DiegoTheme.textPrimary)
                 }
                 .minimalCard()
 
                 VStack(alignment: .leading, spacing: 14) {
-                    Label("Audio privado", systemImage: "waveform.badge.shield.lefthalf.filled")
-                        .font(.title2.bold())
-                    HStack {
-                        Circle()
-                            .fill(resolverConfigured ? DiegoTheme.green : DiegoTheme.red)
-                            .frame(width: 12, height: 12)
+                    Text("AUDIO PRIVADO")
+                        .dondaLabel()
+                        .foregroundStyle(DiegoTheme.textSecondary)
+
+                    HStack(spacing: 8) {
+                        Rectangle()
+                            .fill(resolverConfigured ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
+                            .frame(width: 8, height: 8)
                         Text(resolverConfigured ? "Resolutor configurado" : "Resolutor pendiente de configuración")
-                            .fontWeight(.semibold)
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(DiegoTheme.textPrimary)
                     }
                     Text(
                         resolverConfigured
@@ -60,39 +67,55 @@ struct SettingsView: View {
                 .minimalCard()
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Label("Privacidad", systemImage: "lock.fill").font(.title2.bold())
+                    Text("PRIVACIDAD")
+                        .dondaLabel()
+                        .foregroundStyle(DiegoTheme.textSecondary)
+
                     settingLine("Biblioteca", value: "Solo local")
                     Toggle("Guardar historial local opcional", isOn: $playbackSettings.historyEnabled)
-                        .tint(DiegoTheme.accent)
-                    Button("Borrar historial local") {
+                        .tint(DiegoTheme.textPrimary)
+                    Button {
                         do {
                             try library.clearHistory()
                             historyMessage = "Historial local eliminado."
                         } catch {
                             historyMessage = "No se pudo borrar el historial local."
                         }
+                    } label: {
+                        Text("BORRAR HISTORIAL LOCAL")
+                            .dondaLabel()
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    if let historyMessage { Text(historyMessage).font(.caption) }
+
+                    if let historyMessage {
+                        Text(historyMessage)
+                            .dondaLabel()
+                            .foregroundStyle(DiegoTheme.textSecondary)
+                    }
                     settingLine("Telemetría propia", value: "Desactivada")
                     settingLine("Inicio de sesión", value: environment.authState.isAuthenticated ? "Activo" : "No iniciado")
                 }
                 .minimalCard()
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Acerca de DiegoMusic", systemImage: "circle.hexagongrid.fill").font(.title2.bold())
+                    Text("ACERCA DE DIEGOMUSIC")
+                        .dondaLabel()
+                        .foregroundStyle(DiegoTheme.textSecondary)
+
                     Text("Proyecto privado. Usa YouTube Data API para el catálogo y un resolutor VPS privado para entregar audio temporal a AVPlayer.")
                         .font(.callout)
+                        .foregroundStyle(DiegoTheme.textPrimary)
                     Text("No es una aplicación oficial ni está afiliada con YouTube o Google. El audio no se conserva permanentemente.")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DiegoTheme.textSecondary)
                 }
                 .minimalCard()
 
                 // MARK: - Almacenamiento Offline
                 VStack(alignment: .leading, spacing: 14) {
-                    Label("Almacenamiento offline", systemImage: "arrow.down.circle.fill")
-                        .font(.title2.bold())
+                    Text("ALMACENAMIENTO OFFLINE")
+                        .dondaLabel()
+                        .foregroundStyle(DiegoTheme.textSecondary)
 
                     settingLine("Canciones descargadas", value: "\(downloadManager.downloadedTracks.count)")
                     settingLine("Espacio ocupado", value: downloadManager.formattedTotalUsage)
@@ -100,8 +123,12 @@ struct SettingsView: View {
                     Button(role: .destructive) {
                         showClearDownloadsConfirm = true
                     } label: {
-                        Label("Liberar todo el espacio", systemImage: "trash")
-                            .frame(maxWidth: .infinity)
+                        HStack(spacing: 6) {
+                            Image(systemName: "trash")
+                            Text("LIBERAR TODO EL ESPACIO")
+                                .dondaLabel()
+                        }
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(PrimaryButtonStyle())
                     .confirmationDialog(
@@ -131,26 +158,29 @@ struct SettingsView: View {
     @ViewBuilder
     private var accountSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("Cuenta de usuario", systemImage: "person.crop.circle.fill")
-                .font(.title2.bold())
+            Text("CUENTA DE USUARIO")
+                .dondaLabel()
+                .foregroundStyle(DiegoTheme.textSecondary)
 
             switch environment.authState {
             case .authenticated(let user):
                 HStack(spacing: 16) {
                     ZStack {
-                        Circle()
-                            .fill(DiegoTheme.accent)
-                            .frame(width: 48, height: 48)
+                        Rectangle()
+                            .fill(DiegoTheme.surface)
+                            .frame(width: 44, height: 44)
+                            .overlay(Rectangle().stroke(DiegoTheme.hairline, lineWidth: 1))
                         Text(String((user.fullName ?? user.email).prefix(1)).uppercased())
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
+                            .dondaTitle(size: 16)
+                            .foregroundStyle(DiegoTheme.textPrimary)
                     }
 
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(user.fullName ?? "Usuario DiegoMusic")
-                            .font(.headline)
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundStyle(DiegoTheme.textPrimary)
                         Text(user.email)
-                            .font(.subheadline)
+                            .dondaLabel()
                             .foregroundStyle(DiegoTheme.textSecondary)
                     }
 
@@ -159,18 +189,18 @@ struct SettingsView: View {
                     Button {
                         environment.logout()
                     } label: {
-                        Text("Cerrar Sesión")
-                            .font(.subheadline.bold())
+                        Text("CERRAR SESIÓN")
+                            .dondaLabel()
                     }
-                    .buttonStyle(PrimaryButtonStyle(color: DiegoTheme.red))
+                    .buttonStyle(PrimaryButtonStyle())
                 }
 
             case .loading:
-                HStack {
+                HStack(spacing: 8) {
                     ProgressView()
-                        .tint(DiegoTheme.accent)
-                    Text("Verificando sesión...")
-                        .font(.subheadline)
+                        .tint(DiegoTheme.textPrimary)
+                    Text("VERIFICANDO SESIÓN…")
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
                 }
 
@@ -183,7 +213,11 @@ struct SettingsView: View {
                     Button {
                         isShowingLoginSheet = true
                     } label: {
-                        Label("Iniciar Sesión / Registrarse", systemImage: "lock.shield.fill")
+                        HStack(spacing: 6) {
+                            Image(systemName: "lock.shield")
+                            Text("INICIAR SESIÓN / REGISTRARSE")
+                                .dondaLabel()
+                        }
                     }
                     .buttonStyle(PrimaryButtonStyle())
                 }
@@ -194,9 +228,9 @@ struct SettingsView: View {
 
     private func settingLine(_ title: String, value: String) -> some View {
         HStack {
-            Text(title).fontWeight(.semibold)
+            Text(title).font(.system(size: 14, weight: .regular)).foregroundStyle(DiegoTheme.textPrimary)
             Spacer()
-            Text(value).foregroundStyle(.secondary)
+            Text(value).dondaLabel().foregroundStyle(DiegoTheme.textSecondary)
         }
     }
 }
