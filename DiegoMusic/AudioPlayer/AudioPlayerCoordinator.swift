@@ -24,6 +24,7 @@ final class AudioPlayerCoordinator: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var repeatMode: RepeatMode = .off
     @Published private(set) var shuffleEnabled: Bool = false
+    @Published private(set) var radioSeedTitle: String?
     @Published var volume: Float = 1.0 {
         didSet {
             player.volume = max(0, min(volume, 1.0))
@@ -45,6 +46,7 @@ final class AudioPlayerCoordinator: ObservableObject {
     private var loadGeneration = 0
     private var automaticRetryAvailable = true
     private var radioTask: Task<Void, Never>?
+    private var savedUpcoming: [MediaItem] = []
     private var pendingSeekSeconds: Double?
     private var lastPersistedPosition: Double = 0
     /// Callback para persistir la pista activa + posición ("continuar donde dejaste").
@@ -101,9 +103,11 @@ final class AudioPlayerCoordinator: ObservableObject {
     }
 
     func select(_ item: MediaItem) {
+        radioTask?.cancel()
+        radioSeedTitle = nil
+        savedUpcoming = []
         queue.play(item)
         load(item, autoplay: true, resetRetryBudget: true)
-        triggerSmartRadioQueue(for: item)
     }
 
     func selectFromQueue(at index: Int) {
@@ -114,20 +118,36 @@ final class AudioPlayerCoordinator: ObservableObject {
         }
     }
 
-    func triggerSmartRadioQueue(for item: MediaItem) {
-        guard let service = youtubeService else { return }
+    func startRadio() {
+        guard let item = queue.current, let service = youtubeService else { return }
         radioTask?.cancel()
+        let currentIndex = queue.currentIndex ?? 0
+        savedUpcoming = Array(queue.items.dropFirst(currentIndex + 1))
         radioTask = Task { [weak self, queue] in
             do {
-                let relatedRadioItems = try await service.fetchRelatedRadio(for: item)
+                let radioItems = try await service.radio(seed: item.id)
                 try Task.checkCancellation()
-                await MainActor.run {
-                    queue.enqueueBatch(relatedRadioItems)
+                guard !radioItems.isEmpty else {
+                    self?.errorMessage = "Radio no disponible para esta pista."
+                    return
                 }
+                guard !Task.isCancelled else { return }
+                queue.replaceUpcoming(with: radioItems)
+                self?.radioSeedTitle = item.title
+            } catch is CancellationError {
+                return
             } catch {
-                // Radio best-effort
+                guard !Task.isCancelled else { return }
+                self?.errorMessage = "Radio no disponible para esta pista."
             }
         }
+    }
+
+    func stopRadio() {
+        radioTask?.cancel()
+        queue.replaceUpcoming(with: savedUpcoming)
+        savedUpcoming = []
+        radioSeedTitle = nil
     }
 
     func togglePlayback() {

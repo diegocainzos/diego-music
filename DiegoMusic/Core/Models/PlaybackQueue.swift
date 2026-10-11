@@ -137,6 +137,14 @@ final class PlaybackQueue: ObservableObject {
         rebuildAfterMutation()
     }
 
+    /// Reemplaza todas las pistas posteriores a la pista activa por una nueva lista,
+    /// manteniendo intactos el elemento actual y `currentIndex`.
+    func replaceUpcoming(with newUpcoming: [MediaItem]) {
+        guard let currentIndex, items.indices.contains(currentIndex) else { return }
+        items = Array(items.prefix(through: currentIndex)) + newUpcoming
+        rebuildAfterMutation()
+    }
+
     @discardableResult
     func advance() -> MediaItem? {
         if isShuffled {
