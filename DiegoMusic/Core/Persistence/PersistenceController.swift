@@ -75,6 +75,20 @@ final class PersistenceController {
                 attribute("fileSizeBytes", .integer64AttributeType),
                 attribute("downloadedAt", .dateAttributeType),
                 attribute("contentType", .stringAttributeType)
+            ], uniqueness: [["videoID"]]),
+            entity("FollowedShow", FollowedShowRecord.self, [
+                attribute("channelID", .stringAttributeType),
+                attribute("title", .stringAttributeType),
+                attribute("thumbnailURLString", .stringAttributeType, optional: true),
+                attribute("followedAt", .dateAttributeType)
+            ], uniqueness: [["channelID"]]),
+            entity("EpisodeProgress", EpisodeProgressRecord.self, [
+                attribute("videoID", .stringAttributeType),
+                attribute("channelID", .stringAttributeType),
+                attribute("positionSeconds", .doubleAttributeType),
+                attribute("durationSeconds", .doubleAttributeType),
+                attribute("finished", .booleanAttributeType),
+                attribute("updatedAt", .dateAttributeType)
             ], uniqueness: [["videoID"]])
         ]
         return model

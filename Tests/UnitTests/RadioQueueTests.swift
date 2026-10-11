@@ -142,7 +142,7 @@ final class RadioQueueTests: XCTestCase {
     }
 
     func testYouTubeDataServiceRadioValidatesSeedAndDecodesResponse() async throws {
-        let resolverConfig = AudioResolverConfiguration(baseURL: URL(string: "https://resolver.test")!, apiToken: "test-token")
+        let resolverConfig = try AudioResolverConfiguration(baseURL: URL(string: "https://resolver.test")!, apiToken: String(repeating: "t", count: 40))
         let validJSON = """
         {
             "items": [
@@ -193,7 +193,7 @@ private final class StubYouTubeDataService: YouTubeDataServicing, @unchecked Sen
     }
 
     func discover() async throws -> DiscoveryFeed {
-        DiscoveryFeed(sections: [])
+        DiscoveryFeed(novedades: [], artistas: [])
     }
 
     func artist(byChannelID: String) async throws -> ArtistDetail {
@@ -203,6 +203,12 @@ private final class StubYouTubeDataService: YouTubeDataServicing, @unchecked Sen
     func album(byPlaylistID: String) async throws -> Album {
         throw YouTubeServiceError.unavailable
     }
+
+    func podcastEpisodes(channelID: String) async throws -> PodcastEpisodePage {
+        PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
+    }
+
+    func searchChannel(_ query: String) async throws -> PodcastShow? { nil }
 
     func radio(seed videoID: String) async throws -> [MediaItem] {
         radioCalls.append(videoID)

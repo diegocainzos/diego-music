@@ -627,4 +627,8 @@ private struct UnavailableDiscoveryService: YouTubeDataServicing {
     func artist(byChannelID: String) async throws -> ArtistDetail { throw YouTubeServiceError.unavailable }
     func album(byPlaylistID: String) async throws -> Album { throw YouTubeServiceError.unavailable }
     func radio(seed videoID: String) async throws -> [MediaItem] { [] }
+    func podcastEpisodes(channelID: String) async throws -> PodcastEpisodePage {
+        PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
+    }
+    func searchChannel(_ query: String) async throws -> PodcastShow? { nil }
 }
