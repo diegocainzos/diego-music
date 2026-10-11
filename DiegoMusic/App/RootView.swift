@@ -16,7 +16,10 @@ struct RootView: View {
                 ZStack {
                     DiegoTheme.background.ignoresSafeArea()
                     VStack(spacing: 16) {
-                        AppleMusicLogoView(size: 48, showText: true)
+                        Text("DIEGOMUSIC")
+                            .dondaTitle(size: 14)
+                            .tracking(6)
+                            .foregroundStyle(DiegoTheme.textPrimary)
                         ProgressView()
                             .tint(DiegoTheme.accent)
                     }
