@@ -14,13 +14,11 @@ struct LoginView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    AppleMusicLogoView(size: 40, showText: true)
-                        .padding(.top, 24)
-
                     VStack(spacing: 8) {
-                        Text("Iniciar Sesión")
-                            .font(.largeTitle.bold())
+                        Text("INICIAR SESIÓN")
+                            .dondaTitle(size: 22)
                             .foregroundStyle(DiegoTheme.textPrimary)
+                            .padding(.top, 32)
 
                         Text("Conecta tu cuenta privada de DiegoMusic")
                             .font(.callout)
@@ -29,29 +27,35 @@ struct LoginView: View {
 
                     VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Correo Electrónico")
-                                .font(.caption.bold())
+                            Text("CORREO ELECTRÓNICO")
+                                .dondaLabel()
                                 .foregroundStyle(DiegoTheme.textSecondary)
                             TextField("usuario@ejemplo.com", text: $email)
                                 #if os(iOS)
                                 .textInputAutocapitalization(.never)
                                 .keyboardType(.emailAddress)
                                 #endif
-                                .textFieldStyle(.roundedBorder)
+                                .padding(.horizontal, 10)
+                                .frame(minHeight: 40)
+                                .background(DiegoTheme.background)
+                                .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Contraseña")
-                                .font(.caption.bold())
+                            Text("CONTRASEÑA")
+                                .dondaLabel()
                                 .foregroundStyle(DiegoTheme.textSecondary)
                             SecureField("••••••••", text: $password)
-                                .textFieldStyle(.roundedBorder)
+                                .padding(.horizontal, 10)
+                                .frame(minHeight: 40)
+                                .background(DiegoTheme.background)
+                                .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
                         }
 
                         if let errorMessage {
-                            Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                            Label(errorMessage, systemImage: "exclamationmark.triangle")
                                 .font(.caption)
-                                .foregroundStyle(DiegoTheme.red)
+                                .foregroundStyle(DiegoTheme.textSecondary)
                                 .padding(.vertical, 4)
                         }
 
@@ -61,11 +65,11 @@ struct LoginView: View {
                             HStack {
                                 if isSubmitting {
                                     ProgressView()
-                                        .tint(.white)
+                                        .tint(DiegoTheme.background)
                                         .padding(.trailing, 6)
                                 }
-                                Text("Iniciar Sesión")
-                                    .fontWeight(.bold)
+                                Text("INICIAR SESIÓN")
+                                    .dondaLabel()
                             }
                             .frame(maxWidth: .infinity)
                         }
@@ -74,13 +78,15 @@ struct LoginView: View {
 
                         HStack {
                             Text("¿No tienes cuenta?")
-                                .font(.subheadline)
+                                .font(.callout)
                                 .foregroundStyle(DiegoTheme.textSecondary)
-                            Button("Crear cuenta") {
+                            Button {
                                 showSignUpSheet = true
+                            } label: {
+                                Text("CREAR CUENTA")
+                                    .dondaLabel()
+                                    .foregroundStyle(DiegoTheme.textPrimary)
                             }
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(DiegoTheme.accent)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.top, 8)
@@ -93,7 +99,12 @@ struct LoginView: View {
             .background(DiegoTheme.background.ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancelar") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("CANCELAR").dondaLabel()
+                    }
+                    .tint(DiegoTheme.textPrimary)
                 }
             }
             .sheet(isPresented: $showSignUpSheet) {

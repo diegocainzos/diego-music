@@ -30,6 +30,7 @@ struct ImportYouTubePlaylistSheet: View {
                     Section {
                         HStack {
                             ProgressView()
+                                .tint(DiegoTheme.textPrimary)
                             Text("Obteniendo canciones de YouTube...")
                                 .font(.subheadline)
                                 .foregroundStyle(DiegoTheme.textSecondary)
@@ -40,11 +41,12 @@ struct ImportYouTubePlaylistSheet: View {
                 if let errorMessage {
                     Section {
                         Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(DiegoTheme.red)
+                            .dondaLabel()
+                            .foregroundStyle(DiegoTheme.textSecondary)
                     }
                 }
             }
+            .tint(DiegoTheme.textPrimary)
             .navigationTitle("Importar Playlist")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

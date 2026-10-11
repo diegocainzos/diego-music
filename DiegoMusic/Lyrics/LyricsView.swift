@@ -72,27 +72,15 @@ struct LyricsView: View {
     // MARK: - Background
 
     private var lyricsBackground: some View {
-        ZStack {
-            Color.black
-
-            TrackArtwork(url: item.thumbnailURL)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .blur(radius: 60)
-                .brightness(-0.3)
-                .saturation(1.4)
-                .scaleEffect(1.2)
-                .clipped()
-
-            Color.black.opacity(0.4)
-        }
-        .ignoresSafeArea()
+        DiegoTheme.background
+            .ignoresSafeArea()
     }
 
     // MARK: - Loading
 
     private var loadingView: some View {
         ProgressView()
-            .tint(.white)
+            .tint(DiegoTheme.textPrimary)
             .scaleEffect(1.2)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -104,10 +92,10 @@ struct LyricsView: View {
             HStack {
                 Image(systemName: "text.quote")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.5))
-                Text("Letras sin sincronización")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(DiegoTheme.textSecondary)
+                Text("LETRAS SIN SINCRONIZACIÓN")
+                    .dondaLabel()
+                    .foregroundStyle(DiegoTheme.textSecondary)
                 Spacer()
             }
             .padding(.horizontal, 24)
@@ -115,8 +103,8 @@ struct LyricsView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 Text(text)
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(DiegoTheme.textPrimary)
                     .multilineTextAlignment(.leading)
                     .lineSpacing(6)
                     .lineLimit(nil)
@@ -134,11 +122,11 @@ struct LyricsView: View {
     private var instrumentalView: some View {
         VStack(spacing: 16) {
             Image(systemName: "music.quarternote.3")
-                .font(.system(size: 48))
-                .foregroundStyle(.white.opacity(0.5))
-            Text("Instrumental")
-                .font(.title2.bold())
-                .foregroundStyle(.white.opacity(0.7))
+                .font(.system(size: 42))
+                .foregroundStyle(DiegoTheme.textSecondary)
+            Text("INSTRUMENTAL")
+                .dondaTitle(size: 18)
+                .foregroundStyle(DiegoTheme.textPrimary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -148,14 +136,14 @@ struct LyricsView: View {
     private var notFoundView: some View {
         VStack(spacing: 16) {
             Image(systemName: "music.note")
-                .font(.system(size: 48))
-                .foregroundStyle(.white.opacity(0.4))
-            Text("Letra no disponible")
-                .font(.title2.bold())
-                .foregroundStyle(.white.opacity(0.7))
+                .font(.system(size: 42))
+                .foregroundStyle(DiegoTheme.textSecondary)
+            Text("LETRA NO DISPONIBLE")
+                .dondaTitle(size: 18)
+                .foregroundStyle(DiegoTheme.textPrimary)
             Text("No se encontraron letras para esta canción")
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.4))
+                .font(.callout)
+                .foregroundStyle(DiegoTheme.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -167,14 +155,14 @@ struct LyricsView: View {
     private func errorView(_ message: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
-                .foregroundStyle(.white.opacity(0.4))
-            Text("Error al cargar letras")
-                .font(.title2.bold())
-                .foregroundStyle(.white.opacity(0.7))
+                .font(.system(size: 42))
+                .foregroundStyle(DiegoTheme.textSecondary)
+            Text("ERROR AL CARGAR LETRAS")
+                .dondaTitle(size: 18)
+                .foregroundStyle(DiegoTheme.textPrimary)
             Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.4))
+                .font(.callout)
+                .foregroundStyle(DiegoTheme.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -286,16 +274,8 @@ private struct SyncedLyricsContent: View {
                 .id(index)
         } else {
             Text(line.text)
-                .font(isActive ? .title.bold() : .title3.weight(.medium))
-                .foregroundStyle(.white.opacity(isActive ? 1.0 : 0.35))
-                .shadow(
-                    color: isActive ? .white.opacity(0.6) : .clear,
-                    radius: isActive ? 8 : 0
-                )
-                .shadow(
-                    color: isActive ? .white.opacity(0.3) : .clear,
-                    radius: isActive ? 16 : 0
-                )
+                .font(isActive ? .title2.weight(.medium) : .title3.weight(.regular))
+                .foregroundStyle(isActive ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                 .multilineTextAlignment(.leading)
                 .lineSpacing(6)
                 .lineLimit(nil)

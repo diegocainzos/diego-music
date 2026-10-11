@@ -20,11 +20,12 @@ struct CreatePlaylistSheet: View {
                 if let errorMessage {
                     Section {
                         Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(DiegoTheme.red)
+                            .dondaLabel()
+                            .foregroundStyle(DiegoTheme.textSecondary)
                     }
                 }
             }
+            .tint(DiegoTheme.textPrimary)
             .navigationTitle("Nueva Playlist")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -68,37 +69,45 @@ struct PlaylistsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                SectionHeader(eyebrow: "Secuencias locales", title: "Playlists", color: DiegoTheme.accent)
+                Text("PLAYLISTS")
+                    .dondaTitle(size: 20)
+                    .foregroundStyle(DiegoTheme.textPrimary)
                 Spacer()
                 Button {
                     isShowingCreateSheet = true
                 } label: {
-                    Label("Crear", systemImage: "plus.circle.fill")
-                        .font(.subheadline.weight(.semibold))
+                    Text("CREAR")
+                        .dondaLabel()
                 }
                 .buttonStyle(PrimaryButtonStyle())
 
                 Button {
                     isShowingImportSheet = true
                 } label: {
-                    Label("Importar", systemImage: "arrow.down.doc.fill")
-                        .font(.subheadline.weight(.semibold))
+                    Text("IMPORTAR")
+                        .dondaLabel()
                 }
                 .buttonStyle(PrimaryButtonStyle())
             }
 
             HStack {
                 TextField("Nombre de la nueva playlist", text: $newName)
-                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 40)
+                    .background(DiegoTheme.background)
+                    .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
                     .onSubmit(createPlaylist)
-                Button(action: createPlaylist) { Label("Crear", systemImage: "plus") }
-                    .buttonStyle(PrimaryButtonStyle())
+                Button(action: createPlaylist) {
+                    Text("CREAR")
+                        .dondaLabel()
+                }
+                .buttonStyle(PrimaryButtonStyle())
             }
 
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(DiegoTheme.red)
+                    .dondaLabel()
+                    .foregroundStyle(DiegoTheme.textSecondary)
             }
 
             if library.playlists.isEmpty {
@@ -117,15 +126,18 @@ struct PlaylistsView: View {
                                     if playlist.entries.isEmpty {
                                         Text("Añade elementos desde Búsqueda.")
                                             .font(.callout)
-                                            .foregroundStyle(.secondary)
+                                            .foregroundStyle(DiegoTheme.textSecondary)
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                     } else {
                                         HStack {
                                             Button {
                                                 downloadPlaylist(playlist)
                                             } label: {
-                                                Label("Descargar Playlist", systemImage: "arrow.down.circle.fill")
-                                                    .font(.subheadline.weight(.semibold))
+                                                HStack(spacing: 6) {
+                                                    Image(systemName: "arrow.down.circle")
+                                                    Text("DESCARGAR PLAYLIST")
+                                                        .dondaLabel()
+                                                }
                                             }
                                             .buttonStyle(PrimaryButtonStyle())
                                             Spacer()
@@ -142,9 +154,14 @@ struct PlaylistsView: View {
                                                     onPlay(entry.mediaItem)
                                                 }
                                             } label: {
-                                                VStack(alignment: .leading) {
-                                                    Text(entry.title).font(.headline).lineLimit(1)
-                                                    Text(entry.channelTitle).font(.caption).foregroundStyle(.secondary)
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(entry.title)
+                                                        .font(.system(size: 14, weight: .regular))
+                                                        .foregroundStyle(DiegoTheme.textPrimary)
+                                                        .lineLimit(1)
+                                                    Text(entry.channelTitle)
+                                                        .dondaLabel()
+                                                        .foregroundStyle(DiegoTheme.textSecondary)
                                                 }
                                                 .frame(maxWidth: .infinity, alignment: .leading)
                                             }
@@ -164,18 +181,30 @@ struct PlaylistsView: View {
                                 .padding(.top, 12)
                             } label: {
                                 HStack {
-                                    Circle().fill(DiegoTheme.accent).frame(width: 46, height: 46)
-                                    VStack(alignment: .leading) {
-                                        Text(playlist.name).font(.title3.bold())
-                                        Text("\(playlist.entries.count) elementos").font(.caption).foregroundStyle(.secondary)
+                                    Rectangle()
+                                        .fill(DiegoTheme.surface)
+                                        .frame(width: 44, height: 44)
+                                        .overlay(Rectangle().stroke(DiegoTheme.hairline, lineWidth: 1))
+                                        .overlay {
+                                            Image(systemName: "music.note.list")
+                                                .font(.callout)
+                                                .foregroundStyle(DiegoTheme.textPrimary)
+                                        }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(playlist.name)
+                                            .font(.system(size: 15, weight: .regular))
+                                            .foregroundStyle(DiegoTheme.textPrimary)
+                                        Text("\(playlist.entries.count) ELEMENTOS")
+                                            .dondaLabel()
+                                            .foregroundStyle(DiegoTheme.textSecondary)
                                     }
                                     Spacer()
                                     Button {
                                         downloadPlaylist(playlist)
                                     } label: {
                                         Image(systemName: "arrow.down.circle")
-                                            .font(.title3)
-                                            .foregroundStyle(DiegoTheme.accent)
+                                            .font(.system(size: 18))
+                                            .foregroundStyle(DiegoTheme.textPrimary)
                                     }
                                     .buttonStyle(.plain)
                                     .accessibilityLabel("Descargar playlist")

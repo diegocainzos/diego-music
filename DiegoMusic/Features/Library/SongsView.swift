@@ -43,12 +43,12 @@ struct SongsView: View {
                         // Toggle "Solo descargados"
                         if downloadManager != nil {
                             Toggle(isOn: $showOnlyDownloaded) {
-                                Label("Solo descargados", systemImage: "arrow.down.circle.fill")
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(showOnlyDownloaded ? DiegoTheme.green : DiegoTheme.textSecondary)
+                                Label("SOLO DESCARGADOS", systemImage: "arrow.down.circle.fill")
+                                    .dondaLabel()
+                                    .foregroundStyle(DiegoTheme.textPrimary)
                             }
                             .toggleStyle(.switch)
-                            .tint(DiegoTheme.green)
+                            .tint(DiegoTheme.textPrimary)
                             .padding(.horizontal, 8)
                             .padding(.bottom, 12)
                         }
@@ -56,8 +56,9 @@ struct SongsView: View {
                         tableHeader
                             .padding(.bottom, 8)
 
-                        Divider()
-                            .overlay(Color.white.opacity(0.1))
+                        Rectangle()
+                            .fill(DiegoTheme.hairline)
+                            .frame(height: 1)
                             .padding(.bottom, 8)
 
                         LazyVStack(spacing: 4) {
@@ -77,24 +78,24 @@ struct SongsView: View {
     private var tableHeader: some View {
         HStack(spacing: 12) {
             Text("#")
-                .font(.caption.weight(.bold))
+                .dondaLabel()
                 .foregroundStyle(DiegoTheme.textSecondary)
                 .frame(width: 28, alignment: .center)
 
             Text("TÍTULO")
-                .font(.caption.weight(.bold))
+                .dondaLabel()
                 .foregroundStyle(DiegoTheme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Text("ARTISTA")
-                .font(.caption.weight(.bold))
+                .dondaLabel()
                 .foregroundStyle(DiegoTheme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer()
 
             Image(systemName: "ellipsis")
-                .font(.caption.weight(.bold))
+                .font(.caption)
                 .foregroundStyle(DiegoTheme.textSecondary)
                 .frame(width: 44, alignment: .center)
         }
@@ -114,17 +115,21 @@ struct SongsView: View {
             } label: {
                 HStack(spacing: 12) {
                     Text("\(index)")
-                        .font(.subheadline.monospacedDigit())
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
                         .frame(width: 28, alignment: .center)
 
                     TrackArtwork(url: track.mediaItem.thumbnailURL)
                         .frame(width: 40, height: 40)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipped()
+                        .overlay(
+                            Rectangle()
+                                .stroke(DiegoTheme.hairline, lineWidth: 1)
+                        )
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(track.title)
-                            .font(.system(.body, design: .default, weight: .semibold))
+                            .font(.system(size: 14, weight: .regular))
                             .foregroundStyle(DiegoTheme.textPrimary)
                             .lineLimit(1)
                     }
@@ -134,7 +139,7 @@ struct SongsView: View {
                         navState.navigate(to: .artistDetail(id: track.channelTitle, name: track.channelTitle))
                     } label: {
                         Text(track.channelTitle)
-                            .font(.subheadline)
+                            .dondaLabel()
                             .foregroundStyle(DiegoTheme.textSecondary)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -157,7 +162,7 @@ struct SongsView: View {
                 } label: {
                     Image(systemName: library.isFavorite(track.mediaItem) ? "heart.fill" : "heart")
                         .font(.body)
-                        .foregroundStyle(library.isFavorite(track.mediaItem) ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                        .foregroundStyle(library.isFavorite(track.mediaItem) ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                         .frame(width: 36, height: 36)
                 }
                 .buttonStyle(.plain)
@@ -210,8 +215,11 @@ struct SongsView: View {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
-        .background(DiegoTheme.surface.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(DiegoTheme.surface)
+        .overlay(
+            Rectangle()
+                .stroke(DiegoTheme.hairline, lineWidth: 1)
+        )
         .opacity(unavailableOffline ? 0.4 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: unavailableOffline)
     }

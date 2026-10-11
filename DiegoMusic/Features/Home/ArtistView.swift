@@ -70,9 +70,9 @@ struct ArtistView: View {
                     switch model.state {
                     case .loading:
                         HStack(spacing: 12) {
-                            ProgressView().controlSize(.regular).tint(DiegoTheme.accent)
-                            Text("Cargando perfil de \(artistTitle)…")
-                                .font(.callout.weight(.medium))
+                            ProgressView().controlSize(.regular).tint(DiegoTheme.textPrimary)
+                            Text("CARGANDO PERFIL DE \(artistTitle.uppercased())…")
+                                .dondaLabel()
                                 .foregroundStyle(DiegoTheme.textSecondary)
                         }
                         .padding(.top, 60)
@@ -81,12 +81,12 @@ struct ArtistView: View {
                     case let .failed(message):
                         VStack(spacing: 14) {
                             Image(systemName: "exclamationmark.triangle")
-                                .font(.largeTitle)
-                                .foregroundStyle(DiegoTheme.accent)
+                                .font(.title2)
+                                .foregroundStyle(DiegoTheme.textSecondary)
                             Text(message)
                                 .font(.callout)
                                 .foregroundStyle(DiegoTheme.textSecondary)
-                            Button("Reintentar") { model.load() }
+                            Button("REINTENTAR") { model.load() }
                                 .buttonStyle(PrimaryButtonStyle())
                         }
                         .padding(.top, 60)
@@ -110,15 +110,17 @@ struct ArtistView: View {
         .overlay(alignment: .bottom) {
             if let toastMessage {
                 Text(toastMessage)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .dondaLabel()
+                    .foregroundStyle(DiegoTheme.background)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(DiegoTheme.accent)
-                    .clipShape(Capsule())
-                    .shadow(radius: 6)
+                    .padding(.vertical, 8)
+                    .background(DiegoTheme.textPrimary)
+                    .overlay(
+                        Rectangle()
+                            .stroke(DiegoTheme.outline, lineWidth: 1)
+                    )
                     .padding(.bottom, 24)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(.opacity)
             }
         }
     }
@@ -133,15 +135,17 @@ struct ArtistView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "chevron.left")
-                            .font(.body.weight(.bold))
-                        Text("Atrás")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.system(size: 13, weight: .bold))
+                        Text("ATRÁS")
+                            .dondaLabel()
                     }
-                    .foregroundStyle(DiegoTheme.accent)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(DiegoTheme.surface)
-                    .clipShape(Capsule())
+                    .foregroundStyle(DiegoTheme.textPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .overlay(
+                        Rectangle()
+                            .stroke(DiegoTheme.outline, lineWidth: 1)
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Volver atrás")
@@ -149,9 +153,8 @@ struct ArtistView: View {
 
             Spacer()
 
-            Text("Artista")
-                .font(.caption.bold())
-                .tracking(1.2)
+            Text("ARTISTA")
+                .dondaLabel()
                 .foregroundStyle(DiegoTheme.textSecondary)
 
             Spacer()
@@ -173,7 +176,7 @@ struct ArtistView: View {
         }
     }
 
-    // MARK: - Header Hero de Artista (Estilo Apple Music Web)
+    // MARK: - Header Donda de Artista
 
     @ViewBuilder
     private func heroHeader(_ detail: ArtistDetail) -> some View {
@@ -184,27 +187,22 @@ struct ArtistView: View {
             VStack(spacing: 16) {
                 TrackArtwork(url: detail.artist.thumbnailURL)
                     .frame(width: 150, height: 150)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(DiegoTheme.accent.opacity(0.2), lineWidth: 2))
-                    .shadow(color: .black.opacity(0.35), radius: 16, x: 0, y: 8)
+                    .clipped()
+                    .overlay(
+                        Rectangle()
+                            .stroke(DiegoTheme.hairline, lineWidth: 1)
+                    )
                     .accessibilityHidden(true)
 
                 VStack(spacing: 6) {
                     Text("ARTISTA")
-                        .font(.caption.weight(.bold))
-                        .tracking(1.5)
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
 
-                    HStack(spacing: 6) {
-                        Text(title)
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundStyle(DiegoTheme.textPrimary)
-                            .multilineTextAlignment(.center)
-
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.title3)
-                            .foregroundStyle(.blue)
-                    }
+                    Text(title)
+                        .dondaTitle(size: 26)
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                        .multilineTextAlignment(.center)
 
                     if let bio = detail.artist.bio, !bio.isEmpty {
                         Text(bio)
@@ -223,26 +221,21 @@ struct ArtistView: View {
             HStack(alignment: .center, spacing: 28) {
                 TrackArtwork(url: detail.artist.thumbnailURL)
                     .frame(width: 170, height: 170)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(DiegoTheme.accent.opacity(0.2), lineWidth: 2))
-                    .shadow(color: .black.opacity(0.35), radius: 20, x: 0, y: 10)
+                    .clipped()
+                    .overlay(
+                        Rectangle()
+                            .stroke(DiegoTheme.hairline, lineWidth: 1)
+                    )
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("ARTISTA")
-                        .font(.caption.weight(.bold))
-                        .tracking(1.5)
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
 
-                    HStack(spacing: 8) {
-                        Text(title)
-                            .font(.system(size: 36, weight: .bold))
-                            .foregroundStyle(DiegoTheme.textPrimary)
-
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.title2)
-                            .foregroundStyle(.blue)
-                    }
+                    Text(title)
+                        .dondaTitle(size: 32)
+                        .foregroundStyle(DiegoTheme.textPrimary)
 
                     if let bio = detail.artist.bio, !bio.isEmpty {
                         Text(bio)
@@ -260,7 +253,7 @@ struct ArtistView: View {
         }
     }
 
-    // MARK: - Botones de Acción Hero (Reproducir, Aleatorio, Seguir)
+    // MARK: - Botones de Acción Donda (Reproducir, Aleatorio, Seguir)
 
     private func actionButtons(_ topTracks: [MediaItem], artistTitle: String) -> some View {
         HStack(spacing: 12) {
@@ -271,15 +264,14 @@ struct ArtistView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "play.fill")
-                        .font(.subheadline.weight(.bold))
-                    Text("Reproducir")
-                        .font(.subheadline.weight(.bold))
+                        .font(.system(size: 11))
+                    Text("REPRODUCIR")
+                        .dondaLabel()
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 20)
                 .padding(.vertical, 10)
-                .background(DiegoTheme.accent)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+                .background(DiegoTheme.textPrimary)
+                .foregroundStyle(DiegoTheme.background)
             }
             .buttonStyle(.plain)
 
@@ -290,18 +282,18 @@ struct ArtistView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "shuffle")
-                        .font(.subheadline.weight(.bold))
-                    Text("Aleatorio")
-                        .font(.subheadline.weight(.bold))
+                        .font(.system(size: 11))
+                    Text("ALEATORIO")
+                        .dondaLabel()
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 20)
                 .padding(.vertical, 10)
-                .background(DiegoTheme.surface)
-                .foregroundStyle(DiegoTheme.accent)
-                .clipShape(Capsule())
-                .overlay {
-                    Capsule().stroke(DiegoTheme.accent.opacity(0.5), lineWidth: 1.5)
-                }
+                .background(DiegoTheme.background)
+                .foregroundStyle(DiegoTheme.textPrimary)
+                .overlay(
+                    Rectangle()
+                        .stroke(DiegoTheme.outline, lineWidth: 1)
+                )
             }
             .buttonStyle(.plain)
 
@@ -311,30 +303,31 @@ struct ArtistView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: isFollowing ? "checkmark" : "plus")
-                        .font(.subheadline.weight(.bold))
-                    Text(isFollowing ? "Siguiendo" : "Seguir")
-                        .font(.subheadline.weight(.bold))
+                        .font(.system(size: 11))
+                    Text(isFollowing ? "SIGUIENDO" : "SEGUIR")
+                        .dondaLabel()
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 18)
                 .padding(.vertical, 10)
-                .background(isFollowing ? DiegoTheme.accent.opacity(0.15) : DiegoTheme.surface)
-                .foregroundStyle(isFollowing ? DiegoTheme.accent : DiegoTheme.textPrimary)
-                .clipShape(Capsule())
-                .overlay {
-                    Capsule().stroke(isFollowing ? DiegoTheme.accent : DiegoTheme.textSecondary.opacity(0.3), lineWidth: 1)
-                }
+                .background(isFollowing ? DiegoTheme.textPrimary : DiegoTheme.background)
+                .foregroundStyle(isFollowing ? DiegoTheme.background : DiegoTheme.textPrimary)
+                .overlay(
+                    Rectangle()
+                        .stroke(DiegoTheme.outline, lineWidth: 1)
+                )
             }
             .buttonStyle(.plain)
         }
     }
 
-    // MARK: - Sección Top Tracks (Numeradas 1, 2, 3...)
+    // MARK: - Sección Top Tracks Donda
 
     private func topTracksSection(_ items: [MediaItem]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Éxitos populares")
-                .font(.title2.bold())
-                .foregroundStyle(DiegoTheme.textPrimary)
+            Text("ÉXITOS POPULARES")
+                .dondaLabel()
+                .tracking(4)
+                .foregroundStyle(DiegoTheme.textSecondary)
 
             if items.isEmpty {
                 Text("No hay canciones populares disponibles.")
@@ -357,33 +350,40 @@ struct ArtistView: View {
                                     navState.navigate(to: .albumDetail(id: albumTitle, title: albumTitle))
                                 }
                             )
+
+                            if index < min(items.count, 10) - 1 {
+                                Rectangle()
+                                    .fill(DiegoTheme.hairline)
+                                    .frame(height: 1)
+                                    .padding(.leading, 48)
+                            }
                         }
                     }
                 }
-                .background(DiegoTheme.surface.opacity(0.4))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                }
+                .background(DiegoTheme.surface)
+                .overlay(
+                    Rectangle()
+                        .stroke(DiegoTheme.hairline, lineWidth: 1)
+                )
             }
         }
     }
 
-    // MARK: - Sección Discografía y Álbumes
+    // MARK: - Sección Discografía y Álbumes Donda
 
     private func discographySection(_ albums: [Album]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Discografía y Álbumes")
-                    .font(.title2.bold())
-                    .foregroundStyle(DiegoTheme.textPrimary)
+                Text("DISCOGRAFÍA Y ÁLBUMES")
+                    .dondaLabel()
+                    .tracking(4)
+                    .foregroundStyle(DiegoTheme.textSecondary)
 
                 Spacer()
 
                 if !albums.isEmpty {
-                    Text("\(albums.count) lanzamientos")
-                        .font(.caption.bold())
+                    Text("\(albums.count) LANZAMIENTOS")
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
                 }
             }
@@ -402,21 +402,20 @@ struct ArtistView: View {
                                 TrackArtwork(url: album.thumbnailURL)
                                     .frame(height: 160)
                                     .frame(maxWidth: .infinity)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .clipped()
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                        Rectangle()
+                                            .stroke(DiegoTheme.hairline, lineWidth: 1)
                                     )
-                                    .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(album.title)
-                                        .font(.subheadline.weight(.semibold))
+                                        .font(.system(size: 14, weight: .regular))
                                         .foregroundStyle(DiegoTheme.textPrimary)
                                         .lineLimit(2)
 
                                     Text(album.channelTitle ?? "Álbum")
-                                        .font(.caption)
+                                        .dondaLabel()
                                         .foregroundStyle(DiegoTheme.textSecondary)
                                         .lineLimit(1)
                                 }
@@ -429,13 +428,14 @@ struct ArtistView: View {
         }
     }
 
-    // MARK: - Sección Artistas Similares (Avatares Circulares)
+    // MARK: - Sección Artistas Similares Donda
 
     private func similarArtistsSection(_ items: [MediaItem]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Artistas similares")
-                .font(.title2.bold())
-                .foregroundStyle(DiegoTheme.textPrimary)
+            Text("ARTISTAS SIMILARES")
+                .dondaLabel()
+                .tracking(4)
+                .foregroundStyle(DiegoTheme.textSecondary)
 
             if items.isEmpty {
                 Text("No hay artistas similares recomendados.")
@@ -451,11 +451,14 @@ struct ArtistView: View {
                                 VStack(spacing: 8) {
                                     TrackArtwork(url: item.thumbnailURL)
                                         .frame(width: 110, height: 110)
-                                        .clipShape(Circle())
-                                        .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+                                        .clipped()
+                                        .overlay(
+                                            Rectangle()
+                                                .stroke(DiegoTheme.hairline, lineWidth: 1)
+                                        )
 
                                     Text(item.channelTitle)
-                                        .font(.subheadline.weight(.semibold))
+                                        .font(.system(size: 13, weight: .regular))
                                         .foregroundStyle(DiegoTheme.textPrimary)
                                         .lineLimit(1)
                                         .frame(width: 110)
@@ -471,7 +474,7 @@ struct ArtistView: View {
     }
 }
 
-// MARK: - Fila de Canción Popular en Perfil de Artista
+// MARK: - Fila de Canción Popular Donda
 
 private struct ArtistTrackRow: View {
     let index: Int
@@ -488,22 +491,26 @@ private struct ArtistTrackRow: View {
             Button { onPlay(item) } label: {
                 HStack(spacing: 12) {
                     Text("\(index)")
-                        .font(.callout.monospacedDigit().weight(.semibold))
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
                         .frame(width: 24, alignment: .center)
 
                     TrackArtwork(url: item.thumbnailURL)
-                        .frame(width: 48, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .frame(width: 44, height: 44)
+                        .clipped()
+                        .overlay(
+                            Rectangle()
+                                .stroke(DiegoTheme.hairline, lineWidth: 1)
+                        )
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(item.title)
-                            .font(.body.weight(.semibold))
+                            .font(.system(size: 14, weight: .regular))
                             .foregroundStyle(DiegoTheme.textPrimary)
                             .lineLimit(1)
 
                         Text(item.channelTitle)
-                            .font(.caption)
+                            .dondaLabel()
                             .foregroundStyle(DiegoTheme.textSecondary)
                             .lineLimit(1)
                     }
@@ -515,8 +522,8 @@ private struct ArtistTrackRow: View {
 
             Button { onPlay(item) } label: {
                 Image(systemName: "play.fill")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(DiegoTheme.accent)
+                    .font(.system(size: 11))
+                    .foregroundStyle(DiegoTheme.textPrimary)
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(.plain)
@@ -525,7 +532,7 @@ private struct ArtistTrackRow: View {
             Button { try? library.toggleFavorite(item) } label: {
                 Image(systemName: library.isFavorite(item) ? "heart.fill" : "heart")
                     .font(.caption)
-                    .foregroundStyle(library.isFavorite(item) ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                    .foregroundStyle(library.isFavorite(item) ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                     .frame(width: 32, height: 32)
             }
             .buttonStyle(.plain)
@@ -564,10 +571,7 @@ private struct ArtistTrackRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(isHovered ? Color.white.opacity(0.06) : Color.clear)
+        .background(isHovered ? DiegoTheme.hairline : Color.clear)
         .onHover { isHovered = $0 }
-        .overlay(alignment: .bottom) {
-            Divider().background(Color.white.opacity(0.05))
-        }
     }
 }

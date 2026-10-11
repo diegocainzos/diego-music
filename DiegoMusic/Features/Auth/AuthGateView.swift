@@ -34,16 +34,14 @@ struct AuthGateView: View {
 
             ScrollView {
                 VStack(spacing: 28) {
-                    VStack(spacing: 12) {
-                        AppleMusicLogoView(size: 48, showText: true)
+                    VStack(spacing: 8) {
+                        Text("DIEGOMUSIC")
+                            .dondaTitle(size: 24)
+                            .foregroundStyle(DiegoTheme.textPrimary)
                             .padding(.top, 40)
 
-                        Text("DiegoMusic")
-                            .font(.title.bold())
-                            .foregroundStyle(DiegoTheme.textPrimary)
-
                         Text("Inicia sesión para sincronizar tus playlists, favoritos y música.")
-                            .font(.subheadline)
+                            .font(.callout)
                             .foregroundStyle(DiegoTheme.textSecondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 32)
@@ -56,6 +54,7 @@ struct AuthGateView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .tint(DiegoTheme.textPrimary)
                     .padding(.horizontal, 32)
 
                     // Contenido del Formulario
@@ -79,29 +78,35 @@ struct AuthGateView: View {
     private var loginForm: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Correo Electrónico")
-                    .font(.caption.bold())
+                Text("CORREO ELECTRÓNICO")
+                    .dondaLabel()
                     .foregroundStyle(DiegoTheme.textSecondary)
                 TextField("usuario@ejemplo.com", text: $loginEmail)
                     #if os(iOS)
                     .textInputAutocapitalization(.never)
                     .keyboardType(.emailAddress)
                     #endif
-                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 40)
+                    .background(DiegoTheme.background)
+                    .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Contraseña")
-                    .font(.caption.bold())
+                Text("CONTRASEÑA")
+                    .dondaLabel()
                     .foregroundStyle(DiegoTheme.textSecondary)
                 SecureField("••••••••", text: $loginPassword)
-                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 40)
+                    .background(DiegoTheme.background)
+                    .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
             }
 
             if let loginError {
-                Label(loginError, systemImage: "exclamationmark.triangle.fill")
+                Label(loginError, systemImage: "exclamationmark.triangle")
                     .font(.caption)
-                    .foregroundStyle(DiegoTheme.red)
+                    .foregroundStyle(DiegoTheme.textSecondary)
                     .padding(.vertical, 2)
             }
 
@@ -111,11 +116,11 @@ struct AuthGateView: View {
                 HStack {
                     if isLoggingIn {
                         ProgressView()
-                            .tint(.white)
+                            .tint(DiegoTheme.background)
                             .padding(.trailing, 6)
                     }
-                    Text("Iniciar Sesión")
-                        .fontWeight(.bold)
+                    Text("INICIAR SESIÓN")
+                        .dondaLabel()
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -129,47 +134,56 @@ struct AuthGateView: View {
     private var registerForm: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Nombre Completo (Opcional)")
-                    .font(.caption.bold())
+                Text("NOMBRE COMPLETO (OPCIONAL)")
+                    .dondaLabel()
                     .foregroundStyle(DiegoTheme.textSecondary)
                 TextField("Diego Cainzos", text: $regFullName)
-                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 40)
+                    .background(DiegoTheme.background)
+                    .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Correo Electrónico")
-                    .font(.caption.bold())
+                Text("CORREO ELECTRÓNICO")
+                    .dondaLabel()
                     .foregroundStyle(DiegoTheme.textSecondary)
                 TextField("usuario@ejemplo.com", text: $regEmail)
                     #if os(iOS)
                     .textInputAutocapitalization(.never)
                     .keyboardType(.emailAddress)
                     #endif
-                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 40)
+                    .background(DiegoTheme.background)
+                    .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Contraseña")
-                    .font(.caption.bold())
+                Text("CONTRASEÑA")
+                    .dondaLabel()
                     .foregroundStyle(DiegoTheme.textSecondary)
                 SecureField("Entre 10 y 25 caracteres", text: $regPassword)
-                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 40)
+                    .background(DiegoTheme.background)
+                    .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
 
                 // Feedback en tiempo real
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Image(systemName: isRegPasswordLengthValid ? "checkmark.circle.fill" : "circle")
+                        Image(systemName: isRegPasswordLengthValid ? "checkmark.circle" : "circle")
                             .font(.caption2)
-                            .foregroundStyle(isRegPasswordLengthValid ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                            .foregroundStyle(isRegPasswordLengthValid ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                         Text("Entre 10 y 25 caracteres (\(regPassword.count)/25)")
                             .font(.caption2)
                             .foregroundStyle(isRegPasswordLengthValid ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                     }
 
                     HStack(spacing: 6) {
-                        Image(systemName: isRegPasswordUppercaseValid ? "checkmark.circle.fill" : "circle")
+                        Image(systemName: isRegPasswordUppercaseValid ? "checkmark.circle" : "circle")
                             .font(.caption2)
-                            .foregroundStyle(isRegPasswordUppercaseValid ? DiegoTheme.accent : DiegoTheme.textSecondary)
+                            .foregroundStyle(isRegPasswordUppercaseValid ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                         Text("Al menos una letra mayúscula")
                             .font(.caption2)
                             .foregroundStyle(isRegPasswordUppercaseValid ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
@@ -179,29 +193,32 @@ struct AuthGateView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Confirmar Contraseña")
-                    .font(.caption.bold())
+                Text("CONFIRMAR CONTRASEÑA")
+                    .dondaLabel()
                     .foregroundStyle(DiegoTheme.textSecondary)
                 SecureField("Repite tu contraseña", text: $regConfirmPassword)
-                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 40)
+                    .background(DiegoTheme.background)
+                    .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
 
                 if !regConfirmPassword.isEmpty {
                     HStack(spacing: 6) {
-                        Image(systemName: regPassword == regConfirmPassword ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        Image(systemName: regPassword == regConfirmPassword ? "checkmark.circle" : "xmark.circle")
                             .font(.caption2)
-                            .foregroundStyle(regPassword == regConfirmPassword ? DiegoTheme.accent : DiegoTheme.red)
+                            .foregroundStyle(regPassword == regConfirmPassword ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                         Text(regPassword == regConfirmPassword ? "Las contraseñas coinciden" : "Las contraseñas no coinciden")
                             .font(.caption2)
-                            .foregroundStyle(regPassword == regConfirmPassword ? DiegoTheme.textPrimary : DiegoTheme.red)
+                            .foregroundStyle(regPassword == regConfirmPassword ? DiegoTheme.textPrimary : DiegoTheme.textSecondary)
                     }
                     .padding(.top, 2)
                 }
             }
 
             if let regError {
-                Label(regError, systemImage: "exclamationmark.triangle.fill")
+                Label(regError, systemImage: "exclamationmark.triangle")
                     .font(.caption)
-                    .foregroundStyle(DiegoTheme.red)
+                    .foregroundStyle(DiegoTheme.textSecondary)
                     .padding(.vertical, 2)
             }
 
@@ -211,11 +228,11 @@ struct AuthGateView: View {
                 HStack {
                     if isRegistering {
                         ProgressView()
-                            .tint(.white)
+                            .tint(DiegoTheme.background)
                             .padding(.trailing, 6)
                     }
-                    Text("Crear Cuenta")
-                        .fontWeight(.bold)
+                    Text("CREAR CUENTA")
+                        .dondaLabel()
                 }
                 .frame(maxWidth: .infinity)
             }

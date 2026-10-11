@@ -46,37 +46,33 @@ struct DownloadButton: View {
         switch state {
         case .notDownloaded:
             Image(systemName: "arrow.down.circle")
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 16))
                 .foregroundStyle(DiegoTheme.textSecondary)
 
         case .queued:
             Image(systemName: "clock")
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 16))
                 .foregroundStyle(DiegoTheme.textSecondary)
 
         case .downloading(let progress):
             ZStack {
-                Circle()
-                    .stroke(DiegoTheme.textSecondary.opacity(0.25), lineWidth: 2.5)
-                    .frame(width: 20, height: 20)
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(DiegoTheme.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                    .frame(width: 20, height: 20)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 0.1), value: progress)
+                Rectangle()
+                    .stroke(DiegoTheme.outline, lineWidth: 1)
+                    .frame(width: 16, height: 16)
+                Rectangle()
+                    .fill(DiegoTheme.textPrimary)
+                    .frame(width: max(2, 16 * CGFloat(progress)), height: 16)
             }
 
         case .downloaded:
             Image(systemName: "arrow.down.circle.fill")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(DiegoTheme.green)
-                .symbolEffect(.bounce, value: state == .downloaded)
+                .font(.system(size: 16))
+                .foregroundStyle(DiegoTheme.textPrimary)
 
         case .failed:
             Image(systemName: "exclamationmark.circle")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(DiegoTheme.accent)
+                .font(.system(size: 16))
+                .foregroundStyle(DiegoTheme.textSecondary)
         }
     }
 
@@ -106,7 +102,7 @@ struct DownloadButton: View {
 
 // MARK: - DownloadAllButton
 
-/// Botón "Descargar todo" para la cabecera de álbum / playlist.
+/// Botón "Descargar todo" para la cabecera de álbum / playlist en Donda.
 struct DownloadAllButton: View {
     let items: [MediaItem]
     @ObservedObject var downloadManager: OfflineDownloadManager
@@ -137,27 +133,33 @@ struct DownloadAllButton: View {
                 if anyInProgress {
                     ProgressView()
                         .controlSize(.small)
-                        .tint(DiegoTheme.accent)
-                    Text("Descargando \(downloadedCount) de \(items.count)…")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(DiegoTheme.accent)
+                        .tint(DiegoTheme.textPrimary)
+                    Text("DESCARGANDO \(downloadedCount)/\(items.count)")
+                        .dondaLabel()
+                        .foregroundStyle(DiegoTheme.textSecondary)
                 } else if allDownloaded {
                     Image(systemName: "arrow.down.circle.fill")
-                        .foregroundStyle(DiegoTheme.green)
-                    Text("Descargado")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(DiegoTheme.green)
+                        .font(.system(size: 13))
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                    Text("DESCARGADO")
+                        .dondaLabel()
+                        .foregroundStyle(DiegoTheme.textPrimary)
                 } else {
                     Image(systemName: "arrow.down.circle")
-                    Text("Descargar todo")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(size: 13))
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                    Text("DESCARGAR TODO")
+                        .dondaLabel()
+                        .foregroundStyle(DiegoTheme.textPrimary)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(DiegoTheme.surface)
-            .clipShape(Capsule())
-            .overlay { Capsule().stroke(DiegoTheme.textPrimary.opacity(0.12), lineWidth: 1) }
+            .background(DiegoTheme.background)
+            .overlay(
+                Rectangle()
+                    .stroke(DiegoTheme.outline, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
         .disabled(allDownloaded || anyInProgress)
@@ -168,7 +170,7 @@ struct DownloadAllButton: View {
 
 // MARK: - OfflineBanner
 
-/// Banner discreto estilo iOS que aparece cuando no hay conexión de red.
+/// Banner discreto que aparece cuando no hay conexión de red.
 struct OfflineBanner: View {
     @ObservedObject var monitor: NetworkMonitor
 
@@ -176,20 +178,19 @@ struct OfflineBanner: View {
         if !monitor.isConnected {
             HStack(spacing: 8) {
                 Image(systemName: "wifi.slash")
-                    .font(.caption.weight(.semibold))
-                Text("Sin conexión — Solo música descargada disponible")
-                    .font(.caption.weight(.medium))
+                    .font(.system(size: 12))
+                Text("SIN CONEXIÓN — SOLO MÚSICA DESCARGADA DISPONIBLE")
+                    .dondaLabel()
             }
             .foregroundStyle(DiegoTheme.textPrimary)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
+            .padding(.vertical, 8)
             .padding(.horizontal, 16)
-            .background(DiegoTheme.surface)
-            .overlay(alignment: .bottom) {
+            .background(DiegoTheme.background)
+            .overlay(
                 Rectangle()
-                    .fill(DiegoTheme.accent)
-                    .frame(height: 1)
-            }
+                    .stroke(DiegoTheme.hairline, lineWidth: 1)
+            )
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }

@@ -1,8 +1,6 @@
 import SwiftUI
 
-import SwiftUI
-
-/// Álbumes de la biblioteca: rejilla de tarjetas cuadradas al estilo Apple Music Web.
+/// Álbumes de la biblioteca: rejilla de tarjetas en el sistema de diseño Donda.
 /// Muestra álbumes guardados explícitamente y álbumes locales derivados.
 struct AlbumsView: View {
     @ObservedObject var library: LibraryStore
@@ -44,9 +42,10 @@ struct AlbumsView: View {
                     VStack(alignment: .leading, spacing: 28) {
                         if !savedAlbums.isEmpty {
                             VStack(alignment: .leading, spacing: 14) {
-                                Text("Álbumes guardados")
-                                    .font(.title2.bold())
-                                    .foregroundStyle(DiegoTheme.textPrimary)
+                                Text("ÁLBUMES GUARDADOS")
+                                    .dondaLabel()
+                                    .tracking(4)
+                                    .foregroundStyle(DiegoTheme.textSecondary)
 
                                 LazyVGrid(columns: columns, spacing: 24) {
                                     ForEach(savedAlbums) { album in
@@ -59,9 +58,10 @@ struct AlbumsView: View {
                         if !localAlbums.isEmpty {
                             VStack(alignment: .leading, spacing: 14) {
                                 if !savedAlbums.isEmpty {
-                                    Text("Agrupaciones locales")
-                                        .font(.title2.bold())
-                                        .foregroundStyle(DiegoTheme.textPrimary)
+                                    Text("AGRUPACIONES LOCALES")
+                                        .dondaLabel()
+                                        .tracking(4)
+                                        .foregroundStyle(DiegoTheme.textSecondary)
                                 }
 
                                 LazyVGrid(columns: columns, spacing: 24) {
@@ -86,8 +86,11 @@ struct AlbumsView: View {
                 TrackArtwork(url: album.thumbnailURL)
                     .aspectRatio(1, contentMode: .fill)
                     .frame(maxWidth: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+                    .clipped()
+                    .overlay(
+                        Rectangle()
+                            .stroke(DiegoTheme.hairline, lineWidth: 1)
+                    )
 
                 Button {
                     onPlay(MediaItem(
@@ -97,10 +100,15 @@ struct AlbumsView: View {
                         thumbnailURL: album.thumbnailURL
                     ))
                 } label: {
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(DiegoTheme.accent)
-                        .background(Circle().fill(.black.opacity(0.4)))
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                        .frame(width: 32, height: 32)
+                        .background(DiegoTheme.background)
+                        .overlay(
+                            Rectangle()
+                                .stroke(DiegoTheme.outline, lineWidth: 1)
+                        )
                         .padding(8)
                 }
                 .buttonStyle(.plain)
@@ -112,13 +120,13 @@ struct AlbumsView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(album.title)
-                    .font(.system(.body, design: .default, weight: .bold))
+                    .font(.system(size: 14, weight: .regular))
                     .foregroundStyle(DiegoTheme.textPrimary)
                     .lineLimit(1)
 
                 if let channel = album.channelTitle {
                     Text(channel)
-                        .font(.caption)
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
                         .lineLimit(1)
                 }
@@ -143,18 +151,26 @@ struct AlbumsView: View {
                 TrackArtwork(url: album.tracks.first?.mediaItem.thumbnailURL)
                     .aspectRatio(1, contentMode: .fill)
                     .frame(maxWidth: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+                    .clipped()
+                    .overlay(
+                        Rectangle()
+                            .stroke(DiegoTheme.hairline, lineWidth: 1)
+                    )
 
                 Button {
                     if let firstTrack = album.tracks.first {
                         onPlay(firstTrack.mediaItem)
                     }
                 } label: {
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(DiegoTheme.accent)
-                        .background(Circle().fill(.black.opacity(0.4)))
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                        .frame(width: 32, height: 32)
+                        .background(DiegoTheme.background)
+                        .overlay(
+                            Rectangle()
+                                .stroke(DiegoTheme.outline, lineWidth: 1)
+                        )
                         .padding(8)
                 }
                 .buttonStyle(.plain)
@@ -166,12 +182,12 @@ struct AlbumsView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(album.name)
-                    .font(.system(.body, design: .default, weight: .bold))
+                    .font(.system(size: 14, weight: .regular))
                     .foregroundStyle(DiegoTheme.textPrimary)
                     .lineLimit(1)
 
-                Text("\(album.tracks.count) canciones")
-                    .font(.caption)
+                Text("\(album.tracks.count) CANCIONES")
+                    .dondaLabel()
                     .foregroundStyle(DiegoTheme.textSecondary)
                     .lineLimit(1)
             }

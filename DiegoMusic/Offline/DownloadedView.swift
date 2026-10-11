@@ -29,9 +29,10 @@ struct DownloadedView: View {
                             downloadManager: downloadManager,
                             onPlay: { onPlay(track.mediaItem) }
                         )
-                        Divider()
-                            .background(DiegoTheme.textPrimary.opacity(0.06))
-                            .padding(.leading, 76)
+                        Rectangle()
+                            .fill(DiegoTheme.hairline)
+                            .frame(height: 1)
+                            .padding(.leading, 72)
                     }
                 }
                 .padding(.bottom, 120)
@@ -42,10 +43,10 @@ struct DownloadedView: View {
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: "arrow.down.circle")
-                .font(.system(size: 48))
+                .font(.system(size: 42))
                 .foregroundStyle(DiegoTheme.textSecondary)
-            Text("Sin descargas")
-                .font(.title3.bold())
+            Text("SIN DESCARGAS")
+                .dondaTitle(size: 18)
                 .foregroundStyle(DiegoTheme.textPrimary)
             Text("Las canciones, álbumes y playlists que descargues aparecerán aquí para escucharlas sin conexión.")
                 .font(.callout)
@@ -72,28 +73,32 @@ private struct DownloadedTrackRow: View {
             Button(action: onPlay) {
                 HStack(spacing: 12) {
                     TrackArtwork(url: track.mediaItem.thumbnailURL)
-                        .frame(width: 48, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .frame(width: 44, height: 44)
+                        .clipped()
+                        .overlay(
+                            Rectangle()
+                                .stroke(DiegoTheme.hairline, lineWidth: 1)
+                        )
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(track.title)
-                            .font(.headline)
+                            .font(.system(size: 14, weight: .regular))
                             .lineLimit(1)
                             .foregroundStyle(DiegoTheme.textPrimary)
 
                         HStack(spacing: 6) {
                             Text(track.channelTitle)
-                                .font(.caption)
+                                .dondaLabel()
                                 .foregroundStyle(DiegoTheme.textSecondary)
                                 .lineLimit(1)
 
                             Text("·")
-                                .font(.caption)
+                                .dondaLabel()
                                 .foregroundStyle(DiegoTheme.textSecondary)
 
                             Text(track.formattedSize)
-                                .font(.caption.monospacedDigit())
+                                .dondaLabel()
                                 .foregroundStyle(DiegoTheme.textSecondary)
                         }
                     }
@@ -109,9 +114,9 @@ private struct DownloadedTrackRow: View {
                 showDeleteConfirm = true
             } label: {
                 Image(systemName: "arrow.down.circle.fill")
-                    .font(.body)
-                    .frame(width: 44, height: 44)
-                    .foregroundStyle(DiegoTheme.green)
+                    .font(.system(size: 18))
+                    .frame(width: 36, height: 36)
+                    .foregroundStyle(DiegoTheme.textPrimary)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Eliminar descarga de \(track.title)")

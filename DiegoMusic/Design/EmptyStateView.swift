@@ -24,18 +24,22 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: symbol)
-                .font(.system(size: 42, weight: .bold))
-                .foregroundStyle(DiegoTheme.accent)
-            Text(title).font(.title2.bold())
+                .font(.system(size: 42, weight: .regular))
+                .foregroundStyle(DiegoTheme.textSecondary)
+            Text(title)
+                .dondaTitle(size: 18)
                 .foregroundStyle(DiegoTheme.textPrimary)
             Text(description)
-                .font(.body)
-                .foregroundStyle(.secondary)
+                .font(.callout)
+                .foregroundStyle(DiegoTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 460)
             if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .buttonStyle(PrimaryButtonStyle())
+                Button(action: action) {
+                    Text(actionTitle)
+                        .dondaLabel()
+                }
+                .buttonStyle(PrimaryButtonStyle())
             }
         }
         .padding(32)

@@ -42,14 +42,6 @@ enum DiegoTheme {
     /// En el sistema Donda no hay color de acento propio: coincide con `textPrimary`.
     static let accent = textPrimary
 
-    static let cardSurface = Color(
-        light: Color.black.opacity(0.04),
-        dark: Color.white.opacity(0.06)
-    )
-
-    static let green = Color(red: 0.12, green: 0.84, blue: 0.38)
-    static let red = Color(red: 250 / 255.0, green: 45 / 255.0, blue: 72 / 255.0)
-
     static let cornerRadius: CGFloat = 0
 
     // MARK: - Adaptadores dinámicos por ColorScheme (Modo Blanco / Negro)

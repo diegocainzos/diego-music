@@ -32,9 +32,10 @@ struct ArtistsView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Artistas guardados")
-                            .font(.title2.bold())
-                            .foregroundStyle(DiegoTheme.textPrimary)
+                        Text("ARTISTAS GUARDADOS")
+                            .dondaLabel()
+                            .tracking(4)
+                            .foregroundStyle(DiegoTheme.textSecondary)
                             .padding(.top, 8)
 
                         LazyVGrid(columns: columns, spacing: 28) {
@@ -60,9 +61,11 @@ struct ArtistsView: View {
                     TrackArtwork(url: artist.tracks.first?.mediaItem.thumbnailURL)
                         .aspectRatio(1, contentMode: .fill)
                         .frame(maxWidth: .infinity)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(DiegoTheme.textPrimary.opacity(0.12), lineWidth: 1.5))
-                        .shadow(color: .black.opacity(0.25), radius: 10, x: 0, y: 5)
+                        .clipped()
+                        .overlay(
+                            Rectangle()
+                                .stroke(DiegoTheme.hairline, lineWidth: 1)
+                        )
 
                     // Botón de reproducción rápida
                     Button {
@@ -70,37 +73,40 @@ struct ArtistsView: View {
                             onPlay(firstTrack.mediaItem)
                         }
                     } label: {
-                        Image(systemName: "play.circle.fill")
-                            .font(.system(size: 34))
-                            .foregroundStyle(DiegoTheme.accent)
-                            .background(Circle().fill(DiegoTheme.background))
-                            .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(DiegoTheme.textPrimary)
+                            .frame(width: 32, height: 32)
+                            .background(DiegoTheme.background)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(DiegoTheme.outline, lineWidth: 1)
+                            )
                     }
                     .buttonStyle(.plain)
-                    .offset(x: 4, y: 4)
+                    .offset(x: -4, y: -4)
                     .accessibilityLabel("Reproducir canciones de \(artist.name)")
                 }
 
                 VStack(spacing: 3) {
                     Text(artist.name)
-                        .font(.headline.weight(.semibold))
+                        .font(.system(size: 14, weight: .regular))
                         .foregroundStyle(DiegoTheme.textPrimary)
                         .lineLimit(1)
                         .multilineTextAlignment(.center)
 
                     let count = artist.tracks.count
-                    Text(count == 1 ? "1 canción" : "\(count) canciones")
-                        .font(.caption.weight(.medium))
+                    Text(count == 1 ? "1 CANCIÓN" : "\(count) CANCIONES")
+                        .dondaLabel()
                         .foregroundStyle(DiegoTheme.textSecondary)
                 }
             }
             .padding(12)
-            .background(DiegoTheme.surface.opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
-            }
+            .background(DiegoTheme.surface)
+            .overlay(
+                Rectangle()
+                    .stroke(DiegoTheme.hairline, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }
