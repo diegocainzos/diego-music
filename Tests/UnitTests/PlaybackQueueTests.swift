@@ -96,6 +96,29 @@ final class PlaybackQueueTests: XCTestCase {
         XCTAssertEqual(queue.resetToStart()?.id, "1")
         XCTAssertEqual(queue.currentIndex, 0)
     }
+
+    func testReplaceUpcomingKeepsCurrentAndPreservesLeadingItems() {
+        let first = MediaItem(id: "1", title: "Uno", channelTitle: "A")
+        let second = MediaItem(id: "2", title: "Dos", channelTitle: "B")
+        let third = MediaItem(id: "3", title: "Tres", channelTitle: "C")
+        let radio1 = MediaItem(id: "R1", title: "Radio 1", channelTitle: "R")
+        let radio2 = MediaItem(id: "R2", title: "Radio 2", channelTitle: "R")
+
+        let queue = PlaybackQueue(items: [first, second, third], currentIndex: 1)
+        XCTAssertEqual(queue.current, second)
+        XCTAssertEqual(queue.currentIndex, 1)
+
+        queue.replaceUpcoming(with: [radio1, radio2])
+
+        XCTAssertEqual(queue.items.map(\.id), ["1", "2", "R1", "R2"])
+        XCTAssertEqual(queue.current, second)
+        XCTAssertEqual(queue.currentIndex, 1)
+
+        queue.replaceUpcoming(with: [])
+        XCTAssertEqual(queue.items.map(\.id), ["1", "2"])
+        XCTAssertEqual(queue.current, second)
+        XCTAssertEqual(queue.currentIndex, 1)
+    }
 }
 
 private actor RecordingAudioResolver: AudioStreamResolving {

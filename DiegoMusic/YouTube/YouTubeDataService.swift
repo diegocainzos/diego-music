@@ -63,7 +63,7 @@ protocol YouTubeDataServicing: Sendable {
     func discover() async throws -> DiscoveryFeed
     func artist(byChannelID: String) async throws -> ArtistDetail
     func album(byPlaylistID: String) async throws -> Album
-    func fetchRelatedRadio(for item: MediaItem) async throws -> [MediaItem]
+    func radio(seed videoID: String) async throws -> [MediaItem]
 }
 
 struct YouTubeDataService: YouTubeDataServicing {
@@ -347,33 +347,12 @@ struct YouTubeDataService: YouTubeDataServicing {
         )
     }
 
-    func fetchRelatedRadio(for item: MediaItem) async throws -> [MediaItem] {
-        let artistName = item.channelTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !artistName.isEmpty else { return [] }
-
-        let artistQuery = "\(artistName) music"
-        let relatedQuery = "\(artistName) radio"
-
-        async let artistTask = try? executeWithRotation(
-            buildRequest: { apiKey in
-                try endpointRequest { YouTubeEndpoint(query: artistQuery, apiKey: apiKey, maxResults: 10) }
-            },
-            responseType: YouTubeSearchResponseDTO.self
-        )
-        async let relatedTask = try? executeWithRotation(
-            buildRequest: { apiKey in
-                try endpointRequest { YouTubeEndpoint(query: relatedQuery, apiKey: apiKey, maxResults: 10) }
-            },
-            responseType: YouTubeSearchResponseDTO.self
-        )
-
-        let (artistData, relatedData) = await (artistTask, relatedTask)
-
-        let artistItems: [MediaItem] = artistData?.items.compactMap(mapper.map) ?? []
-        let relatedItems: [MediaItem] = relatedData?.items.compactMap(mapper.map) ?? []
-
-        var seen: Set<String> = [item.id]
-        return (artistItems + relatedItems).filter { seen.insert($0.id).inserted }
+    func radio(seed videoID: String) async throws -> [MediaItem] {
+        guard videoID.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) != nil else {
+            throw YouTubeServiceError.invalidRequest
+        }
+        let dto = try await vpsGET(path: "/v1/radio/\(videoID)", decoding: VPSRadioResponseDTO.self)
+        return dto.items.map(\.mediaItem)
     }
 
     // MARK: - Helpers
@@ -545,4 +524,31 @@ private struct VPSArtistDetailResponseDTO: Decodable {
 
 private struct VPSSearchResponseDTO: Decodable {
     let items: [VPSTrackDTO]
+}
+
+private struct VPSRadioResponseDTO: Decodable {
+    struct Item: Decodable {
+        let id: String
+        let title: String
+        let channel: String
+        let durationSeconds: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case title
+            case channel
+            case durationSeconds = "duration_seconds"
+        }
+
+        var mediaItem: MediaItem {
+            MediaItem(
+                id: id,
+                title: title,
+                channelTitle: channel,
+                durationSeconds: durationSeconds
+            )
+        }
+    }
+
+    let items: [Item]
 }
