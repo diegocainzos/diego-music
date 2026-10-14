@@ -175,7 +175,7 @@ private fun LoginForm() {
         error = null
         scope.launch {
             try {
-                app.login(email.trim(), password)
+                app.login(email.trim().lowercase(), password)
             } catch (e: Exception) {
                 error = e.message ?: "No se pudo iniciar sesión."
             }
@@ -222,7 +222,7 @@ private fun RegisterForm() {
         error = null
         scope.launch {
             try {
-                app.register(email.trim(), password, name.trim().ifEmpty { null })
+                app.register(email.trim().lowercase(), password, name.trim().ifEmpty { null })
             } catch (e: Exception) {
                 error = e.message ?: "Error al registrar usuario."
             }

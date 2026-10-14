@@ -207,16 +207,11 @@ class AppContainer(app: Application) {
     suspend fun register(email: String, password: String, fullName: String?) = authenticate { backend.register(email, password, fullName) }
 
     private suspend fun authenticate(request: suspend () -> com.diegocainzos.diegomusic.net.AuthTokenResponse) {
-        _authState.value = AuthState.Loading
-        try {
-            val response = request()
-            tokens.save(response.accessToken)
-            _authState.value = AuthState.Authenticated(backend.fetchMe(response.accessToken))
-            syncAllUserData()
-        } catch (error: Exception) {
-            _authState.value = AuthState.Unauthenticated
-            throw error
-        }
+        val response = request()
+        tokens.save(response.accessToken)
+        val user = backend.fetchMe(response.accessToken)
+        _authState.value = AuthState.Authenticated(user)
+        scope.launch { syncAllUserData() }
     }
 
     fun logout() {

@@ -50,7 +50,7 @@ function LoginForm() {
     setBusy(true)
     setError(null)
     try {
-      await login(email.trim(), password)
+      await login(email.trim().toLowerCase(), password)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión.')
     }
@@ -89,7 +89,7 @@ function RegisterForm() {
     setBusy(true)
     setError(null)
     try {
-      await register(email.trim(), password, name.trim() || undefined)
+      await register(email.trim().toLowerCase(), password, name.trim() || undefined)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al registrar usuario.')
     }
