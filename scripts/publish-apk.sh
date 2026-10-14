@@ -5,11 +5,29 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 17 2>/dev/null || true)}"
-export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+if [ -z "${JAVA_HOME:-}" ] && [ -x /usr/libexec/java_home ]; then
+  JAVA_HOME="$(/usr/libexec/java_home -v 17 2>/dev/null || true)"
+fi
+[ -n "${JAVA_HOME:-}" ] && export JAVA_HOME
+
+# SDK de Android: VPS Linux (/opt/android-sdk), Android Studio en Linux o en macOS.
+if [ -z "${ANDROID_HOME:-}" ]; then
+  for candidate in /opt/android-sdk "$HOME/Android/Sdk" "$HOME/Library/Android/sdk"; do
+    if [ -d "$candidate" ]; then
+      ANDROID_HOME="$candidate"
+      break
+    fi
+  done
+fi
+if [ -z "${ANDROID_HOME:-}" ]; then
+  echo "No se encontró el SDK de Android; define ANDROID_HOME." >&2
+  exit 1
+fi
+export ANDROID_HOME
 
 cd "$ROOT/android"
-./gradlew --quiet :app:assembleRelease
+./gradlew -Dorg.gradle.jvmargs="-Xmx1536m -Dfile.encoding=UTF-8" --quiet :app:assembleRelease
+./gradlew --stop >/dev/null 2>&1 || true
 
 mkdir -p "$ROOT/web/downloads"
 cp app/build/outputs/apk/release/app-release.apk "$ROOT/web/downloads/diegomusic.apk"
