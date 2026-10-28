@@ -37,7 +37,9 @@
 		55C9016668119361F6E838F7 /* AudioResolverConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31362CACE6F19E4F2F29A988 /* AudioResolverConfigurationTests.swift */; };
 		56A49B2E1245EADA750B967D /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37175D33C185C8A289AECEF3 /* CarPlaySceneDelegate.swift */; };
 		59C84DFF595B0B8955A29D91 /* DiscoveryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AF30D79E5CDBB7FAA824770 /* DiscoveryModels.swift */; };
+		5BA00AB58533F721D9B4DC44 /* UpNextWindowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47946ACDFDDF72BA88582DD4 /* UpNextWindowTests.swift */; };
 		6108A1E6AC9AFDD9A287C16A /* PodcastsLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 827B25FEADCC9E7A4C052B6A /* PodcastsLibraryView.swift */; };
+		6124C3096A762A5DCAFFDE47 /* QuickPicksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACDA2A39CF11B29799F22CF /* QuickPicksTests.swift */; };
 		6151A90AE8662A3BF68F6F81 /* YouTubeDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = C40F7B2D42579F0EE8B84562 /* YouTubeDTOs.swift */; };
 		65887F1EBA9B505F6B55928A /* PodcastDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2946718C76C4543ABBEBF93 /* PodcastDetailView.swift */; };
 		667DF4AF04C5648136BA73AE /* SignUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91458DBA03A1CAB850C0F56 /* SignUpView.swift */; };
@@ -52,6 +54,7 @@
 		7EC09738E59B91EB17D45049 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A062754AB263ED64696028EF /* LoginView.swift */; };
 		801DEED4CE8D9A925AB07406 /* SearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2C35DDFD4B81AAF442203B /* SearchViewModel.swift */; };
 		847DA61827F0DEF65A005B63 /* SearchHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E6DE71C5DF6FAD5B457E1D4 /* SearchHistory.swift */; };
+		8A89BB38708C9BB42A43A5D0 /* AutoRadioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B637FCBD173FD779741952C /* AutoRadioTests.swift */; };
 		8D5A357BB70880003DAC9C37 /* APIConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FE67E2E14640C50A4CF427 /* APIConfiguration.swift */; };
 		90727597F4BA2B79A7F17D56 /* AudioResolverConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC72D12F38B1EA483B6186E7 /* AudioResolverConfiguration.swift */; };
 		91455358061B6C369F86A250 /* PlaybackQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140CAA550915A666402FE3B2 /* PlaybackQueue.swift */; };
@@ -114,6 +117,7 @@
 		0FE57CBF0D3EE918C5629D1B /* AlbumsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumsView.swift; sourceTree = "<group>"; };
 		140CAA550915A666402FE3B2 /* PlaybackQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackQueue.swift; sourceTree = "<group>"; };
 		16CD6BD5C451A2941A1BBCC3 /* DownloadedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadedView.swift; sourceTree = "<group>"; };
+		1B637FCBD173FD779741952C /* AutoRadioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoRadioTests.swift; sourceTree = "<group>"; };
 		1FD62AD63E4D0FD616C2D493 /* CarPlayNowPlayingConfigurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayNowPlayingConfigurator.swift; sourceTree = "<group>"; };
 		2B2C35DDFD4B81AAF442203B /* SearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchViewModel.swift; sourceTree = "<group>"; };
 		2E6DE71C5DF6FAD5B457E1D4 /* SearchHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchHistory.swift; sourceTree = "<group>"; };
@@ -128,6 +132,7 @@
 		409F30608520D809FD11B8E2 /* PlaybackSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSettings.swift; sourceTree = "<group>"; };
 		44E1F2F237A2DFAA4BF89615 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		467388344670107A44EF2B3E /* YouTubeDiscoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeDiscoveryTests.swift; sourceTree = "<group>"; };
+		47946ACDFDDF72BA88582DD4 /* UpNextWindowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpNextWindowTests.swift; sourceTree = "<group>"; };
 		483FBC446F537449BC6E00F4 /* PlaybackMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackMode.swift; sourceTree = "<group>"; };
 		4A394FA257C045422353CDC8 /* BackendAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendAPIClient.swift; sourceTree = "<group>"; };
 		4A76E261434655493B1ACB2A /* DiegoMusic.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = DiegoMusic.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -170,6 +175,7 @@
 		A933166B2764B1187F6AC36A /* YouTubeEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeEndpoint.swift; sourceTree = "<group>"; };
 		A992485307B9D6D2EEAF913F /* YouTubeEndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeEndpointTests.swift; sourceTree = "<group>"; };
 		A9E399F4835AB24FA1E720CB /* AlbumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumView.swift; sourceTree = "<group>"; };
+		AACDA2A39CF11B29799F22CF /* QuickPicksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickPicksTests.swift; sourceTree = "<group>"; };
 		B30F52361FAA3C126CF97949 /* AuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClient.swift; sourceTree = "<group>"; };
 		B8F106F9E95C9822C5808CE2 /* ArtistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistView.swift; sourceTree = "<group>"; };
 		BA8362E596A6A7A298D53B8F /* AuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthModels.swift; sourceTree = "<group>"; };
@@ -204,6 +210,7 @@
 				9BB1A8414A4C7D6609EAE6CF /* AudioResolverClientTests.swift */,
 				31362CACE6F19E4F2F29A988 /* AudioResolverConfigurationTests.swift */,
 				4BEA7E3666B9D4FE8698180D /* AuthClientTests.swift */,
+				1B637FCBD173FD779741952C /* AutoRadioTests.swift */,
 				628EB031CB4245EFFC654692 /* BackendAPIClientTests.swift */,
 				3DADEE9A67620B07A397C753 /* EpisodePlaybackTests.swift */,
 				F8520854CDB28840D481BC1D /* LibraryStoreTests.swift */,
@@ -213,8 +220,10 @@
 				090C5ADC3245B7DE1B38935A /* PlaybackQueueTests.swift */,
 				A47885078EC4D3452E161E96 /* PodcastEpisodesTests.swift */,
 				709942D987B93296FD83DF02 /* PodcastStoreTests.swift */,
+				AACDA2A39CF11B29799F22CF /* QuickPicksTests.swift */,
 				6A7AF908EE42804B0D55EFEF /* RadioQueueTests.swift */,
 				5EC0A167AD028A5841AB61B3 /* SearchCacheTests.swift */,
+				47946ACDFDDF72BA88582DD4 /* UpNextWindowTests.swift */,
 				D18BB9380AD3B69A4F318449 /* WarmTests.swift */,
 				54DEFDB1DE5E4093054EB1E7 /* YouTubeDataServiceTests.swift */,
 				467388344670107A44EF2B3E /* YouTubeDiscoveryTests.swift */,
@@ -596,6 +605,7 @@
 				EEB3975BD0DC588DC3DE5B20 /* AudioResolverClientTests.swift in Sources */,
 				55C9016668119361F6E838F7 /* AudioResolverConfigurationTests.swift in Sources */,
 				2E3F2999DB121C8BBAB636C6 /* AuthClientTests.swift in Sources */,
+				8A89BB38708C9BB42A43A5D0 /* AutoRadioTests.swift in Sources */,
 				9EA9ABF234A0BC25E1CD2816 /* BackendAPIClientTests.swift in Sources */,
 				A6F35E5E981C75C51024AB56 /* EpisodePlaybackTests.swift in Sources */,
 				DCDF95C1FBCE85C28F412B8F /* LRCParserTests.swift in Sources */,
@@ -605,8 +615,10 @@
 				9AF26B4D28F48DE77389F2AA /* PlaybackQueueTests.swift in Sources */,
 				444D3C01DF67F6DA420A5409 /* PodcastEpisodesTests.swift in Sources */,
 				34A337A69337C76425F1B7F8 /* PodcastStoreTests.swift in Sources */,
+				6124C3096A762A5DCAFFDE47 /* QuickPicksTests.swift in Sources */,
 				32E233CF34E8BC97E22C51D8 /* RadioQueueTests.swift in Sources */,
 				9CED3AAD75CE5FFA93D61941 /* SearchCacheTests.swift in Sources */,
+				5BA00AB58533F721D9B4DC44 /* UpNextWindowTests.swift in Sources */,
 				BB10909E70E31BC2BC00958E /* WarmTests.swift in Sources */,
 				1EE66FB17A9410293C5BAA26 /* YouTubeDataServiceTests.swift in Sources */,
 				AD2F44FA64140FB8D90976C0 /* YouTubeDiscoveryTests.swift in Sources */,

@@ -12,8 +12,7 @@ struct PlayerDock: View {
 
     private let lyricsProvider: LRCLibLyricsProvider
     @State private var expanded = false
-    @State private var showLyrics = false
-    @State private var showLyricsFromExpanded = false
+    @State private var musicTab: MusicTab = .upNext
     @State private var sliderValue: Double = 0
     @State private var isDraggingSlider = false
     @State private var artworkPulse = false
@@ -45,10 +44,6 @@ struct PlayerDock: View {
                         expandedPlayerSheet(current)
                             .presentationBackground(DiegoTheme.background)
                             .presentationDragIndicator(.hidden)
-                    }
-                    .sheet(isPresented: $showLyrics) {
-                        lyricsSheet(current)
-                            .presentationBackground(DiegoTheme.background)
                     }
             }
         }
@@ -166,7 +161,7 @@ struct PlayerDock: View {
                     belowControlsSection(current)
 
                     if !isPodcast {
-                        queueSection
+                        musicTabsSection(current)
                     }
                 }
                 .padding(.horizontal, 22)
@@ -190,10 +185,6 @@ struct PlayerDock: View {
                         .padding(.bottom, 24)
                         .transition(.opacity)
                 }
-            }
-            .sheet(isPresented: $showLyricsFromExpanded) {
-                lyricsSheet(current)
-                    .presentationBackground(DiegoTheme.background)
             }
             .onAppear {
                 sliderValue = player.currentTime
@@ -275,7 +266,7 @@ struct PlayerDock: View {
             HStack(spacing: 8) {
                 if !isPodcast {
                     Button {
-                        showLyricsFromExpanded = true
+                        musicTab = .lyrics
                     } label: {
                         Image(systemName: "quote.bubble")
                             .font(.system(size: 16))
@@ -588,24 +579,72 @@ struct PlayerDock: View {
         }
     }
 
+    // MARK: - Pestañas de música (A continuación / Letras)
+
+    private enum MusicTab {
+        case upNext
+        case lyrics
+    }
+
+    @ViewBuilder
+    private func musicTabsSection(_ current: MediaItem) -> some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 0) {
+                musicTabButton(.upNext, title: "A CONTINUACIÓN")
+                musicTabButton(.lyrics, title: "LETRAS")
+            }
+            .padding(.top, 12)
+
+            switch musicTab {
+            case .upNext:
+                queueSection
+            case .lyrics:
+                LyricsView(provider: lyricsProvider, item: current, player: player)
+                    .containerRelativeFrame(.vertical) { length, _ in length * 0.6 }
+            }
+        }
+    }
+
+    private func musicTabButton(_ tab: MusicTab, title: String) -> some View {
+        let selected = musicTab == tab
+        return Button {
+            musicTab = tab
+        } label: {
+            Text(title)
+                .dondaLabel()
+                .foregroundStyle(selected ? DiegoTheme.background : DiegoTheme.textPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(selected ? DiegoTheme.textPrimary : DiegoTheme.background)
+                .overlay(
+                    Rectangle()
+                        .stroke(DiegoTheme.outline, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
     // MARK: - Upcoming Queue (Music Only)
 
     @ViewBuilder
     private var queueSection: some View {
-        if !queue.items.isEmpty {
+        let window = queue.upNextWindow()
+        if !window.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                let headerText = player.radioSeedTitle.map { "RADIO DE “\($0)”" } ?? "A CONTINUACIÓN"
-                Text(headerText)
-                    .dondaLabel()
-                    .foregroundStyle(DiegoTheme.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 12)
+                if let seed = player.radioSeedTitle {
+                    Text("RADIO DE “\(seed)”")
+                        .dondaLabel()
+                        .foregroundStyle(DiegoTheme.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 VStack(spacing: 8) {
-                    ForEach(Array(queue.items.prefix(20).enumerated()), id: \.offset) { index, item in
-                        let isCurrent = (index == queue.currentIndex)
+                    ForEach(window.indices, id: \.self) { position in
+                        let row = window[position]
+                        let isCurrent = (row.index == queue.currentIndex)
                         Button {
-                            player.selectFromQueue(at: index)
+                            player.selectFromQueue(at: row.index)
                         } label: {
                             HStack(spacing: 12) {
                                 ZStack {
@@ -617,16 +656,16 @@ struct PlayerDock: View {
                                 }
                                 .frame(width: 12)
 
-                                TrackArtwork(url: item.thumbnailURL)
+                                TrackArtwork(url: row.item.thumbnailURL)
                                     .frame(width: 40, height: 40)
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.title)
+                                    Text(row.item.title)
                                         .font(.system(size: 13, design: .monospaced))
                                         .foregroundStyle(DiegoTheme.textPrimary)
                                         .lineLimit(1)
 
-                                    Text(item.channelTitle)
+                                    Text(row.item.channelTitle)
                                         .font(.system(size: 11, design: .monospaced))
                                         .foregroundStyle(DiegoTheme.textSecondary)
                                         .lineLimit(1)
@@ -634,7 +673,7 @@ struct PlayerDock: View {
 
                                 Spacer()
 
-                                if let duration = item.durationSeconds, duration > 0 {
+                                if let duration = row.item.durationSeconds, duration > 0 {
                                     Text(formatTime(Double(duration)))
                                         .font(.system(size: 11, design: .monospaced))
                                         .monospacedDigit()
@@ -644,35 +683,11 @@ struct PlayerDock: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(item.title) de \(item.channelTitle)")
+                        .accessibilityLabel("\(row.item.title) de \(row.item.channelTitle)")
                     }
                 }
             }
         }
-    }
-
-    // MARK: - Lyrics Sheet
-
-    private func lyricsSheet(_ current: MediaItem) -> some View {
-        NavigationStack {
-            LyricsView(
-                provider: lyricsProvider,
-                item: current,
-                player: player
-            )
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cerrar") {
-                        showLyrics = false
-                        showLyricsFromExpanded = false
-                    }
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(DiegoTheme.textPrimary)
-                }
-            }
-        }
-        .presentationBackground(DiegoTheme.background)
-        .tint(DiegoTheme.textPrimary)
     }
 
     // MARK: - Toasts

@@ -12,7 +12,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     @Published private(set) var state: FeedState = .idle
-    @Published private(set) var recommendations: [MediaItem] = []
+    @Published private(set) var quickPicks: [MediaItem] = []
 
     private var service: (any YouTubeDataServicing)?
     private var loadTask: Task<Void, Never>?
@@ -30,12 +30,15 @@ final class HomeViewModel: ObservableObject {
         if state == .idle { load() }
     }
 
-    /// Best-effort: si el LLM o el resolutor fallan, la sección simplemente no aparece.
-    func loadRecommendations(basedOn history: [MediaItem]) async {
-        guard let service, !history.isEmpty else { return }
-        if let items = try? await service.recommendations(basedOn: history) {
-            recommendations = items
+    /// Selecciones rápidas: Mix de la última pista escuchada, sin la semilla. Best-effort:
+    /// sin historial, fallo o lista vacía la sección simplemente no aparece (sin estado de error).
+    func loadQuickPicks(seed: MediaItem?) async {
+        guard let service, let seed else {
+            quickPicks = []
+            return
         }
+        let mix = (try? await service.radio(seed: seed.id)) ?? []
+        quickPicks = Array(mix.filter { $0.id != seed.id }.prefix(20))
     }
 
     func load() {

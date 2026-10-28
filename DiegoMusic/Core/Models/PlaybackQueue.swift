@@ -137,6 +137,13 @@ final class PlaybackQueue: ObservableObject {
         rebuildAfterMutation()
     }
 
+    /// Pista actual y hasta `limit` posteriores, con su índice absoluto en `items`.
+    func upNextWindow(limit: Int = 20) -> [(index: Int, item: MediaItem)] {
+        guard let currentIndex, items.indices.contains(currentIndex) else { return [] }
+        let end = min(items.count, currentIndex + limit + 1)
+        return (currentIndex..<end).map { (index: $0, item: items[$0]) }
+    }
+
     /// Reemplaza todas las pistas posteriores a la pista activa por una nueva lista,
     /// manteniendo intactos el elemento actual y `currentIndex`.
     func replaceUpcoming(with newUpcoming: [MediaItem]) {

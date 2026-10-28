@@ -181,7 +181,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     func play(_ item: MediaItem) {
-        player.select(item)
+        player.select(item, autoRadio: true)
         if playbackSettings.historyEnabled {
             try? library.addHistory(item)
         }

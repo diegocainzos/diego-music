@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { artwork } from './api.ts'
 import { fetchLyrics, type LyricsResult } from './lyrics.ts'
-import { navigate, playback, player, useStore } from './store.ts'
+import { navigate, playback, player, upNextWindow, useStore } from './store.ts'
 import { FavoriteButton, Icon, Label, Spinner, Title, TrackArt, TrackMenu } from './ui.tsx'
 
 export const formatTime = (s: number) => {
@@ -59,14 +59,13 @@ export function ExpandedPlayer({ onClose }: { onClose: () => void }) {
   const status = useStore(playback, (s) => s.status)
   const error = useStore(playback, (s) => s.error)
   const radioSeed = useStore(playback, (s) => s.radioSeed)
-  const [lyrics, setLyrics] = useState(false)
+  const [tab, setTab] = useState<'queue' | 'lyrics'>('queue')
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && (lyrics ? setLyrics(false) : onClose())
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [lyrics, onClose])
+  }, [onClose])
   if (!current) return null
-  if (lyrics) return <Lyrics onClose={() => setLyrics(false)} />
   return (
     <div className="sheet" role="dialog" aria-label="Reproductor">
       <div className="player">
@@ -76,7 +75,7 @@ export function ExpandedPlayer({ onClose }: { onClose: () => void }) {
           </div>
           <div className="grow" style={{ textAlign: 'center' }}><Label>{radioSeed ? 'Radio' : 'Reproduciendo'}</Label></div>
           <div className="row" style={{ width: 116, justifyContent: 'flex-end' }}>
-            <button className="icon-btn secondary" onClick={() => setLyrics(true)} aria-label="Letras de la canción"><Icon name="quote" /></button>
+            <button className="icon-btn secondary" onClick={() => setTab('lyrics')} aria-label="Letras de la canción"><Icon name="quote" /></button>
             <FavoriteButton track={current} />
             <TrackMenu track={current} />
           </div>
@@ -101,7 +100,14 @@ export function ExpandedPlayer({ onClose }: { onClose: () => void }) {
         <button className="btn-outline" style={{ padding: '10px 16px' }} onClick={() => (radioSeed ? player.stopRadio() : player.startRadio())}>
           <Label>{radioSeed ? 'Radio activa · parar' : 'Iniciar radio'}</Label>
         </button>
-        <Upcoming />
+        <div className="tabs" role="tablist">
+          {(['queue', 'lyrics'] as const).map((t) => (
+            <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
+              <Label>{t === 'queue' ? 'A continuación' : 'Letras'}</Label>
+            </button>
+          ))}
+        </div>
+        {tab === 'queue' ? <Upcoming /> : <Lyrics />}
       </div>
     </div>
   )
@@ -169,19 +175,20 @@ function Upcoming() {
   const items = useStore(playback, (s) => s.items)
   const index = useStore(playback, (s) => s.index)
   const radioSeed = useStore(playback, (s) => s.radioSeed)
-  if (!items.length) return null
+  const rows = upNextWindow(items, index)
+  if (!rows.length) return null
   return (
     <div className="col" style={{ width: '100%', gap: 12, marginTop: 12 }}>
-      <Label>{radioSeed ? `Radio de “${radioSeed}”` : 'A continuación'}</Label>
-      {items.slice(0, 20).map((t, i) => (
-        <button key={`${t.id}-${i}`} className="row" style={{ gap: 12, textAlign: 'left' }} onClick={() => player.selectFromQueue(i)}>
-          <span className="mono" style={{ width: 12, fontSize: 9 }}>{i === index ? '▶' : ''}</span>
-          <TrackArt track={t} size={40} />
+      {radioSeed && <Label>{`Radio de “${radioSeed}”`}</Label>}
+      {rows.map((row) => (
+        <button key={`${row.track.id}-${row.index}`} className="row" style={{ gap: 12, textAlign: 'left' }} onClick={() => player.selectFromQueue(row.index)}>
+          <span className="mono" style={{ width: 12, fontSize: 9 }}>{row.index === index ? '▶' : ''}</span>
+          <TrackArt track={row.track} size={40} />
           <div className="col grow" style={{ gap: 2 }}>
-            <span className="mono ellipsis" style={{ fontSize: 13 }}>{t.title}</span>
-            <span className="mono ellipsis muted" style={{ fontSize: 11 }}>{t.channel}</span>
+            <span className="mono ellipsis" style={{ fontSize: 13 }}>{row.track.title}</span>
+            <span className="mono ellipsis muted" style={{ fontSize: 11 }}>{row.track.channel}</span>
           </div>
-          {t.duration ? <span className="mono muted" style={{ fontSize: 11 }}>{formatTime(t.duration)}</span> : null}
+          {row.track.duration ? <span className="mono muted" style={{ fontSize: 11 }}>{formatTime(row.track.duration)}</span> : null}
         </button>
       ))}
     </div>
@@ -190,7 +197,7 @@ function Upcoming() {
 
 // MARK: - Letras
 
-function Lyrics({ onClose }: { onClose: () => void }) {
+function Lyrics() {
   const current = useCurrent()
   const time = useStore(playback, (s) => s.time)
   const [result, setResult] = useState<LyricsResult | null>(null)
@@ -211,11 +218,8 @@ function Lyrics({ onClose }: { onClose: () => void }) {
   }, [active])
   if (!current) return null
   return (
-    <div className="sheet" role="dialog" aria-label="Letras" ref={listRef} onWheel={() => (userScroll.current = Date.now())} onTouchMove={() => (userScroll.current = Date.now())}>
-      <div style={{ position: 'sticky', top: 0, background: 'var(--bg)', padding: '14px 20px', zIndex: 1 }}>
-        <button className="body" style={{ fontWeight: 600, fontSize: 16 }} onClick={onClose}>Cerrar</button>
-      </div>
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 24px' }}>
+    <div className="lyrics-box" ref={listRef} onWheel={() => (userScroll.current = Date.now())} onTouchMove={() => (userScroll.current = Date.now())}>
+      <div style={{ width: '100%', padding: '0 8px' }}>
         {!result && <div className="row" style={{ justifyContent: 'center', padding: 80 }}><Spinner /></div>}
         {result?.kind === 'synced' && (
           <div className="col" style={{ gap: 16, padding: '35vh 0' }}>

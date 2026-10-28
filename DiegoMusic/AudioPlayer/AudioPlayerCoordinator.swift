@@ -126,7 +126,8 @@ final class AudioPlayerCoordinator: ObservableObject {
         return min(max(currentTime / duration, 0), 1)
     }
 
-    func select(_ item: MediaItem) {
+    /// `autoRadio`: tras reproducir, arranca en silencio el Mix de la pista (radio automática).
+    func select(_ item: MediaItem, autoRadio: Bool = false) {
         persistEpisodePosition(throttled: false)
         lastResumeSeconds = nil
         context = .music
@@ -136,6 +137,9 @@ final class AudioPlayerCoordinator: ObservableObject {
         queue.play(item)
         applyPlaybackRate()
         load(item, autoplay: true, resetRetryBudget: true)
+        if autoRadio {
+            startRadio(silent: true)
+        }
     }
 
     func selectFromQueue(at index: Int) {
@@ -186,7 +190,8 @@ final class AudioPlayerCoordinator: ObservableObject {
         updateNowPlayingInfo()
     }
 
-    func startRadio() {
+    /// `silent`: un fallo o lista vacía no muestra error (radio automática).
+    func startRadio(silent: Bool = false) {
         guard let item = queue.current, let service = youtubeService else { return }
         radioTask?.cancel()
         let currentIndex = queue.currentIndex ?? 0
@@ -196,17 +201,18 @@ final class AudioPlayerCoordinator: ObservableObject {
                 let radioItems = try await service.radio(seed: item.id)
                 try Task.checkCancellation()
                 guard !radioItems.isEmpty else {
-                    self?.errorMessage = "Radio no disponible para esta pista."
+                    if !silent { self?.errorMessage = "Radio no disponible para esta pista." }
                     return
                 }
-                guard !Task.isCancelled else { return }
+                // Respuesta obsoleta: la pista actual ya no es la semilla (no depende de la cancelación).
+                guard !Task.isCancelled, queue.current?.id == item.id else { return }
                 queue.replaceUpcoming(with: radioItems)
                 self?.radioSeedTitle = item.title
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
-                self?.errorMessage = "Radio no disponible para esta pista."
+                if !silent { self?.errorMessage = "Radio no disponible para esta pista." }
             }
         }
     }

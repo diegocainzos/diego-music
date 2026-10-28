@@ -66,13 +66,6 @@ protocol YouTubeDataServicing: Sendable {
     func radio(seed videoID: String) async throws -> [MediaItem]
     func podcastEpisodes(channelID: String, pageToken: String?) async throws -> PodcastEpisodePage
     func searchChannel(_ query: String) async throws -> PodcastShow?
-    func recommendations(basedOn tracks: [MediaItem]) async throws -> [MediaItem]
-}
-
-extension YouTubeDataServicing {
-    func recommendations(basedOn tracks: [MediaItem]) async throws -> [MediaItem] {
-        throw YouTubeServiceError.unavailable
-    }
 }
 
 struct YouTubeDataService: YouTubeDataServicing {
@@ -364,25 +357,6 @@ struct YouTubeDataService: YouTubeDataServicing {
         return dto.items.map(\.mediaItem)
     }
 
-    private static let recommendationsCache = RecommendationsCache()
-
-    /// Recomendaciones del LLM (vía resolutor) a partir de las últimas escuchas; se recuerdan mientras no cambien.
-    func recommendations(basedOn tracks: [MediaItem]) async throws -> [MediaItem] {
-        let seeds = Array(tracks.prefix(20))
-        guard !seeds.isEmpty else { return [] }
-        let key = seeds.map(\.id).joined(separator: ",")
-        if let cached = await Self.recommendationsCache.get(key) { return cached }
-
-        let body = try JSONEncoder().encode(VPSRecommendationsRequestDTO(
-            tracks: seeds.map { .init(title: String($0.title.prefix(200)), channel: String($0.channelTitle.prefix(200))) }
-        ))
-        let dto = try await vpsRequest(path: "/v1/recommendations", body: body, decoding: VPSSearchResponseDTO.self)
-        let seedIDs = Set(seeds.map(\.id))
-        let items = dto.items.map(\.mediaItem).filter { !seedIDs.contains($0.id) }
-        await Self.recommendationsCache.set(items, for: key)
-        return items
-    }
-
     // MARK: - Helpers
 
     private func fetchArtistVPSService(artistID: String) async throws -> ArtistDetail {
@@ -557,28 +531,6 @@ private struct VPSArtistDetailResponseDTO: Decodable {
 
 private struct VPSSearchResponseDTO: Decodable {
     let items: [VPSTrackDTO]
-}
-
-private struct VPSRecommendationsRequestDTO: Encodable {
-    struct Track: Encodable {
-        let title: String
-        let channel: String
-    }
-    let tracks: [Track]
-}
-
-private actor RecommendationsCache {
-    private var key = ""
-    private var items: [MediaItem] = []
-
-    func get(_ key: String) -> [MediaItem]? {
-        key == self.key && !items.isEmpty ? items : nil
-    }
-
-    func set(_ items: [MediaItem], for key: String) {
-        self.key = key
-        self.items = items
-    }
 }
 
 private struct VPSRadioResponseDTO: Decodable {

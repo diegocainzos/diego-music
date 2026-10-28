@@ -1,0 +1,8 @@
+- [x] 1. Resolutor: eliminar recomendaciones LLM (código, modelos, config, test, .env.example)
+- [x] 2. Web store: `upNextWindow`, radio automática en `play`, `startRadio(silent)` con generación
+- [x] 3. Web UI: Selecciones rápidas, sin Para ti, pestañas del reproductor, cola por ventana, CSS WebKit
+- [x] 4. Android core: `upNextWindow`, `select(autoRadio)`, `startRadio(silent)`; `play` con radio
+- [x] 5. Android UI: Selecciones rápidas, sin Para ti, pestañas, cola por ventana; borrar recomendaciones del servicio/DTOs
+- [x] 6. iOS core: `upNextWindow`, `select(autoRadio:)`, `startRadio(silent:)`; `AppEnvironment.play` con radio
+- [x] 7. iOS UI: Selecciones rápidas, sin Para ti, pestañas, cola por ventana; borrar recomendaciones del servicio
+- [x] 8. AGENTS.md: Radio y Selecciones rápidas

@@ -2,6 +2,8 @@ import { useSyncExternalStore } from 'react'
 import * as api from './api.ts'
 import type { Playlist, Track, User } from './api.ts'
 
+export { upNextWindow } from './queue.ts'
+
 // MARK: - Store mínimo (sin dependencias)
 
 function createStore<T extends object>(initial: T) {
@@ -181,6 +183,7 @@ export const currentTrack = (s = playback.get()) => (s.index == null ? null : s.
 const audio = new Audio()
 audio.preload = 'auto'
 let generation = 0
+let radioGeneration = 0
 let retryAvailable = true
 let shuffleOrder: string[] = []
 let shufflePos = 0
@@ -290,6 +293,7 @@ export const player = {
 
   /** Reproduce una pista: si ya está en la cola salta a ella; si no, la añade al final. */
   play(t: Track) {
+    radioGeneration++
     savedUpcoming = []
     const s = playback.get()
     const existing = s.items.findIndex((x) => x.id === t.id)
@@ -298,11 +302,13 @@ export const player = {
     reshuffle()
     load(t, true, true)
     recordPlay(t)
+    player.startRadio(true)
   },
 
   /** Sustituye la cola y empieza en `index`. */
   playQueue(items: Track[], index = 0) {
     if (!items.length) return
+    radioGeneration++
     savedUpcoming = []
     playback.set({ items, index: Math.min(Math.max(index, 0), items.length - 1), radioSeed: null })
     reshuffle()
@@ -314,6 +320,7 @@ export const player = {
   },
 
   selectFromQueue(index: number) {
+    radioGeneration++
     playback.set({ index })
     reshuffle()
     const cur = currentTrack()
@@ -382,25 +389,37 @@ export const player = {
     toast('Añadida a continuación')
   },
 
-  /** Radio explícita: sustituye solo lo posterior a la pista actual. */
-  async startRadio() {
+  /** Radio: sustituye solo lo posterior a la pista actual. */
+  async startRadio(silent = false) {
     const s = playback.get()
     const cur = currentTrack(s)
     if (!cur || s.index == null) return
-    savedUpcoming = s.items.slice(s.index + 1)
+    const gen = ++radioGeneration
+    const seedId = cur.id
+    const seedTitle = cur.title
+    const upcoming = s.items.slice(s.index + 1)
     try {
-      const items = await api.radio(cur.id)
-      if (!items.length) throw new Error()
+      const items = await api.radio(seedId)
+      if (gen !== radioGeneration) return
       const now = playback.get()
-      if (currentTrack(now)?.id !== cur.id || now.index == null) return
-      playback.set({ items: [...now.items.slice(0, now.index + 1), ...items], radioSeed: cur.title })
+      if (currentTrack(now)?.id !== seedId || now.index == null) return
+      if (!items.length) {
+        if (!silent) toast('Radio no disponible para esta pista.')
+        return
+      }
+      savedUpcoming = upcoming
+      playback.set({ items: [...now.items.slice(0, now.index + 1), ...items], radioSeed: seedTitle })
       reshuffle()
     } catch {
-      toast('Radio no disponible para esta pista.')
+      if (gen !== radioGeneration) return
+      const now = playback.get()
+      if (currentTrack(now)?.id !== seedId || now.index == null) return
+      if (!silent) toast('Radio no disponible para esta pista.')
     }
   },
 
   stopRadio() {
+    radioGeneration++
     const s = playback.get()
     if (s.index == null) return
     playback.set({ items: [...s.items.slice(0, s.index + 1), ...savedUpcoming], radioSeed: null })
@@ -409,6 +428,7 @@ export const player = {
   },
 
   clear() {
+    radioGeneration++
     generation++
     audio.pause()
     audio.removeAttribute('src')

@@ -126,12 +126,6 @@ data class VPSArtistDetailResponse(
 }
 
 @Serializable
-data class VPSRecommendationsRequest(val tracks: List<Seed>) {
-    @Serializable
-    data class Seed(val title: String, val channel: String)
-}
-
-@Serializable
 data class VPSRadioResponse(val items: List<Item> = emptyList()) {
     @Serializable
     data class Item(

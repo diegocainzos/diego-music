@@ -5,6 +5,12 @@ import kotlinx.coroutines.flow.StateFlow
 
 data class QueueState(val items: List<MediaItem>, val currentIndex: Int?, val isShuffled: Boolean) {
     val current: MediaItem? get() = currentIndex?.let { items.getOrNull(it) }
+
+    /** Pista actual y hasta `limit` posteriores, con su índice absoluto en la cola. */
+    fun upNextWindow(limit: Int = 20): List<IndexedValue<MediaItem>> {
+        val index = currentIndex?.takeIf { it in items.indices } ?: return emptyList()
+        return items.withIndex().drop(index).take(limit + 1)
+    }
 }
 
 /** Port directo de `PlaybackQueue.swift`: la cola vive aquí y el reproductor solo carga la pista actual. */

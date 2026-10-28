@@ -28,6 +28,9 @@ struct HomeView: View {
                 // 1. Sección "CONTINUAR" (si hay episodio a medias guardado)
                 continueSection
 
+                // 1b. Sección "SELECCIONES RÁPIDAS" (Mix de la última escucha)
+                quickPicksSection
+
                 // 2. Sección "ESCUCHADO HACE POCO"
                 recentlyPlayedSection
 
@@ -36,8 +39,6 @@ struct HomeView: View {
 
                 // 4. Secciones posteriores de catálogo y favoritos restilizadas con tokens Donda
                 favoritesSection
-
-                recommendationsSection
 
                 discoverySection
 
@@ -55,7 +56,7 @@ struct HomeView: View {
         .task {
             model.configure(service: environment.youtubeService)
             model.load()
-            await model.loadRecommendations(basedOn: environment.library.history.map(\.mediaItem))
+            await model.loadQuickPicks(seed: environment.library.history.first?.mediaItem)
         }
     }
 
@@ -333,14 +334,79 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Para ti (LLM)
+    // MARK: - Selecciones rápidas (Mix de la última escucha)
 
     @ViewBuilder
-    private var recommendationsSection: some View {
-        if !model.recommendations.isEmpty {
+    private var quickPicksSection: some View {
+        if !model.quickPicks.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                sectionHeader("PARA TI")
-                mediaCarousel(model.recommendations)
+                HStack(alignment: .center, spacing: 12) {
+                    sectionHeader("SELECCIONES RÁPIDAS")
+
+                    Button {
+                        environment.playQueue(model.quickPicks, startingAt: 0)
+                    } label: {
+                        Text("REPRODUCIR TODO")
+                            .dondaLabel()
+                            .foregroundStyle(DiegoTheme.textPrimary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(DiegoTheme.outline, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // Rejilla horizontal: 4 filas por columna; columna ≈ 85% del ancho (máx. 360 pt).
+                GeometryReader { geo in
+                    let columnWidth = min(geo.size.width * 0.85, 360)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHGrid(rows: Array(repeating: GridItem(.fixed(56)), count: 4), spacing: 16) {
+                            ForEach(model.quickPicks, id: \.id) { item in
+                                Button {
+                                    environment.play(item)
+                                } label: {
+                                    HStack(alignment: .center, spacing: 12) {
+                                        AsyncImage(url: item.thumbnailURL) { phase in
+                                            switch phase {
+                                            case let .success(image):
+                                                image
+                                                    .resizable()
+                                                    .scaledToFill()
+                                            default:
+                                                DiegoTheme.background
+                                            }
+                                        }
+                                        .frame(width: 48, height: 48)
+                                        .clipped()
+                                        .overlay(
+                                            Rectangle()
+                                                .stroke(DiegoTheme.hairline, lineWidth: 1)
+                                        )
+
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(item.title)
+                                                .font(.system(size: 15, weight: .semibold))
+                                                .foregroundStyle(DiegoTheme.textPrimary)
+                                                .lineLimit(1)
+
+                                            Text(item.channelTitle)
+                                                .dondaLabel()
+                                                .foregroundStyle(DiegoTheme.textSecondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    .frame(width: columnWidth, height: 56, alignment: .leading)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Reproducir \(item.title)")
+                            }
+                        }
+                    }
+                }
+                .frame(height: 4 * 56 + 3 * 16)
             }
         }
     }

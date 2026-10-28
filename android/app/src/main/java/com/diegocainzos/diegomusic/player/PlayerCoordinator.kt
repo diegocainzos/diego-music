@@ -135,7 +135,7 @@ class PlayerCoordinator(
 
     // MARK: - Selección
 
-    fun select(item: MediaItem) {
+    fun select(item: MediaItem, autoRadio: Boolean = false) {
         persistEpisodePosition(throttled = false)
         _lastResumeSeconds.value = null
         setContext(PlaybackContext.Music)
@@ -145,6 +145,7 @@ class PlayerCoordinator(
         queue.play(item)
         applyPlaybackRate()
         load(item, autoplay = true, resetRetryBudget = true)
+        if (autoRadio) startRadio(silent = true)
     }
 
     fun selectFromQueue(index: Int) {
@@ -183,7 +184,7 @@ class PlayerCoordinator(
 
     // MARK: - Radio explícita
 
-    fun startRadio() {
+    fun startRadio(silent: Boolean = false) {
         val item = queue.current ?: return
         radioJob?.cancel()
         val snapshot = queue.snapshot
@@ -191,8 +192,10 @@ class PlayerCoordinator(
         radioJob = scope.launch {
             try {
                 val items = radioProvider(item.id)
+                // Respuesta obsoleta: `select` cancela el job y `selectFromQueue`/next cambian la pista actual.
+                if (!isActive || queue.current?.id != item.id) return@launch
                 if (items.isEmpty()) {
-                    _errorMessage.value = RADIO_UNAVAILABLE
+                    if (!silent) _errorMessage.value = RADIO_UNAVAILABLE
                     return@launch
                 }
                 queue.replaceUpcoming(items)
@@ -200,7 +203,7 @@ class PlayerCoordinator(
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                _errorMessage.value = RADIO_UNAVAILABLE
+                if (!silent) _errorMessage.value = RADIO_UNAVAILABLE
             }
         }
     }

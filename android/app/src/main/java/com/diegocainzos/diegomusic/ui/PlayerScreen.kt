@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -163,7 +164,7 @@ fun ExpandedPlayer(onDismiss: () -> Unit) {
     val error by player.errorMessage.collectAsState()
     val lastResume by player.lastResumeSeconds.collectAsState()
     val isPodcast = context is PlaybackContext.Podcast
-    var showLyrics by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf(PlayerTab.QUEUE) }
     val toast = rememberToast()
 
     LaunchedEffect(lastResume) { lastResume?.takeIf { it > 0 }?.let { toast.show("Reanudando en ${formatTime(it)}") } }
@@ -181,7 +182,7 @@ fun ExpandedPlayer(onDismiss: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                PlayerHeader(current, context, radioSeed != null, onDismiss) { showLyrics = true }
+                PlayerHeader(current, context, radioSeed != null, onDismiss) { tab = PlayerTab.LYRICS }
                 Artwork(current, state == AudioPlaybackState.PLAYING)
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     DTitle(current.title, 20.sp, maxLines = 2, align = TextAlign.Center)
@@ -203,14 +204,37 @@ fun ExpandedPlayer(onDismiss: () -> Unit) {
                     OutlineButton(if (radioSeed != null) "Radio activa · parar" else "Iniciar radio", horizontal = 16.dp, vertical = 10.dp) {
                         if (radioSeed != null) player.stopRadio() else player.startRadio()
                     }
-                    UpcomingQueue(player, radioSeed)
+                    PlayerTabs(tab) { tab = it }
+                    if (tab == PlayerTab.QUEUE) {
+                        UpcomingQueue(player, radioSeed)
+                    } else {
+                        val lyricsHeight = LocalConfiguration.current.screenHeightDp.dp * 0.6f
+                        Box(Modifier.fillMaxWidth().height(lyricsHeight)) { LyricsContent(current) }
+                    }
                 }
             }
             toast.Host(this, inverted = false, durationMillis = 2_400)
         }
     }
+}
 
-    if (showLyrics) LyricsSheet(current) { showLyrics = false }
+/** Pestañas del reproductor (solo música). */
+private enum class PlayerTab(val label: String) { QUEUE("A continuación"), LYRICS("Letras") }
+
+@Composable
+private fun PlayerTabs(selected: PlayerTab, onSelect: (PlayerTab) -> Unit) {
+    val c = Donda.colors
+    Row(Modifier.fillMaxWidth().border(1.dp, c.outline, RectangleShape)) {
+        PlayerTab.entries.forEach { tab ->
+            val active = tab == selected
+            Box(
+                Modifier.weight(1f).height(40.dp)
+                    .background(if (active) c.textPrimary else c.background)
+                    .plainClickable { onSelect(tab) },
+                contentAlignment = Alignment.Center,
+            ) { DLabel(tab.label, color = if (active) c.background else c.textPrimary, maxLines = 1) }
+        }
+    }
 }
 
 @Composable
@@ -399,11 +423,12 @@ private fun UpcomingQueue(player: PlayerCoordinator, radioSeed: String?) {
     val app = LocalApp.current
     val c = Donda.colors
     val queueState by app.queue.state.collectAsState()
-    if (queueState.items.isEmpty()) return
+    val window = queueState.upNextWindow()
+    if (window.isEmpty()) return
     Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         DLabel(radioSeed?.let { "Radio de “$it”" } ?: "A continuación")
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            queueState.items.take(20).forEachIndexed { index, item ->
+            window.forEach { (index, item) ->
                 Row(Modifier.fillMaxWidth().plainClickable { player.selectFromQueue(index) }, verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.width(12.dp)) { if (index == queueState.currentIndex) DText("▶", size = 9.sp, mono = true) }
                     Spacer(Modifier.width(12.dp))

@@ -117,6 +117,17 @@ img { display: block; }
 .segmented button { flex: 1; padding: 9px 0; }
 .segmented button.on { background: var(--text); }
 .segmented button.on .label { color: var(--bg); }
+/* WebKit no estira ni encoge los hijos de un <button> flex: sin esto los títulos se salen en Safari. */
+button.row, button.col, .row > .col, .col > .row, .list-row > * { min-width: 0; }
+.tile > * { width: 100%; }
+.quick-picks { display: grid; grid-auto-flow: column; grid-template-rows: repeat(4, auto); grid-auto-columns: min(85%, 360px); gap: 8px 16px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.quick-picks::-webkit-scrollbar { display: none; }
+.quick-picks > button { scroll-snap-align: start; min-width: 0; }
+.tabs { display: flex; width: 100%; border: 1px solid var(--outline); }
+.tabs button { flex: 1; padding: 9px 0; }
+.tabs button.on { background: var(--text); }
+.tabs button.on .label { color: var(--bg); }
+.lyrics-box { width: 100%; height: 60vh; overflow-y: auto; border: 1px solid var(--hairline); padding: 0 16px; }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px; }
 
 @media (min-width: 900px) {

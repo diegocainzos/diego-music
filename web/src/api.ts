@@ -212,24 +212,6 @@ export async function radio(seed: string): Promise<Track[]> {
   return r.items.map((i) => ({ id: i.id, title: i.title, channel: i.channel, duration: i.duration_seconds }))
 }
 
-let recommendationsKey = ''
-let recommendationsItems: Track[] = []
-
-export async function recommendations(seeds: Track[]): Promise<Track[]> {
-  const tracks = seeds.slice(0, 20)
-  if (!tracks.length) return []
-  const key = tracks.map((t) => t.id).join(',')
-  if (key === recommendationsKey && recommendationsItems.length) return recommendationsItems
-  const r = await request<{ items: VpsTrack[] }>('/v1/recommendations', {
-    method: 'POST',
-    body: JSON.stringify({ tracks: tracks.map((t) => ({ title: t.title.slice(0, 200), channel: t.channel.slice(0, 200) })) }),
-  })
-  const ids = new Set(tracks.map((t) => t.id))
-  recommendationsKey = key
-  recommendationsItems = r.items.map(fromVps).filter((t) => !ids.has(t.id))
-  return recommendationsItems
-}
-
 export const isValidVideoId = (id: string) => /^[A-Za-z0-9_-]{11}$/.test(id)
 
 const descriptors = new Map<string, { url: string; expires: number }>()

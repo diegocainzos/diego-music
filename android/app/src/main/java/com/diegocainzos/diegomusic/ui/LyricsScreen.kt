@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -52,38 +52,30 @@ import com.diegocainzos.diegomusic.ui.theme.plainClickable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 
+/** Letras de la pista, incrustadas en la pestaña «LETRAS» del reproductor. */
 @Composable
-fun LyricsSheet(item: MediaItem, onDismiss: () -> Unit) {
+fun BoxScope.LyricsContent(item: MediaItem) {
     val app = LocalApp.current
     val c = Donda.colors
     var result by remember(item.id) { mutableStateOf<LyricsResult?>(null) }
     LaunchedEffect(item.id) { result = app.lyrics.fetchLyrics(item) }
 
-    DondaSheet(onDismiss) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Box(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)) {
-                DText("Cerrar", weight = FontWeight.SemiBold, size = 16.sp, modifier = Modifier.plainClickable(onClick = onDismiss))
+    when (val r = result) {
+        null -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = c.textPrimary, strokeWidth = 1.5.dp)
+        is LyricsResult.Synced -> SyncedLyrics(r.lines)
+        is LyricsResult.Plain -> Column(Modifier.fillMaxSize()) {
+            Row(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.FormatQuote, null, tint = c.textSecondary, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                DLabel("Letras sin sincronización")
             }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when (val r = result) {
-                    null -> CircularProgressIndicator(Modifier.align(Alignment.Center), color = c.textPrimary, strokeWidth = 1.5.dp)
-                    is LyricsResult.Synced -> SyncedLyrics(r.lines)
-                    is LyricsResult.Plain -> Column(Modifier.fillMaxSize()) {
-                        Row(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.FormatQuote, null, tint = c.textSecondary, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(6.dp))
-                            DLabel("Letras sin sincronización")
-                        }
-                        DText(
-                            r.text, size = 16.sp, lineHeight = 26.sp,
-                            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 32.dp),
-                        )
-                    }
-                    LyricsResult.Instrumental -> Message(Icons.Default.QueueMusic, "Instrumental", null)
-                    LyricsResult.NotFound -> Message(Icons.Default.MusicNote, "Letra no disponible", "No se encontraron letras para esta canción")
-                }
-            }
+            DText(
+                r.text, size = 16.sp, lineHeight = 26.sp,
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 32.dp),
+            )
         }
+        LyricsResult.Instrumental -> Message(Icons.Default.QueueMusic, "Instrumental", null)
+        LyricsResult.NotFound -> Message(Icons.Default.MusicNote, "Letra no disponible", "No se encontraron letras para esta canción")
     }
 }
 

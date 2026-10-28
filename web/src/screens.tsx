@@ -126,19 +126,49 @@ function RegisterForm() {
 
 // MARK: - Inicio
 
+// Selecciones rápidas: Mix de YouTube de la pista más reciente (sin ella). Si falla o está vacío, no se muestra.
+function QuickPicks({ seed }: { seed: Track }) {
+  const [picks, setPicks] = useState<Track[]>([])
+  useEffect(() => {
+    let alive = true
+    setPicks([])
+    api.radio(seed.id)
+      .then((items) => alive && setPicks(items.filter((t) => t.id !== seed.id).slice(0, 20)))
+      .catch(() => undefined)
+    return () => {
+      alive = false
+    }
+  }, [seed.id])
+  if (!picks.length) return null
+  return (
+    <section className="section">
+      <div className="row" style={{ justifyContent: 'space-between', gap: 12 }}>
+        <Label wide>Selecciones rápidas</Label>
+        <button className="btn-outline" onClick={() => player.playQueue(picks, 0)}><Label>Reproducir todo</Label></button>
+      </div>
+      <div className="quick-picks">
+        {picks.map((t) => (
+          <button key={t.id} className="row" style={{ gap: 12, textAlign: 'left' }} onClick={() => player.play(t)}>
+            <TrackArt track={t} size={48} />
+            <div className="col grow" style={{ gap: 2 }}>
+              <span className="body ellipsis" style={{ fontSize: 16, fontWeight: 600 }}>{t.title}</span>
+              <Label className="ellipsis">{t.channel}</Label>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export function Home() {
   const history = useStore(session, (s) => s.history)
   const favorites = useStore(session, (s) => s.favorites)
-  const [forYou, setForYou] = useState<Track[]>([])
-  const hasHistory = history.length > 0
-  useEffect(() => {
-    // Best-effort: si el LLM o el resolutor fallan, la sección no aparece.
-    if (hasHistory) api.recommendations(session.get().history).then(setForYou).catch(() => undefined)
-  }, [hasHistory])
   const recent = useMemo(() => history.slice(0, 10), [history])
   return (
     <div className="page">
       <div className="wordmark" style={{ paddingTop: 36 }}>DiegoMusic</div>
+      {history[0] && <QuickPicks seed={history[0]} />}
       {recent.length > 0 && (
         <Section title="Escuchado hace poco">
           <Carousel items={recent} onPlay={player.play} />
@@ -147,11 +177,6 @@ export function Home() {
       {favorites.length > 0 && (
         <Section title="Favoritos">
           <Carousel items={favorites} onPlay={player.play} />
-        </Section>
-      )}
-      {forYou.length > 0 && (
-        <Section title="Para ti">
-          <Carousel items={forYou} onPlay={player.play} />
         </Section>
       )}
       {!recent.length && !favorites.length && (

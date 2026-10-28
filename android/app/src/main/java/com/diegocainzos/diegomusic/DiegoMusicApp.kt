@@ -154,7 +154,7 @@ class AppContainer(app: Application) {
     // MARK: - Reproducción
 
     fun play(item: MediaItem) {
-        player.select(item)
+        player.select(item, autoRadio = true)
         recordPlay(item, 0)
     }
 

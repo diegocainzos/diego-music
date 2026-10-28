@@ -91,8 +91,6 @@ class YouTubeDataService(
     private val keyPool = KeyPool(keys)
     private val searchCache = TtlCache<SearchPage>(24 * 3600 * 1000L)
     private val podcastCache = TtlCache<PodcastEpisodePage>(3600 * 1000L)
-    private var recommendationsKey = ""
-    private var recommendationsItems: List<MediaItem> = emptyList()
 
     // MARK: - Búsqueda
 
@@ -211,28 +209,11 @@ class YouTubeDataService(
         return Album(playlistId, playlistId, tracks.firstOrNull()?.channelTitle, tracks.firstOrNull()?.artworkUrl, tracks)
     }
 
-    // MARK: - Radio y recomendaciones (resolutor)
+    // MARK: - Radio (resolutor)
 
     suspend fun radio(seedVideoId: String): List<MediaItem> {
         if (!isValidVideoId(seedVideoId)) throw YouTubeServiceError.InvalidRequest
         return vps("/v1/radio/$seedVideoId", VPSRadioResponse.serializer()).items.map { it.mediaItem }
-    }
-
-    /** Recomendaciones del LLM a partir de las últimas escuchas; se recuerdan mientras no cambien. */
-    suspend fun recommendations(history: List<MediaItem>): List<MediaItem> {
-        val seeds = history.take(20)
-        if (seeds.isEmpty()) return emptyList()
-        val key = seeds.joinToString(",") { it.id }
-        if (key == recommendationsKey && recommendationsItems.isNotEmpty()) return recommendationsItems
-        val body = json.encodeToString(
-            VPSRecommendationsRequest.serializer(),
-            VPSRecommendationsRequest(seeds.map { VPSRecommendationsRequest.Seed(it.title.take(200), it.channelTitle.take(200)) }),
-        )
-        val seedIds = seeds.map { it.id }.toSet()
-        val items = vps("/v1/recommendations", VPSSearchResponse.serializer(), body = body).items.map { it.mediaItem }.filter { it.id !in seedIds }
-        recommendationsKey = key
-        recommendationsItems = items
-        return items
     }
 
     // MARK: - Podcasts
