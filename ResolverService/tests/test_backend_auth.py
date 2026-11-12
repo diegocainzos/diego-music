@@ -77,6 +77,12 @@ def test_user_registration_and_login(backend_client: TestClient) -> None:
     assert me.json()["full_name"] == "Test User"
 
 
+@pytest.mark.parametrize("extra", [{}, {"full_name": None}])
+def test_registration_without_full_name(backend_client: TestClient, extra: dict[str, object]) -> None:
+    body = {"email": f"noname{len(extra)}@diegomusic.app", "password": "Password1234", **extra}
+    assert backend_client.post("/api/v1/auth/register", json=body).status_code == 201
+
+
 def test_profile_update(backend_client: TestClient, auth_headers: dict[str, str]) -> None:
     response = backend_client.put(
         "/api/v1/auth/me",

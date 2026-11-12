@@ -16,7 +16,8 @@ sealed class Destination(val title: String) {
     data class PodcastDetail(val channelId: String, val showTitle: String) : Destination(showTitle)
 
     companion object {
-        val tabs = listOf(Home, Search, Library)
+        // Getter, no campo: un campo se evalúa al iniciar `Destination` y `Home` aún sería null.
+        val tabs get() = listOf(Home, Search, Library)
     }
 }
 

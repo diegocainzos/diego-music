@@ -12,8 +12,14 @@ class Token(BaseModel):
 # User Schemas
 class UserBase(BaseModel):
     email: EmailStr
-    full_name: str
+    full_name: str = ""
     avatar_url: Optional[str] = None
+
+    @field_validator("full_name", mode="before")
+    @classmethod
+    def blank_full_name(cls, v: Optional[str]) -> str:
+        # Android y web omiten o envían null cuando el nombre es opcional.
+        return v or ""
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=10, max_length=25)
