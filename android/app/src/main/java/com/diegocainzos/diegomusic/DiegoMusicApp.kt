@@ -1,6 +1,8 @@
 package com.diegocainzos.diegomusic
 
 import android.app.Application
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -17,7 +19,10 @@ import com.diegocainzos.diegomusic.data.OfflineDownloadManager
 import com.diegocainzos.diegomusic.data.PlaybackSettings
 import com.diegocainzos.diegomusic.data.TokenStore
 import com.diegocainzos.diegomusic.lyrics.LrcLibProvider
+import com.diegocainzos.diegomusic.core.LocalPlaylist
 import com.diegocainzos.diegomusic.net.AudioResolverClient
+import com.diegocainzos.diegomusic.net.AuthException
+import com.diegocainzos.diegomusic.net.BackendException
 import com.diegocainzos.diegomusic.net.BackendClient
 import com.diegocainzos.diegomusic.net.TrackPayload
 import com.diegocainzos.diegomusic.net.UnavailableAudioResolver
@@ -109,13 +114,16 @@ class AppContainer(app: Application) {
 
     private val isAuthenticated get() = _authState.value is AuthState.Authenticated
 
+    // Escrituras en orden (Mutex FIFO): N altas seguidas no crean N playlists ni comparten posición.
+    private val syncLock = Mutex()
+
     /** Ejecuta `block` con el token si hay sesión; los fallos de red del backend se ignoran como en Swift. */
     private fun withToken(block: suspend (String) -> Unit) {
         val token = tokens.get() ?: return
         if (!isAuthenticated) return
         scope.launch {
             try {
-                block(token)
+                syncLock.withLock { block(token) }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -130,25 +138,47 @@ class AppContainer(app: Application) {
             withToken { token -> if (isFav) backend.addFavorite(token, item.payload()) else backend.removeFavorite(token, item.id) }
         }
         library.onTrackAddedToPlaylist = { item, playlist ->
-            withToken { token ->
-                val remote = backend.myPlaylists(token).firstOrNull { it.name.equals(playlist.name, ignoreCase = true) }
-                    ?: backend.createPlaylist(token, playlist.name)
-                backend.addTrackToPlaylist(token, remote.id, item.payload())
-            }
+            withToken { token -> backend.addTrackToPlaylist(token, remotePlaylistId(token, playlist), item.payload()) }
         }
         library.onTrackRemovedFromPlaylist = { entry, playlist ->
-            withToken { token ->
-                backend.myPlaylists(token).firstOrNull { it.name.equals(playlist.name, ignoreCase = true) }
-                    ?.let { backend.removeTrackFromPlaylist(token, it.id, entry.videoId) }
-            }
+            withToken { token -> backend.removeTrackFromPlaylist(token, remotePlaylistId(token, playlist), entry.videoId) }
         }
-        library.onPlaylistCreated = { playlist -> withToken { token -> backend.createPlaylist(token, playlist.name) } }
+        library.onPlaylistCreated = { playlist -> withToken { token -> remotePlaylistId(token, playlist) } }
         library.onPlaylistDeleted = { playlist ->
-            withToken { token ->
-                backend.myPlaylists(token).firstOrNull { it.name.equals(playlist.name, ignoreCase = true) }
-                    ?.let { backend.deletePlaylist(token, it.id) }
+            // Sin remoteId no hay nada en el servidor que borrar.
+            playlist.remoteId?.let { id -> withToken { token -> backend.deletePlaylist(token, id) } }
+        }
+    }
+
+    /** Id del servidor; si falta lo crea (idempotente por nombre) y lo guarda. */
+    private suspend fun remotePlaylistId(token: String, playlist: LocalPlaylist): Int {
+        // El callback recibe una copia; el id puede haberse guardado después.
+        // Si ya se borró, no se crea.
+        val fresh = library.playlists.value.firstOrNull { it.id == playlist.id } ?: throw CancellationException("playlist borrada")
+        fresh.remoteId?.let { return it }
+        val id = backend.createPlaylist(token, fresh.name).id
+        if (library.playlists.value.none { it.id == playlist.id }) {
+            // Borrada mientras se creaba: no dejar una huérfana en el servidor.
+            runCatching { backend.deletePlaylist(token, id) }
+            throw CancellationException("playlist borrada")
+        }
+        library.setRemoteId(id, fresh)
+        return id
+    }
+
+    /** Renombra en el servidor primero; un 409 llega como [BackendException] y el nombre local no cambia. */
+    suspend fun renamePlaylist(playlist: LocalPlaylist, newName: String) {
+        val token = tokens.get()
+        if (token != null && isAuthenticated) {
+            val id = remotePlaylistId(token, playlist)
+            try {
+                backend.renamePlaylist(token, id, newName.trim())
+            } catch (e: BackendException) {
+                if (e.code == 409) throw AuthException("Ya existe una playlist con ese nombre.")
+                throw e
             }
         }
+        library.rename(playlist, newName)
     }
 
     // MARK: - Reproducción
@@ -231,6 +261,7 @@ class AppContainer(app: Application) {
         runCatching { backend.myPlaylists(token) }.getOrNull()?.forEach { remote ->
             val detailed = runCatching { backend.playlist(token, remote.id) }.getOrDefault(remote)
             library.importPlaylist(
+                remote.id,
                 remote.name,
                 detailed.tracks.map { pt ->
                     MediaItem(pt.track?.youtubeVideoId ?: "${pt.trackId}", pt.track?.title.orEmpty(), pt.track?.artist?.name.orEmpty(), pt.track?.album?.coverUrl)

@@ -394,7 +394,7 @@ function Playlists() {
     if (!name.trim()) return
     try {
       const p = await api.createPlaylist(name.trim())
-      session.set((s) => ({ playlists: [p, ...s.playlists] }))
+      session.set((s) => ({ playlists: [p, ...s.playlists.filter((x) => x.id !== p.id)] }))
       setName('')
     } catch {
       toast('No se pudo crear la playlist')

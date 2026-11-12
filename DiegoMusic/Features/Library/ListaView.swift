@@ -16,6 +16,7 @@ struct ListaView: View {
     @State private var isShowingCreateSheet = false
     @State private var isShowingImportSheet = false
     @State private var draftName = ""
+    @State private var renameError: String?
     @State private var errorMessage: String?
 
     private var playlists: [LocalPlaylist] {
@@ -222,6 +223,9 @@ struct ListaView: View {
                 .background(DiegoTheme.background)
                 .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
                 .accessibilityLabel("Nuevo nombre de la playlist")
+            if let renameError {
+                Text(renameError).dondaLabel().foregroundStyle(DiegoTheme.textSecondary)
+            }
             HStack {
                 Button { renamingPlaylist = nil } label: {
                     Text("CANCELAR").dondaLabel()
@@ -229,13 +233,20 @@ struct ListaView: View {
                 .buttonStyle(PrimaryButtonStyle())
                 Spacer()
                 Button {
-                    do {
-                        try library.rename(playlist, to: draftName)
-                        errorMessage = nil
-                    } catch {
-                        errorMessage = "No se pudo renombrar la playlist."
+                    Task {
+                        do {
+                            let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmed.isEmpty { try await environment.renameRemotePlaylist(playlist, to: trimmed) }
+                            try library.rename(playlist, to: draftName)
+                            errorMessage = nil
+                            renamingPlaylist = nil
+                        } catch let conflict as PlaylistNameConflictError {
+                            renameError = conflict.localizedDescription
+                        } catch {
+                            errorMessage = "No se pudo renombrar la playlist."
+                            renamingPlaylist = nil
+                        }
                     }
-                    renamingPlaylist = nil
                 } label: {
                     Text("GUARDAR").dondaLabel()
                 }
@@ -247,7 +258,7 @@ struct ListaView: View {
         .frame(maxWidth: 500)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DiegoTheme.background)
-        .onAppear { draftName = playlist.name }
+        .onAppear { draftName = playlist.name; renameError = nil }
     }
 
     private func expandedBinding(for id: UUID) -> Binding<Bool> {

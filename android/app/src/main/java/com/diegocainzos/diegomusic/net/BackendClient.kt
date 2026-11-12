@@ -72,6 +72,9 @@ data class BackendPlayHistoryDto(val id: Int = 0, val track: BackendTrackDto? = 
 private data class RegisterPayload(val email: String, val password: String, @SerialName("full_name") val fullName: String? = null)
 
 @Serializable
+private data class RenamePlaylistPayload(val name: String)
+
+@Serializable
 private data class CreatePlaylistPayload(val name: String, val description: String? = null, @SerialName("is_public") val isPublic: Boolean = false)
 
 @Serializable
@@ -167,6 +170,11 @@ class BackendClient(private val baseUrl: String, private val http: OkHttpClient)
     suspend fun createPlaylist(token: String, name: String, description: String? = null) = send(
         "POST", "api/v1/playlists/", token, BackendPlaylistDto.serializer(),
         body = json.encodeToString(CreatePlaylistPayload.serializer(), CreatePlaylistPayload(name, description)),
+    )
+
+    suspend fun renamePlaylist(token: String, id: Int, name: String) = send(
+        "PUT", "api/v1/playlists/$id", token, BackendPlaylistDto.serializer(),
+        body = json.encodeToString(RenamePlaylistPayload.serializer(), RenamePlaylistPayload(name)),
     )
 
     suspend fun deletePlaylist(token: String, id: Int) = perform("DELETE", "api/v1/playlists/$id", token)

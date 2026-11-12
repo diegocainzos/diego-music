@@ -105,9 +105,12 @@ final class LibraryStore: ObservableObject {
     @discardableResult
     func createPlaylist(named name: String) throws -> LocalPlaylist {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalName = trimmed.isEmpty ? "Nueva playlist" : trimmed
+        // Nombres únicos por cuenta (como el servidor): crear uno existente devuelve el existente.
+        if let existing = playlists.first(where: { $0.name.lowercased() == finalName.lowercased() }) { return existing }
         let record: PlaylistRecord = insertRecord(entityName: "Playlist")
         record.id = UUID()
-        record.name = trimmed.isEmpty ? "Nueva playlist" : trimmed
+        record.name = finalName
         record.createdAt = .now
         try saveAndReload()
         let created = playlists.first(where: { $0.id == record.id })!
@@ -246,24 +249,16 @@ final class LibraryStore: ObservableObject {
         try saveAndReload()
     }
 
-    /// Importa o actualiza una playlist completa con sus pistas desde el backend.
-    func importPlaylist(name: String, entries: [(videoID: String, title: String, channelTitle: String, thumbnailURLString: String?)]) throws {
+    /// Importa una playlist del backend identificada por su id de servidor (siempre crea una nueva).
+    func importPlaylist(remoteID: Int, name: String, entries: [(videoID: String, title: String, channelTitle: String, thumbnailURLString: String?)]) throws {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        let request = NSFetchRequest<PlaylistRecord>(entityName: "Playlist")
-        request.predicate = NSPredicate(format: "name ==[c] %@", trimmed)
-        let playlistRecord: PlaylistRecord
-        if let existing = try context.fetch(request).first {
-            playlistRecord = existing
-            let oldEntries = try entryRecords(playlistID: existing.id)
-            for old in oldEntries { context.delete(old) }
-        } else {
-            playlistRecord = insertRecord(entityName: "Playlist")
-            playlistRecord.id = UUID()
-            playlistRecord.name = trimmed
-            playlistRecord.createdAt = .now
-        }
+        let playlistRecord: PlaylistRecord = insertRecord(entityName: "Playlist")
+        playlistRecord.id = UUID()
+        playlistRecord.name = trimmed
+        playlistRecord.createdAt = .now
+        playlistRecord.remoteID = NSNumber(value: remoteID)
 
         for (index, entry) in entries.enumerated() {
             let entryRecord: PlaylistEntryRecord = insertRecord(entityName: "PlaylistEntry")
@@ -277,6 +272,13 @@ final class LibraryStore: ObservableObject {
         }
 
         try saveAndReload()
+    }
+
+    func setRemoteID(_ id: Int, for playlist: LocalPlaylist) {
+        let request = NSFetchRequest<PlaylistRecord>(entityName: "Playlist")
+        guard let record = try? context.fetch(request).first(where: { $0.id == playlist.id }) else { return }
+        record.remoteID = NSNumber(value: id)
+        try? saveAndReload()
     }
 
     /// Importa un registro de historial desde el backend.
@@ -352,7 +354,8 @@ final class LibraryStore: ObservableObject {
                             thumbnailURLString: $0.thumbnailURLString,
                             position: Int($0.position)
                         )
-                    }
+                    },
+                    remoteID: playlist.remoteID?.intValue
                 )
             }
 

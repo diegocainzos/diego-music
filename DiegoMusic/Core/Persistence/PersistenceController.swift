@@ -36,7 +36,8 @@ final class PersistenceController {
             entity("Playlist", PlaylistRecord.self, [
                 attribute("id", .UUIDAttributeType),
                 attribute("name", .stringAttributeType),
-                attribute("createdAt", .dateAttributeType)
+                attribute("createdAt", .dateAttributeType),
+                attribute("remoteID", .integer64AttributeType, optional: true)
             ], uniqueness: [["id"]]),
             entity("PlaylistEntry", PlaylistEntryRecord.self, [
                 attribute("id", .UUIDAttributeType),

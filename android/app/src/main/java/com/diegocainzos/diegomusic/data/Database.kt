@@ -12,6 +12,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 // Mismas entidades y claves únicas que el modelo Core Data de `PersistenceController.swift`.
 
@@ -25,7 +27,7 @@ data class FavoriteTrackRecord(
 )
 
 @Entity(tableName = "playlist")
-data class PlaylistRecord(@PrimaryKey val id: String, val name: String, val createdAt: Long)
+data class PlaylistRecord(@PrimaryKey val id: String, val name: String, val createdAt: Long, val remoteId: Int? = null)
 
 @Entity(tableName = "playlist_entry", indices = [Index(value = ["playlistId", "videoId"], unique = true)])
 data class PlaylistEntryRecord(
@@ -101,7 +103,6 @@ interface LibraryDao {
     @Query("DELETE FROM favorite_track WHERE videoId = :videoId") fun deleteFavorite(videoId: String)
 
     @Query("SELECT * FROM playlist ORDER BY createdAt DESC") fun playlists(): List<PlaylistRecord>
-    @Query("SELECT * FROM playlist WHERE name = :name COLLATE NOCASE LIMIT 1") fun playlistNamed(name: String): PlaylistRecord?
     @Upsert fun upsertPlaylist(record: PlaylistRecord)
     @Query("DELETE FROM playlist WHERE id = :id") fun deletePlaylist(id: String)
 
@@ -153,7 +154,7 @@ interface LibraryDao {
         PreferenceRecord::class, SavedAlbumRecord::class, DownloadedTrackRecord::class, FollowedShowRecord::class,
         EpisodeProgressRecord::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class DiegoMusicDatabase : RoomDatabase() {
@@ -162,8 +163,15 @@ abstract class DiegoMusicDatabase : RoomDatabase() {
     companion object {
         // ponytail: consultas en el hilo principal, como el viewContext de Core Data en Swift; base pequeña.
         // Si alguna vez pesa, mover LibraryStore a Dispatchers.IO.
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE playlist ADD COLUMN remoteId INTEGER")
+            }
+        }
+
         fun create(context: Context): DiegoMusicDatabase =
             Room.databaseBuilder(context, DiegoMusicDatabase::class.java, "diegomusic.db")
+                .addMigrations(MIGRATION_1_2)
                 .allowMainThreadQueries()
                 .build()
     }

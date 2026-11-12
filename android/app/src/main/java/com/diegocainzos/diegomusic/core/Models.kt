@@ -105,7 +105,7 @@ data class PlaylistEntry(
     val mediaItem: MediaItem get() = MediaItem(videoId, title, channelTitle, thumbnailUrl)
 }
 
-data class LocalPlaylist(val id: String, val name: String, val createdAt: Long, val entries: List<PlaylistEntry>)
+data class LocalPlaylist(val id: String, val name: String, val createdAt: Long, val entries: List<PlaylistEntry>, val remoteId: Int? = null)
 
 data class SavedAlbum(
     val id: String,

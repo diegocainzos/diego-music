@@ -88,8 +88,10 @@ class LibraryStore(private val dao: LibraryDao) {
     // MARK: - Playlists
 
     fun createPlaylist(name: String): LocalPlaylist {
-        val trimmed = name.trim()
-        val record = PlaylistRecord(UUID.randomUUID().toString(), trimmed.ifEmpty { "Nueva playlist" }, now())
+        val finalName = name.trim().ifEmpty { "Nueva playlist" }
+        // Nombres únicos por cuenta (como el servidor): crear uno existente devuelve el existente.
+        _playlists.value.firstOrNull { it.name.equals(finalName, ignoreCase = true) }?.let { return it }
+        val record = PlaylistRecord(UUID.randomUUID().toString(), finalName, now())
         dao.upsertPlaylist(record)
         reload()
         val created = _playlists.value.first { it.id == record.id }
@@ -137,7 +139,13 @@ class LibraryStore(private val dao: LibraryDao) {
     fun rename(playlist: LocalPlaylist, newName: String) {
         val trimmed = newName.trim()
         if (trimmed.isEmpty()) return
-        dao.upsertPlaylist(PlaylistRecord(playlist.id, trimmed, playlist.createdAt))
+        dao.upsertPlaylist(PlaylistRecord(playlist.id, trimmed, playlist.createdAt, playlist.remoteId))
+        reload()
+    }
+
+    fun setRemoteId(id: Int, playlist: LocalPlaylist) {
+        val record = dao.playlists().firstOrNull { it.id == playlist.id } ?: return
+        dao.upsertPlaylist(record.copy(remoteId = id))
         reload()
     }
 
@@ -191,11 +199,10 @@ class LibraryStore(private val dao: LibraryDao) {
         dao.upsertFavorite(FavoriteTrackRecord(videoId, title, channelTitle, thumbnailUrl, existing?.savedAt ?: savedAt))
     }
 
-    fun importPlaylist(name: String, entries: List<MediaItem>) {
+    fun importPlaylist(remoteId: Int, name: String, entries: List<MediaItem>) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
-        val playlist = dao.playlistNamed(trimmed)?.also { dao.deleteEntries(it.id) }
-            ?: PlaylistRecord(UUID.randomUUID().toString(), trimmed, now()).also { dao.upsertPlaylist(it) }
+        val playlist = PlaylistRecord(UUID.randomUUID().toString(), trimmed, now(), remoteId).also { dao.upsertPlaylist(it) }
         entries.distinctBy { it.id }.forEachIndexed { index, item ->
             dao.insertEntry(
                 PlaylistEntryRecord(UUID.randomUUID().toString(), playlist.id, item.id, item.title, item.channelTitle, item.thumbnailUrl, index.toLong()),
@@ -261,6 +268,7 @@ class LibraryStore(private val dao: LibraryDao) {
             LocalPlaylist(
                 p.id, p.name, p.createdAt,
                 entries[p.id].orEmpty().map { PlaylistEntry(it.id, it.videoId, it.title, it.channelTitle, it.thumbnailUrl, it.position.toInt()) },
+                p.remoteId,
             )
         }
         _savedAlbums.value = dao.savedAlbums().map { SavedAlbum(it.id, it.title, it.channelTitle, it.thumbnailUrl, it.savedAt) }

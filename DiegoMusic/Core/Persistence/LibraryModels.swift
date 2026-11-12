@@ -24,6 +24,7 @@ struct LocalPlaylist: Identifiable, Equatable {
     let name: String
     let createdAt: Date
     let entries: [PlaylistEntry]
+    var remoteID: Int? = nil
 }
 
 struct PlaylistEntry: Identifiable, Equatable {
@@ -114,6 +115,7 @@ final class PlaylistRecord: NSManagedObject {
     @NSManaged var id: UUID
     @NSManaged var name: String
     @NSManaged var createdAt: Date
+    @NSManaged var remoteID: NSNumber?
 }
 
 @objc(PlaylistEntryRecord)

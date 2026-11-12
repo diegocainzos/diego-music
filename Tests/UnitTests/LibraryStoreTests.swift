@@ -81,6 +81,7 @@ final class LibraryStoreTests: XCTestCase {
         // Importar datos simulando sincronización de backend
         try store.importFavorite(videoID: "yt_fav_1", title: "Fav Track", channelTitle: "Fav Artist")
         try store.importPlaylist(
+            remoteID: 1,
             name: "Cloud Playlist",
             entries: [(videoID: "yt_pl_1", title: "PL Track 1", channelTitle: "PL Artist", thumbnailURLString: nil)]
         )

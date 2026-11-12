@@ -265,12 +265,28 @@ private fun CreatePlaylistSheet(onCreated: (LocalPlaylist) -> Unit, onDismiss: (
 @Composable
 private fun RenamePlaylistSheet(playlist: LocalPlaylist, onDismiss: () -> Unit) {
     val app = LocalApp.current
+    val c = Donda.colors
+    val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(playlist.name) }
+    var error by remember { mutableStateOf<String?>(null) }
     DondaSheet(onDismiss) {
         SheetForm("Renombrar playlist", onDismiss, "Guardar", name.isNotBlank(), {
-            app.library.rename(playlist, name)
-            onDismiss()
-        }) { DField(name, { name = it }, "Nombre de la playlist") }
+            scope.launch {
+                try {
+                    app.renamePlaylist(playlist, name)
+                    onDismiss()
+                } catch (e: com.diegocainzos.diegomusic.net.AuthException) {
+                    error = e.message
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    error = "No se pudo renombrar la playlist."
+                }
+            }
+        }) {
+            DField(name, { name = it }, "Nombre de la playlist")
+            error?.let { DLabel(it, color = c.textSecondary) }
+        }
     }
 }
 

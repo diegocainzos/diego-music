@@ -133,7 +133,7 @@ def test_playlist_ownership_is_enforced(
     backend_client: TestClient, auth_headers: dict[str, str], other_headers: dict[str, str]
 ) -> None:
     private_id = create_playlist(backend_client, auth_headers, is_public=False)
-    public_id = create_playlist(backend_client, auth_headers, is_public=True)
+    public_id = create_playlist(backend_client, auth_headers, name="Pública", is_public=True)
 
     modify = "No tienes permisos para modificar esta playlist"
     for playlist_id in (private_id, public_id):

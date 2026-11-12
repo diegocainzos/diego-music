@@ -31,6 +31,7 @@ from .sessions import SessionExpiredError, SessionNotFoundError, SessionStore
 import backend_app.config as backend_config
 import backend_app.database as backend_database
 import backend_app.seed as backend_seed
+from backend_app.playlist_maintenance import merge_duplicate_playlists
 import backend_app.routers.auth as backend_auth
 import backend_app.routers.users as backend_users
 import backend_app.routers.playlists as backend_playlists
@@ -98,12 +99,13 @@ def create_app(
 
         # Inicializar la base de datos SQLite del backend; el usuario demo es opcional
         backend_database.Base.metadata.create_all(bind=backend_database.engine)
-        if service_settings.seed_demo_data:
-            db = backend_database.SessionLocal()
-            try:
+        db = backend_database.SessionLocal()
+        try:
+            merge_duplicate_playlists(db)
+            if service_settings.seed_demo_data:
                 backend_seed.seed_database(db)
-            finally:
-                db.close()
+        finally:
+            db.close()
 
         yield
         await persistent_cache.close()

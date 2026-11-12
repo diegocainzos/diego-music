@@ -119,18 +119,12 @@ final class AppEnvironment: ObservableObject {
 
         library.onTrackAddedToPlaylist = { [weak self] item, playlist in
             guard let self, let token = tokenManager.getToken(), self.authState.isAuthenticated else { return }
-            Task {
+            enqueueSync {
                 do {
-                    let playlists = try await backendClient.fetchMyPlaylists(token: token)
-                    let remotePL: BackendPlaylistDTO
-                    if let found = playlists.first(where: { $0.name.lowercased() == playlist.name.lowercased() }) {
-                        remotePL = found
-                    } else {
-                        remotePL = try await backendClient.createPlaylist(token: token, name: playlist.name, description: nil, isPublic: false)
-                    }
+                    let remoteID = try await self.remotePlaylistID(for: playlist)
                     _ = try await backendClient.addTrackToPlaylist(
                         token: token,
-                        playlistID: remotePL.id,
+                        playlistID: remoteID,
                         youtubeVideoId: item.id,
                         title: item.title,
                         channelTitle: item.channelTitle,
@@ -146,16 +140,14 @@ final class AppEnvironment: ObservableObject {
 
         library.onTrackRemovedFromPlaylist = { [weak self] entry, playlist in
             guard let self, let token = tokenManager.getToken(), self.authState.isAuthenticated else { return }
-            Task {
+            enqueueSync {
                 do {
-                    let playlists = try await backendClient.fetchMyPlaylists(token: token)
-                    if let remotePL = playlists.first(where: { $0.name.lowercased() == playlist.name.lowercased() }) {
-                        try await backendClient.removeTrackFromPlaylist(
-                            token: token,
-                            playlistID: remotePL.id,
-                            trackIdentifier: entry.videoID
-                        )
-                    }
+                    let remoteID = try await self.remotePlaylistID(for: playlist)
+                    try await backendClient.removeTrackFromPlaylist(
+                        token: token,
+                        playlistID: remoteID,
+                        trackIdentifier: entry.videoID
+                    )
                 } catch {
                     print("Error sincronizando eliminación de canción de playlist en backend: \(error)")
                 }
@@ -163,21 +155,46 @@ final class AppEnvironment: ObservableObject {
         }
 
         library.onPlaylistCreated = { [weak self] playlist in
-            guard let self, let token = tokenManager.getToken(), self.authState.isAuthenticated else { return }
-            Task {
-                _ = try? await backendClient.createPlaylist(token: token, name: playlist.name, description: nil, isPublic: false)
-            }
+            guard let self, self.authState.isAuthenticated else { return }
+            enqueueSync { _ = try? await self.remotePlaylistID(for: playlist) }
         }
 
         library.onPlaylistDeleted = { [weak self] playlist in
-            guard let self, let token = tokenManager.getToken(), self.authState.isAuthenticated else { return }
-            Task {
-                if let playlists = try? await backendClient.fetchMyPlaylists(token: token),
-                   let remotePL = playlists.first(where: { $0.name.lowercased() == playlist.name.lowercased() }) {
-                    try? await backendClient.deletePlaylist(token: token, playlistID: remotePL.id)
-                }
-            }
+            guard let self, let token = tokenManager.getToken(), self.authState.isAuthenticated,
+                  let remoteID = playlist.remoteID else { return }
+            enqueueSync { try? await backendClient.deletePlaylist(token: token, playlistID: remoteID) }
         }
+    }
+
+    private var syncTail: Task<Void, Never>?
+
+    /// Ejecuta las escrituras de playlists en orden: así N altas seguidas no crean N playlists ni comparten posición.
+    private func enqueueSync(_ operation: @escaping @MainActor () async -> Void) {
+        let previous = syncTail
+        syncTail = Task { await previous?.value; await operation() }
+    }
+
+    /// Id de servidor de la playlist: el guardado, o el devuelto por `createPlaylist` (idempotente por nombre).
+    func remotePlaylistID(for playlist: LocalPlaylist) async throws -> Int {
+        // El callback recibe una copia; el id puede haberse guardado después. Si ya se borró, no se crea.
+        guard let playlist = library.playlists.first(where: { $0.id == playlist.id }) else { throw CancellationError() }
+        if let id = playlist.remoteID { return id }
+        guard let token = tokenManager.getToken() else { throw URLError(.userAuthenticationRequired) }
+        let remote = try await backendClient.createPlaylist(token: token, name: playlist.name, description: nil, isPublic: false)
+        guard library.playlists.contains(where: { $0.id == playlist.id }) else {
+            // Borrada mientras se creaba: no dejar una huérfana en el servidor.
+            try? await backendClient.deletePlaylist(token: token, playlistID: remote.id)
+            throw CancellationError()
+        }
+        library.setRemoteID(remote.id, for: playlist)
+        return remote.id
+    }
+
+    /// Renombra en el servidor; lanza si el nombre ya existe (409) para que la UI conserve el nombre local.
+    func renameRemotePlaylist(_ playlist: LocalPlaylist, to name: String) async throws {
+        guard authState.isAuthenticated, let token = tokenManager.getToken() else { return }
+        let remoteID = try await remotePlaylistID(for: playlist)
+        try await backendClient.renamePlaylist(token: token, playlistID: remoteID, name: name)
     }
 
     func play(_ item: MediaItem) {
@@ -323,31 +340,25 @@ final class AppEnvironment: ObservableObject {
                             thumbnailURLString: pt.track?.album?.coverURL
                         )
                     }
-                    try? library.importPlaylist(name: remote.name, entries: entries)
+                    try? library.importPlaylist(remoteID: remote.id, name: remote.name, entries: entries)
                 }
             }
 
             // 4. Sincronizar Historial de reproducción desde el backend
             if let remoteHistory = try? await backendClient.fetchPlayHistory(token: token, limit: 50, offset: 0) {
-                for hist in remoteHistory {
+                let now = Date.now
+                for (index, hist) in remoteHistory.enumerated() {
                     if let track = hist.track {
                         let videoID = track.youtubeVideoId ?? "\(track.id)"
                         let title = track.title
                         let channel = track.artist?.name ?? ""
                         let thumb = track.album?.coverURL
-                        try? library.importHistory(videoID: videoID, title: title, channelTitle: channel, thumbnailURLString: thumb)
+                        try? library.importHistory(videoID: videoID, title: title, channelTitle: channel, thumbnailURLString: thumb, playedAt: now.addingTimeInterval(-Double(index)))
                     }
                 }
             }
         } catch {
             print("Error durante la sincronización total del usuario: \(error)")
-        }
-    }
-
-    func createPlaylistInBackend(name: String, description: String? = nil) {
-        guard let token = tokenManager.getToken(), authState.isAuthenticated else { return }
-        Task {
-            _ = try? await backendClient.createPlaylist(token: token, name: name, description: description, isPublic: false)
         }
     }
 }

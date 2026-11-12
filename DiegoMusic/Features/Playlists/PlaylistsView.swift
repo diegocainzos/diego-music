@@ -45,7 +45,6 @@ struct CreatePlaylistSheet: View {
         guard !trimmed.isEmpty else { return }
         do {
             let newPlaylist = try library.createPlaylist(named: trimmed)
-            environment.createPlaylistInBackend(name: trimmed, description: descriptionText.isEmpty ? nil : descriptionText)
             onCreate?(newPlaylist)
             dismiss()
         } catch {
@@ -250,7 +249,6 @@ struct PlaylistsView: View {
         guard !name.isEmpty else { return }
         do {
             _ = try library.createPlaylist(named: name)
-            environment.createPlaylistInBackend(name: name)
             newName = ""
             errorMessage = nil
         } catch {

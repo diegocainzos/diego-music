@@ -32,6 +32,15 @@ public final class BackendAPIClient: @unchecked Sendable {
         )
     }
 
+    public func renamePlaylist(token: String, playlistID: Int, name: String) async throws {
+        try await sendDiscardingResponse(
+            "PUT",
+            "api/v1/playlists/\(playlistID)",
+            token: token,
+            body: ["name": name]
+        )
+    }
+
     public func deletePlaylist(token: String, playlistID: Int) async throws {
         try await sendDiscardingResponse("DELETE", "api/v1/playlists/\(playlistID)", token: token)
     }
@@ -193,9 +202,15 @@ public final class BackendAPIClient: @unchecked Sendable {
         }
 
         let (data, response) = try await transport.data(for: request)
+        if response.statusCode == 409 { throw PlaylistNameConflictError() }
         guard (200...299).contains(response.statusCode) else {
             throw URLError(.badServerResponse)
         }
         return data
     }
+}
+
+/// 409 del backend: ya existe otra playlist con ese nombre.
+public struct PlaylistNameConflictError: LocalizedError {
+    public var errorDescription: String? { "Ya existe una playlist con ese nombre." }
 }

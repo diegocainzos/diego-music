@@ -30,11 +30,23 @@ fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .readTimeout(30, TimeUnit.SECONDS)
     .build()
 
-/** Respuesta ya leída: el cuerpo se consume dentro de `await` para no filtrar conexiones. */
+/** Respuesta ya leída: el cuerpo se consume en el hilo de OkHttp para no filtrar conexiones. */
 class HttpResult(val code: Int, val body: String)
 
-suspend fun OkHttpClient.send(request: Request): HttpResult = newCall(request).await().use { response ->
-    HttpResult(response.code, response.body?.string().orEmpty())
+// El cuerpo se lee en el hilo de OkHttp: leerlo tras reanudar en Main lanza NetworkOnMainThreadException
+// con respuestas grandes (p. ej. playlists con muchas pistas).
+suspend fun OkHttpClient.send(request: Request): HttpResult = suspendCancellableCoroutine { continuation ->
+    val call = newCall(request)
+    call.enqueue(object : Callback {
+        override fun onResponse(call: Call, response: Response) {
+            val result = runCatching { response.use { HttpResult(it.code, it.body?.string().orEmpty()) } }
+            result.onSuccess(continuation::resume).onFailure { if (!continuation.isCancelled) continuation.resumeWithException(it) }
+        }
+        override fun onFailure(call: Call, e: IOException) {
+            if (!continuation.isCancelled) continuation.resumeWithException(e)
+        }
+    })
+    continuation.invokeOnCancellation { runCatching { call.cancel() } }
 }
 
 suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->

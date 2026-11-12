@@ -1,9 +1,13 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
-from ..models import User, Playlist, PlaylistTrack, Track
+from ..models import User, Playlist, PlaylistTrack, Track, utc_now
 from ..track_utils import resolve_track_id, track_id_candidates
 from ..schemas import PlaylistCreate, PlaylistUpdate, PlaylistResponse, PlaylistTrackAdd
 from ..auth import get_current_user
@@ -21,9 +25,20 @@ def _owned_playlist(db: Session, playlist_id: int, user: User, action: str = "mo
     return playlist
 
 
+def _named_playlist(db: Session, user: User, name: str) -> Playlist | None:
+    return db.query(Playlist).filter(Playlist.user_id == user.id, func.lower(Playlist.name) == func.lower(name)).first()  # mismo lower() que el índice único (ASCII en SQLite)
+
+
+def _existing(playlist: Playlist) -> JSONResponse:
+    return JSONResponse(jsonable_encoder(PlaylistResponse.model_validate(playlist)), status_code=status.HTTP_200_OK)
+
+
 @router.post("/", response_model=PlaylistResponse, status_code=status.HTTP_201_CREATED)
 def create_playlist(playlist_in: PlaylistCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Crea una nueva playlist asociada al usuario autenticado."""
+    """Crea la playlist o, si la cuenta ya tiene una con ese nombre (sin mayúsculas), devuelve esa con 200."""
+    existing = _named_playlist(db, current_user, playlist_in.name)
+    if existing:
+        return _existing(existing)
     playlist = Playlist(
         name=playlist_in.name,
         description=playlist_in.description,
@@ -32,7 +47,14 @@ def create_playlist(playlist_in: PlaylistCreate, current_user: User = Depends(ge
         user_id=current_user.id
     )
     db.add(playlist)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:  # otra petición simultánea la creó primero (índice único)
+        db.rollback()
+        existing = _named_playlist(db, current_user, playlist_in.name)
+        if existing is None:
+            raise HTTPException(status_code=409, detail="Ya existe una playlist con ese nombre.")
+        return _existing(existing)
     db.refresh(playlist)
     return playlist
 
@@ -67,10 +89,19 @@ def update_playlist(
     playlist = _owned_playlist(db, playlist_id, current_user)
 
     update_data = playlist_in.model_dump(exclude_unset=True)
+    new_name = update_data.get("name")
+    if new_name:
+        clash = _named_playlist(db, current_user, new_name)
+        if clash and clash.id != playlist.id:
+            raise HTTPException(status_code=409, detail="Ya existe una playlist con ese nombre.")
     for field, value in update_data.items():
         setattr(playlist, field, value)
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Ya existe una playlist con ese nombre.")
     db.refresh(playlist)
     return playlist
 
@@ -95,13 +126,15 @@ def add_track_to_playlist(
     # Verificar si ya existe en la playlist
     existing = db.query(PlaylistTrack).filter(PlaylistTrack.playlist_id == playlist_id, PlaylistTrack.track_id == target_track_id).first()
     if not existing:
+        last = db.query(func.max(PlaylistTrack.order)).filter(PlaylistTrack.playlist_id == playlist_id).scalar()
         pt = PlaylistTrack(
             playlist_id=playlist_id,
             track_id=target_track_id,
-            order=track_in.order or 0,
+            order=track_in.order if "order" in track_in.model_fields_set and track_in.order is not None else (-1 if last is None else last) + 1,
             added_by_user_id=current_user.id
         )
         db.add(pt)
+        playlist.updated_at = utc_now()
         db.commit()
 
     db.refresh(playlist)
