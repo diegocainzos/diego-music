@@ -2,6 +2,8 @@ import SwiftUI
 
 struct HomeView: View {
     let onStartSearch: () -> Void
+    // Observa la biblioteca directamente: un ObservableObject anidado en AppEnvironment no redibuja la vista.
+    @ObservedObject var library: LibraryStore
     @EnvironmentObject private var environment: AppEnvironment
     @EnvironmentObject private var navState: NavigationState
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -21,7 +23,8 @@ struct HomeView: View {
 
     private var isCompact: Bool { sizeClass == .compact }
 
-    init(onStartSearch: @escaping () -> Void) {
+    init(library: LibraryStore, onStartSearch: @escaping () -> Void) {
+        self.library = library
         self.onStartSearch = onStartSearch
         _model = StateObject(wrappedValue: HomeViewModel(service: UnavailableDiscoveryService()))
     }
@@ -68,13 +71,13 @@ struct HomeView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await refreshQuickPicks() } }
         }
-        .onChange(of: environment.library.history.first?.videoID) { _, _ in
+        .onChange(of: library.history.first?.videoID) { _, _ in
             Task { await refreshQuickPicks() }
         }
     }
 
     private func refreshQuickPicks() async {
-        await model.refreshQuickPicks(history: environment.library.history.map(\.mediaItem))
+        await model.refreshQuickPicks(history: library.history.map(\.mediaItem))
     }
 
     // MARK: - Cabecera de sección Donda
@@ -295,7 +298,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private var recentlyPlayedSection: some View {
-        let recent = HomeLogic.distinctRecent(environment.library.history.map(\.mediaItem))
+        let recent = HomeLogic.distinctRecent(library.history.map(\.mediaItem))
         if !recent.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 sectionHeader("ESCUCHADO HACE POCO")

@@ -135,7 +135,7 @@ struct RootView: View {
     private func destinationView(_ destination: DiegoAppDestination) -> some View {
         switch destination {
         case .home:
-            HomeView { navState.navigate(to: .search) }
+            HomeView(library: environment.library) { navState.navigate(to: .search) }
         case .search:
             SearchView(
                 service: environment.youtubeService,

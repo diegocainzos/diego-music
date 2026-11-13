@@ -5,6 +5,14 @@ import XCTest
 final class LibraryStoreTests: XCTestCase {
     private static let persistence = PersistenceController(inMemory: true)
     
+    func testHistoryIsEnabledByDefaultAndCanBeTurnedOff() throws {
+        let store = makeStore()
+        XCTAssertTrue(PlaybackSettings(libraryStore: store).historyEnabled)
+        try store.setPreference("false", for: "playback.historyEnabled")
+        XCTAssertFalse(PlaybackSettings(libraryStore: store).historyEnabled)
+        try store.setPreference("true", for: "playback.historyEnabled")
+    }
+
     func testFavoritesToggleWithoutDuplicates() throws {
         let store = makeStore()
         let item = MediaItem(id: "video", title: "Pieza", channelTitle: "Canal")

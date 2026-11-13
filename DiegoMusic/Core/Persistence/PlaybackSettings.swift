@@ -105,7 +105,7 @@ final class PlaybackSettings: ObservableObject {
         self.libraryStore = libraryStore
         let rawTheme = libraryStore.preference(for: Self.themeModePreferenceKey)
         themeMode = AppThemeMode.migrating(rawTheme)
-        historyEnabled = libraryStore.preference(for: Self.historyPreferenceKey) == "true"
+        historyEnabled = libraryStore.preference(for: Self.historyPreferenceKey) != "false"
         continuePlaybackEnabled = libraryStore.preference(for: Self.continuePlaybackPreferenceKey) == "true"
         if let rawRate = libraryStore.preference(for: Self.podcastRatePreferenceKey),
            let parsed = Float(rawRate),

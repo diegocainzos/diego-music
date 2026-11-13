@@ -34,7 +34,7 @@ private data class RestoreState(
 /** Port de `PlaybackSettings.swift`, persistido en `Preference` con las mismas claves. */
 class PlaybackSettings(private val store: LibraryStore) {
     private val _themeMode = MutableStateFlow(AppThemeMode.migrating(store.preference(THEME)))
-    private val _historyEnabled = MutableStateFlow(store.preference(HISTORY) == "true")
+    private val _historyEnabled = MutableStateFlow(store.preference(HISTORY) != "false")
     private val _continuePlayback = MutableStateFlow(store.preference(CONTINUE) == "true")
     private val _podcastRate = MutableStateFlow(
         store.preference(RATE)?.toFloatOrNull()?.takeIf { r -> allowedPodcastRates.any { abs(it - r) < 0.001f } } ?: 1f,
