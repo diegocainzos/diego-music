@@ -3,6 +3,7 @@ name: resolver
 on:
   pull_request:
     paths:
+      - 'compose.yml'
       - 'ResolverService/**'
       - 'app/**'
       - 'scripts/validate-resolver.sh'
@@ -11,6 +12,7 @@ on:
     branches:
       - main
     paths:
+      - 'compose.yml'
       - 'ResolverService/**'
       - 'app/**'
       - 'scripts/validate-resolver.sh'

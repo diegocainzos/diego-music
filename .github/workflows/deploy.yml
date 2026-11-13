@@ -1,0 +1,73 @@
+name: deploy
+
+on:
+  workflow_run:
+    workflows: [resolver, web]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - id: ci
+        env:
+          GH_TOKEN: "${{ github.token }}"
+          REPO: "${{ github.repository }}"
+          EVENT: "${{ github.event_name }}"
+          RUN_SHA: "${{ github.event.workflow_run.head_sha }}"
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            SHA=$(gh api "repos/$REPO/commits/main" --jq .sha)
+            READY="true"
+          else
+            SHA="$RUN_SHA"
+            RUNS=$(gh run list --repo "$REPO" --commit "$SHA" --limit 50 --json workflowName,status,conclusion)
+            RESULT=$(echo "$RUNS" | jq -r '
+              [.[] | select(.workflowName == "resolver" or .workflowName == "web")] |
+              if any(.status != "completed") then "waiting"
+              elif any(.conclusion != "success") then "failed"
+              else "ready"
+              end
+            ')
+            if [ "$RESULT" = "waiting" ]; then
+              echo "::notice::waiting for sibling CI"
+              READY="false"
+            elif [ "$RESULT" = "failed" ]; then
+              echo "::notice::CI not green"
+              READY="false"
+            else
+              READY="true"
+            fi
+          fi
+
+          {
+            echo "sha=$SHA"
+            echo "ready=$READY"
+          } >> "$GITHUB_OUTPUT"
+      - if: steps.ci.outputs.ready == 'true'
+        env:
+          SSH_KEY: "${{ secrets.VPS_SSH_KEY }}"
+          KNOWN_HOSTS: "${{ secrets.VPS_KNOWN_HOSTS }}"
+          HOST: "${{ secrets.VPS_HOST }}"
+          SHA: "${{ steps.ci.outputs.sha }}"
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -o BatchMode=yes "root@$HOST" "$SHA"
