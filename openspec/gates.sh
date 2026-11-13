@@ -6,5 +6,6 @@ export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 (cd web && npm test && npm run build)
 ./scripts/verify-no-secrets.py
 ./scripts/validate-resolver.sh
+ResolverService/.venv/bin/python -m pytest -q -p no:cacheprovider scripts/tests
 (cd android && ./gradlew -q :app:testDebugUnitTest :app:assembleDebug)
 xcodebuild -quiet -project DiegoMusic.xcodeproj -scheme DiegoMusic -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test

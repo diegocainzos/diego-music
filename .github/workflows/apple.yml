@@ -1,0 +1,39 @@
+name: apple
+
+on:
+  pull_request:
+    paths:
+      - 'DiegoMusic/**'
+      - 'Tests/**'
+      - 'DiegoMusic.xcodeproj/**'
+      - 'project.yml'
+      - 'Config/**'
+      - '.github/workflows/apple.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'DiegoMusic/**'
+      - 'Tests/**'
+      - 'DiegoMusic.xcodeproj/**'
+      - 'project.yml'
+      - 'Config/**'
+      - '.github/workflows/apple.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: xcodebuild -project DiegoMusic.xcodeproj -scheme DiegoMusic -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO test
+      - run: xcodebuild -project DiegoMusic.xcodeproj -scheme DiegoMusic -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
