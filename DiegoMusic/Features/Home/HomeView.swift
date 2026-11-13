@@ -8,7 +8,7 @@ struct HomeView: View {
     @EnvironmentObject private var navState: NavigationState
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var model: HomeViewModel
+    @State private var quickPicks: [MediaItem] = []
     @State private var genre: String?
     @State private var vibe: String?
     @State private var decade: String?
@@ -26,7 +26,6 @@ struct HomeView: View {
     init(library: LibraryStore, onStartSearch: @escaping () -> Void) {
         self.library = library
         self.onStartSearch = onStartSearch
-        _model = StateObject(wrappedValue: HomeViewModel(service: UnavailableDiscoveryService()))
     }
 
     var body: some View {
@@ -43,7 +42,7 @@ struct HomeView: View {
                 // 1. Sección "CONTINUAR" (si hay episodio a medias guardado)
                 continueSection
 
-                // 1b. Sección "SELECCIONES RÁPIDAS" (Mix de la última escucha)
+                // 1b. Sección "SELECCIONES RÁPIDAS" (al azar de la biblioteca)
                 quickPicksSection
 
                 // 2. Sección "ESCUCHADO HACE POCO"
@@ -64,20 +63,16 @@ struct HomeView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .background(DiegoTheme.background.ignoresSafeArea())
-        .task {
-            model.configure(service: environment.youtubeService)
-            await refreshQuickPicks()
-        }
+        .onAppear(perform: shuffleQuickPicks)
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await refreshQuickPicks() } }
+            if phase == .active { shuffleQuickPicks() }
         }
-        .onChange(of: library.history.first?.videoID) { _, _ in
-            Task { await refreshQuickPicks() }
-        }
+        .onChange(of: library.favorites.count) { _, _ in shuffleQuickPicks() }
     }
 
-    private func refreshQuickPicks() async {
-        await model.refreshQuickPicks(history: library.history.map(\.mediaItem))
+    /// Selecciones rápidas: 20 canciones al azar de la biblioteca.
+    private func shuffleQuickPicks() {
+        quickPicks = library.favorites.shuffled().prefix(20).map(\.mediaItem)
     }
 
     // MARK: - Cabecera de sección Donda
@@ -288,10 +283,10 @@ struct HomeView: View {
 
     @ViewBuilder
     private var quickPicksSection: some View {
-        if !model.quickPicks.isEmpty {
+        if !quickPicks.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                playAllHeader("SELECCIONES RÁPIDAS", items: model.quickPicks)
-                itemGrid(model.quickPicks)
+                sectionHeader("SELECCIONES RÁPIDAS")
+                itemGrid(quickPicks)
             }
         }
     }
@@ -467,20 +462,4 @@ struct HomeView: View {
             return "\(max(1, minutes)) MIN"
         }
     }
-}
-
-/// Conformante provisional que impide acceder a la red antes de que el
-/// servicio real se inyecte desde el entorno en el primer `.task`.
-private struct UnavailableDiscoveryService: YouTubeDataServicing {
-    func search(query: String, pageToken: String?) async throws -> SearchPage {
-        throw YouTubeServiceError.unavailable
-    }
-    func discover() async throws -> DiscoveryFeed { throw YouTubeServiceError.unavailable }
-    func artist(byChannelID: String) async throws -> ArtistDetail { throw YouTubeServiceError.unavailable }
-    func album(byPlaylistID: String) async throws -> Album { throw YouTubeServiceError.unavailable }
-    func radio(seed videoID: String) async throws -> [MediaItem] { [] }
-    func podcastEpisodes(channelID: String, pageToken: String?) async throws -> PodcastEpisodePage {
-        PodcastEpisodePage(episodes: [], hiddenShortCount: 0)
-    }
-    func searchChannel(_ query: String) async throws -> PodcastShow? { nil }
 }

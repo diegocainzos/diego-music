@@ -82,7 +82,6 @@
 		CA2F000B54C6149104DAD2BA /* DiegoMusicApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88CC5007055E958CA1DF8A2 /* DiegoMusicApp.swift */; };
 		CB26DB31E8FBA6DA284AC2AD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7431211BFD831BFE345787 /* RootView.swift */; };
 		CC098E954CDAE1168EB327AB /* CarPlayNowPlayingConfigurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FD62AD63E4D0FD616C2D493 /* CarPlayNowPlayingConfigurator.swift */; };
-		CCAB397154603A49D077D1FB /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AD26475811511245BC77670 /* HomeViewModel.swift */; };
 		CD158DD51509D51C08527BE2 /* OfflineDownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0D07A81799D5A969378F04 /* OfflineDownloadManager.swift */; };
 		D0870BC343C69067DE0613E7 /* AudioPlayerCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FB13C662B63A966DBF25255 /* AudioPlayerCoordinator.swift */; };
 		D112246C12C3C6E5FB144AC1 /* AppThemeModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B1030711BF11AE91500882 /* AppThemeModeTests.swift */; };
@@ -114,7 +113,6 @@
 		090C5ADC3245B7DE1B38935A /* PlaybackQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackQueueTests.swift; sourceTree = "<group>"; };
 		0976345E0EAFD37E5D7FA028 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		0993E40A73827BA8545DBF8C /* ArtworkCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkCache.swift; sourceTree = "<group>"; };
-		0AD26475811511245BC77670 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		0FDA5A5D2D2D02FF647A79B5 /* HTTPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPTransport.swift; sourceTree = "<group>"; };
 		0FE57CBF0D3EE918C5629D1B /* AlbumsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumsView.swift; sourceTree = "<group>"; };
 		140CAA550915A666402FE3B2 /* PlaybackQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackQueue.swift; sourceTree = "<group>"; };
@@ -263,7 +261,6 @@
 				B8F106F9E95C9822C5808CE2 /* ArtistView.swift */,
 				8A833390261A5760F0B6CE8F /* HomeLogic.swift */,
 				30DD7EC7F2EA80F9AAB0BB1D /* HomeView.swift */,
-				0AD26475811511245BC77670 /* HomeViewModel.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -664,7 +661,6 @@
 				D5BE1D4CF19CFE38F195BDAE /* HTTPTransport.swift in Sources */,
 				C29A17187A36E411B73A37C5 /* HomeLogic.swift in Sources */,
 				47510C2F1438B6752D5CC68D /* HomeView.swift in Sources */,
-				CCAB397154603A49D077D1FB /* HomeViewModel.swift in Sources */,
 				233E9CF5E4CBFB98E51CFB1D /* ImportYouTubePlaylistSheet.swift in Sources */,
 				783D5A3D00E294671014DE12 /* KeychainTokenManager.swift in Sources */,
 				B4550670107A8D20603642FF /* LRCLibProvider.swift in Sources */,

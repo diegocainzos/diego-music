@@ -555,27 +555,6 @@ struct PlayerDock: View {
     private func belowControlsSection(_ current: MediaItem) -> some View {
         if isPodcast {
             PodcastCaptionView(item: current, downloadManager: environment.downloadManager)
-        } else {
-            Button {
-                if player.radioSeedTitle != nil {
-                    player.stopRadio()
-                } else {
-                    player.startRadio()
-                }
-            } label: {
-                Text(player.radioSeedTitle != nil ? "RADIO ACTIVA · PARAR" : "INICIAR RADIO")
-                    .dondaLabel()
-                    .foregroundStyle(DiegoTheme.textPrimary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .overlay(
-                        Rectangle()
-                            .stroke(DiegoTheme.outline, lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(player.radioSeedTitle != nil ? "Parar radio" : "Iniciar radio")
-            .padding(.top, 4)
         }
     }
 

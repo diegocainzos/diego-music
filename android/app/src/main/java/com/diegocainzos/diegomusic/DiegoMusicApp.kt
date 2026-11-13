@@ -208,38 +208,6 @@ class AppContainer(app: Application) {
         withToken { token -> backend.recordPlay(token, item.payload(), playedSeconds) }
     }
 
-    // MARK: - Selecciones rápidas
-
-    private val homePrefs = app.getSharedPreferences("home", android.content.Context.MODE_PRIVATE)
-    private val picksJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-    private val picksSerializer = kotlinx.serialization.builtins.ListSerializer(MediaItem.serializer())
-    private val _quickPicks = MutableStateFlow(
-        runCatching { picksJson.decodeFromString(picksSerializer, homePrefs.getString("quickPicks", null)!!) }.getOrDefault(emptyList()),
-    )
-    val quickPicks: StateFlow<List<MediaItem>> = _quickPicks
-    private var picksJob: kotlinx.coroutines.Job? = null
-
-    fun refreshQuickPicks() {
-        picksJob?.cancel()
-        picksJob = scope.launch {
-            val history = library.history.value.map { it.mediaItem }
-            val seeds = com.diegocainzos.diegomusic.ui.HomeLogic.quickPickSeeds(history, kotlin.random.Random.Default)
-            if (seeds.isEmpty()) return@launch
-            val mixes: List<List<MediaItem>> = kotlinx.coroutines.coroutineScope {
-                val jobs: List<kotlinx.coroutines.Deferred<List<MediaItem>>> = seeds.map { s ->
-                    async {
-                        try { youtube.radio(s) } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList<MediaItem>() }
-                    }
-                }
-                jobs.map { it.await() }
-            }
-            val merged = com.diegocainzos.diegomusic.ui.HomeLogic.mergeMixes(seeds, mixes)
-            if (merged.isEmpty()) return@launch
-            _quickPicks.value = merged
-            homePrefs.edit().putString("quickPicks", picksJson.encodeToString(picksSerializer, merged)).apply()
-        }
-    }
-
     // MARK: - Autenticación
 
     private suspend fun checkInitialAuthState() {

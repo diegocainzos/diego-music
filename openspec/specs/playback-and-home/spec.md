@@ -50,40 +50,26 @@ The system SHALL show in the queue view the current track followed by up to 20 u
 - **THEN** the track at that position after the current one starts playing
 
 ### Requirement: Selecciones rápidas en Inicio
-The system SHALL show on Home a "Selecciones rápidas" section built by interleaving the YouTube Mixes of up to three seeds (the most recently played distinct track plus up to two others picked at random among the ten most recent distinct tracks), excluding the seeds and repeated tracks, at most 20 rows, as a compact list where each row shows small square artwork, the title as the prominent text and the artist as secondary text, with a "Reproducir todo" action. The last list shown SHALL be kept on the device and shown immediately on the next launch, and the list SHALL be recomputed when the app returns to the foreground and when a new track enters the history, replacing the visible list only once the new one is ready.
+The system SHALL show on Home a "Selecciones rápidas" section with up to 20 tracks picked at random from the user's saved songs, as a compact list where each row shows small square artwork, the title as the prominent text and the artist as secondary text, without a "Reproducir todo" action. The selection SHALL be reshuffled when Home appears, when the app returns to the foreground and when the saved songs change. No network request is made to build it.
 
-#### Scenario: Con historial
-- **GIVEN** the most recently played track is A
+#### Scenario: Con canciones guardadas
+- **GIVEN** the library holds saved songs
 - **WHEN** Home is shown
-- **THEN** "Selecciones rápidas" lists Mix items of A without A
+- **THEN** "Selecciones rápidas" lists at most 20 of them in random order without duplicates
 
-#### Scenario: Varias semillas
-- **GIVEN** the history holds the distinct tracks A, B, C, D (A most recent) and the Mixes of the chosen seeds are known
-- **WHEN** the list is built
-- **THEN** A is always a seed, at most three seeds are used, the rows alternate between the seeds' Mixes, no seed and no duplicate appears, and there are at most 20 rows
-
-#### Scenario: Aparece al instante
-- **GIVEN** a list was shown in a previous session
-- **WHEN** the app is launched again
-- **THEN** that list is visible before any Mix request finishes
-
-#### Scenario: Se refresca al volver a la app
+#### Scenario: Se baraja al volver a la app
 - **GIVEN** Home shows a list
-- **WHEN** the app returns to the foreground or a new track is played
-- **THEN** a new list is computed and replaces the old one when ready, and the section never becomes empty meanwhile
+- **WHEN** the app returns to the foreground
+- **THEN** a new random selection of the saved songs is shown
 
 #### Scenario: Reproducir una fila
 - **WHEN** the user taps a row in "Selecciones rápidas"
 - **THEN** that track plays as a single track
 
-#### Scenario: Reproducir todo
-- **WHEN** the user taps "Reproducir todo"
-- **THEN** the queue becomes the listed tracks starting at the first one and the radio is not active
-
-#### Scenario: Sin historial o sin Mix
-- **GIVEN** there is no history and nothing stored, or every Mix request fails or returns nothing
+#### Scenario: Sin canciones guardadas
+- **GIVEN** the library holds no saved songs
 - **WHEN** Home is shown
-- **THEN** the previously shown list stays if there is one, otherwise the section is not shown, and no error is displayed
+- **THEN** the section is not shown
 
 ### Requirement: Sin recomendaciones por LLM
 The system SHALL NOT show a "Para ti" section nor request LLM recommendations, and the resolver SHALL NOT expose a recommendations endpoint.

@@ -19,28 +19,6 @@ enum HomeLogic {
         return result
     }
 
-    /// La más reciente + hasta 2 al azar (sin repetición) entre el resto de las 10 más recientes.
-    static func quickPickSeeds(_ history: [MediaItem], using random: inout some RandomNumberGenerator) -> [String] {
-        let recent = distinctRecent(history, limit: 10)
-        guard let first = recent.first else { return [] }
-        let others = recent.dropFirst().shuffled(using: &random).prefix(2).map(\.id)
-        return [first.id] + others
-    }
-
-    /// Intercala los Mix (uno por semilla), sin semillas ni repetidos.
-    static func mergeMixes(seeds: [String], mixes: [[MediaItem]], limit: Int = 20) -> [MediaItem] {
-        var taken = Set(seeds)
-        var result: [MediaItem] = []
-        var index = 0
-        while result.count < limit, mixes.contains(where: { index < $0.count }) {
-            for mix in mixes where index < mix.count && result.count < limit {
-                if taken.insert(mix[index].id).inserted { result.append(mix[index]) }
-            }
-            index += 1
-        }
-        return result
-    }
-
     static func looksLikeSong(_ title: String) -> Bool {
         if title.filter({ $0 == "," }).count >= 3 { return false }
         // Minúsculas + límites Unicode explícitos: igual en Swift, Kotlin y JS (\b difiere con tildes).

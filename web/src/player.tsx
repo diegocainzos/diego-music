@@ -97,9 +97,6 @@ export function ExpandedPlayer({ onClose }: { onClose: () => void }) {
         </div>
         <Scrubber />
         <Controls />
-        <button className="btn-outline" style={{ padding: '10px 16px' }} onClick={() => (radioSeed ? player.stopRadio() : player.startRadio())}>
-          <Label>{radioSeed ? 'Radio activa · parar' : 'Iniciar radio'}</Label>
-        </button>
         <div className="tabs" role="tablist">
           {(['queue', 'lyrics'] as const).map((t) => (
             <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>

@@ -201,9 +201,6 @@ fun ExpandedPlayer(onDismiss: () -> Unit) {
                         size = 10.sp, align = TextAlign.Center, modifier = Modifier.padding(top = 4.dp),
                     )
                 } else {
-                    OutlineButton(if (radioSeed != null) "Radio activa · parar" else "Iniciar radio", horizontal = 16.dp, vertical = 10.dp) {
-                        if (radioSeed != null) player.stopRadio() else player.startRadio()
-                    }
                     PlayerTabs(tab) { tab = it }
                     if (tab == PlayerTab.QUEUE) {
                         UpcomingQueue(player, radioSeed)

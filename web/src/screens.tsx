@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import * as api from './api.ts'
 import type { ArtistDetail, Playlist, Track } from './api.ts'
-import { DISCOVERY_CHIPS, discoveryQuery, distinctRecent, looksLikeSong, mergeMixes, quickPickSeeds } from './home.ts'
+import { DISCOVERY_CHIPS, discoveryQuery, distinctRecent, looksLikeSong } from './home.ts'
 import { login, logout, navigate, player, refreshLibrary, register, session, setTheme, toast, ui, useStore } from './store.ts'
 import { ApkButton, BackBar, Carousel, EmptyState, Icon, Label, Loading, Section, Title, TrackArt, TrackMenu, TrackRow } from './ui.tsx'
 
@@ -127,18 +127,6 @@ function RegisterForm() {
 
 // MARK: - Inicio
 
-const PICKS_KEY = 'diegomusic.quickPicks'
-const loadPicks = (): Track[] => {
-  try {
-    const v = JSON.parse(localStorage.getItem(PICKS_KEY) ?? '[]')
-    return Array.isArray(v)
-      ? v.filter((t) => t && typeof t === 'object' && typeof t.id === 'string' && typeof t.title === 'string')
-      : []
-  } catch {
-    return []
-  }
-}
-
 // Rejilla compacta de 4 filas reutilizada por las tres listas de Inicio.
 function CompactGrid({ tracks, onPlay }: { tracks: Track[]; onPlay: (t: Track) => void }) {
   return (
@@ -165,38 +153,20 @@ function PlayAll({ title, tracks }: { title: string; tracks: Track[] }) {
   )
 }
 
-// Selecciones rápidas: Mixes de hasta 3 semillas del historial, entrelazados. Nunca se vacía.
-function QuickPicks({ history }: { history: Track[] }) {
-  const [picks, setPicks] = useState<Track[]>(loadPicks)
-  const newest = history[0]?.id
-  const gen = useRef(0)
-  const refresh = useCallback(() => {
-    const seeds = quickPickSeeds(history, Math.random)
-    if (!seeds.length) return
-    const mine = ++gen.current
-    Promise.allSettled(seeds.map((s) => api.radio(s))).then((rs) => {
-      if (mine !== gen.current) return
-      const merged = mergeMixes(seeds, rs.map((r) => (r.status === 'fulfilled' ? r.value : [])))
-      if (!merged.length) return
-      setPicks(merged)
-      try {
-        localStorage.setItem(PICKS_KEY, JSON.stringify(merged))
-      } catch {
-        /* sin almacenamiento */
-      }
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [newest])
-  useEffect(refresh, [refresh])
+// Selecciones rápidas: 20 canciones al azar de la biblioteca, nuevas al volver a la pestaña.
+function QuickPicks({ favorites }: { favorites: Track[] }) {
+  const shuffle = useCallback(() => [...favorites].sort(() => Math.random() - 0.5).slice(0, 20), [favorites])
+  const [picks, setPicks] = useState<Track[]>(shuffle)
+  useEffect(() => setPicks(shuffle()), [shuffle])
   useEffect(() => {
-    const onVisible = () => document.visibilityState === 'visible' && refresh()
+    const onVisible = () => document.visibilityState === 'visible' && setPicks(shuffle())
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [refresh])
+  }, [shuffle])
   if (!picks.length) return null
   return (
     <section className="section">
-      <PlayAll title="Selecciones rápidas" tracks={picks} />
+      <Label wide>Selecciones rápidas</Label>
       <CompactGrid tracks={picks} onPlay={player.play} />
     </section>
   )
@@ -261,7 +231,7 @@ export function Home() {
   return (
     <div className="page">
       <div className="wordmark" style={{ paddingTop: 36 }}>DiegoMusic</div>
-      <QuickPicks history={history} />
+      <QuickPicks favorites={favorites} />
       {recent.length > 0 && (
         <section className="section">
           <Label wide>Escuchado hace poco</Label>

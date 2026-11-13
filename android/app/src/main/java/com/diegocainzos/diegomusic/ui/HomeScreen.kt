@@ -64,13 +64,13 @@ fun HomeScreen() {
     val favorites by app.library.favorites.collectAsState()
     val shows by app.library.followedShows.collectAsState()
     val progressVersion by app.library.progressVersion.collectAsState()
-    val quickPicks by app.quickPicks.collectAsState()
-    val newestId = history.firstOrNull()?.videoId
-
-    LaunchedEffect(newestId) { app.refreshQuickPicks() }
+    // Selecciones rápidas: 20 canciones al azar de la biblioteca, nuevas al volver a la app.
+    var quickPicks by remember { mutableStateOf(emptyList<MediaItem>()) }
+    fun shuffle() { quickPicks = favorites.shuffled().take(20).map { it.mediaItem } }
+    LaunchedEffect(favorites.size) { shuffle() }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
-        val observer = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) app.refreshQuickPicks() }
+        val observer = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) shuffle() }
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
@@ -110,10 +110,7 @@ fun HomeScreen() {
         // Selecciones rápidas
         if (quickPicks.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    DLabel("Selecciones rápidas", modifier = Modifier.weight(1f), tracking = 4.sp, maxLines = 1)
-                    OutlineButton("Reproducir todo") { app.playQueue(quickPicks, 0) }
-                }
+                SectionHeader("Selecciones rápidas")
                 CompactGrid(quickPicks) { app.play(it) }
             }
         }

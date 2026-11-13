@@ -100,10 +100,10 @@ Cambio de referencia: `openspec/changes/donda-ui-podcasts-radio/`.
 - **Carátulas:** reales y a color, cuadradas y con borde `hairline`.
 - **Navegación:** tres pestañas (Inicio, Buscar, Biblioteca). La Biblioteca se divide en Playlists, Podcasts, Canciones, Álbumes, Artistas y Descargas, y Ajustes se abre en `sheet` desde su cabecera. Inicio no muestra «Nuevos episodios».
 - **Mini‑player:** flota sobre el contenido y por encima de la barra de pestañas.
-- **Reproductor expandido (`PlayerDock`):** progreso lineal (no hay halo circular). Música: `shuffle`, `previous`, Play/Pause, `next` y `repeat`, más el botón de radio y las pestañas «A continuación» (cola) y «Letras» (incrustadas). Episodio: velocidad (1×–2×), −15 s, Play/Pause, +30 s y descarga.
+- **Reproductor expandido (`PlayerDock`):** progreso lineal (no hay halo circular). Música: `shuffle`, `previous`, Play/Pause, `next` y `repeat` y las pestañas «A continuación» (cola) y «Letras» (incrustadas). Episodio: velocidad (1×–2×), −15 s, Play/Pause, +30 s y descarga.
 - **Podcasts:** son canales de YouTube seguidos (`FollowedShow`). Solo se listan episodios de 40 min o más, obtenidos de la playlist de uploads con `videos.list` (nunca con `search.list`). El progreso por episodio se guarda en `EpisodeProgress`. La velocidad solo se aplica en `PlaybackContext.podcast`; la música siempre suena a 1×. Con un episodio, los comandos remotos son skip −15 s y +30 s.
-- **Selecciones rápidas (Inicio):** Mix (`GET /v1/radio/{video_id}`) de la última pista del historial, sin la semilla, máximo 20, en rejilla horizontal de 4 filas con carátula pequeña y «Reproducir todo». Sin historial o si falla, la sección no aparece. No hay recomendaciones por LLM (cambio `ytm-layout-autoradio`).
-- **Radio:** la sirve `GET /v1/radio/{video_id}` (Mix de YouTube con `yt-dlp --flat-playlist`). Reproducir una pista suelta la arranca sola (`select(_, autoRadio: true)`, fallo silencioso); reproducir un álbum, playlist o episodio no. `stopRadio()` la para. La vista de cola muestra la pista actual y hasta 20 siguientes (`upNextWindow`).
+- **Selecciones rápidas (Inicio):** hasta 20 canciones guardadas al azar, barajadas al abrir Inicio o volver a la app, en filas compactas, sin «Reproducir todo». Sin canciones guardadas, la sección no aparece. No hay recomendaciones por LLM.
+- **Radio:** la sirve `GET /v1/radio/{video_id}` (Mix de YouTube con `yt-dlp --flat-playlist`). Reproducir una pista suelta la arranca sola (`select(_, autoRadio: true)`, fallo silencioso); reproducir un álbum, playlist o episodio no. No hay botón para iniciarla o pararla; `stopRadio()` la para internamente. La vista de cola muestra la pista actual y hasta 20 siguientes (`upNextWindow`).
 
 ### Cliente Android (`android/`)
 
