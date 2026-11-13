@@ -50,12 +50,27 @@ The system SHALL show in the queue view the current track followed by up to 20 u
 - **THEN** the track at that position after the current one starts playing
 
 ### Requirement: Selecciones rápidas en Inicio
-The system SHALL show on Home a "Selecciones rápidas" section built from the YouTube Mix of the most recently played track, excluding that track, as a compact list where each row shows small square artwork, the title as the prominent text and the artist as secondary text, with a "Reproducir todo" action.
+The system SHALL show on Home a "Selecciones rápidas" section built by interleaving the YouTube Mixes of up to three seeds (the most recently played distinct track plus up to two others picked at random among the ten most recent distinct tracks), excluding the seeds and repeated tracks, at most 20 rows, as a compact list where each row shows small square artwork, the title as the prominent text and the artist as secondary text, with a "Reproducir todo" action. The last list shown SHALL be kept on the device and shown immediately on the next launch, and the list SHALL be recomputed when the app returns to the foreground and when a new track enters the history, replacing the visible list only once the new one is ready.
 
 #### Scenario: Con historial
 - **GIVEN** the most recently played track is A
 - **WHEN** Home is shown
-- **THEN** "Selecciones rápidas" lists the Mix items of A without A
+- **THEN** "Selecciones rápidas" lists Mix items of A without A
+
+#### Scenario: Varias semillas
+- **GIVEN** the history holds the distinct tracks A, B, C, D (A most recent) and the Mixes of the chosen seeds are known
+- **WHEN** the list is built
+- **THEN** A is always a seed, at most three seeds are used, the rows alternate between the seeds' Mixes, no seed and no duplicate appears, and there are at most 20 rows
+
+#### Scenario: Aparece al instante
+- **GIVEN** a list was shown in a previous session
+- **WHEN** the app is launched again
+- **THEN** that list is visible before any Mix request finishes
+
+#### Scenario: Se refresca al volver a la app
+- **GIVEN** Home shows a list
+- **WHEN** the app returns to the foreground or a new track is played
+- **THEN** a new list is computed and replaces the old one when ready, and the section never becomes empty meanwhile
 
 #### Scenario: Reproducir una fila
 - **WHEN** the user taps a row in "Selecciones rápidas"
@@ -66,9 +81,9 @@ The system SHALL show on Home a "Selecciones rápidas" section built from the Yo
 - **THEN** the queue becomes the listed tracks starting at the first one and the radio is not active
 
 #### Scenario: Sin historial o sin Mix
-- **GIVEN** there is no history, or the Mix request fails or returns nothing
+- **GIVEN** there is no history and nothing stored, or every Mix request fails or returns nothing
 - **WHEN** Home is shown
-- **THEN** the "Selecciones rápidas" section is not shown and no error is displayed
+- **THEN** the previously shown list stays if there is one, otherwise the section is not shown, and no error is displayed
 
 ### Requirement: Sin recomendaciones por LLM
 The system SHALL NOT show a "Para ti" section nor request LLM recommendations, and the resolver SHALL NOT expose a recommendations endpoint.
@@ -100,3 +115,92 @@ The web client SHALL keep every track title and artist inside its row on WebKit-
 - **GIVEN** a track whose title is longer than the row width
 - **WHEN** a track row is rendered in a WebKit browser at 375 px width
 - **THEN** the title's right edge does not exceed its row's right edge
+
+### Requirement: Mix servido desde caché
+The resolver SHALL cache the Mix of each video for a bounded time and number of entries, and concurrent requests for the same video SHALL share a single extraction. Failed or empty results SHALL NOT be cached.
+
+#### Scenario: Segunda petición desde caché
+- **GIVEN** the Mix of A was requested successfully
+- **WHEN** the Mix of A is requested again before it expires
+- **THEN** the same items are returned without a new extraction
+
+#### Scenario: Peticiones simultáneas
+- **WHEN** several requests for the Mix of A arrive at the same time
+- **THEN** a single extraction runs and all of them get its items
+
+#### Scenario: Caducidad
+- **GIVEN** the cached Mix of A has expired
+- **WHEN** the Mix of A is requested
+- **THEN** a new extraction runs
+
+#### Scenario: Fallo no cacheado
+- **GIVEN** the extraction for A failed or returned nothing
+- **WHEN** the Mix of A is requested again
+- **THEN** a new extraction runs
+
+### Requirement: Historial de todo lo que suena
+The system SHALL add to the playback history every music track that starts playing, whatever started it (a tap, a list, the queue advancing, the radio, next or previous), SHALL NOT add podcast episodes, and SHALL NOT add a track when it is already the most recent history entry. Local history SHALL be on by default and only off when the user turns it off in Settings.
+
+#### Scenario: Historial activado por defecto
+- **GIVEN** a fresh install where the user never touched the history setting
+- **WHEN** a music track starts
+- **THEN** it becomes the most recent history entry
+
+#### Scenario: Avance automático
+- **GIVEN** a list is playing
+- **WHEN** the next track starts by itself
+- **THEN** that track becomes the most recent history entry
+
+#### Scenario: Repetición o reintento
+- **GIVEN** the most recent history entry is A
+- **WHEN** A starts playing again
+- **THEN** no new entry is added
+
+#### Scenario: Episodio
+- **WHEN** a podcast episode starts playing
+- **THEN** the history does not change
+
+#### Scenario: Restaurar sesión
+- **WHEN** the app restores the last track at launch without playing it
+- **THEN** the history does not change
+
+### Requirement: Escuchado hace poco
+The system SHALL show on Home "Escuchado hace poco" with the ten most recent distinct tracks of the history, newest first, as compact rows (small square artwork, title, artist).
+
+#### Scenario: Pistas repetidas
+- **GIVEN** the history is A, B, A, C (newest first)
+- **WHEN** Home is shown
+- **THEN** the section lists A, B, C
+
+#### Scenario: Sin historial
+- **GIVEN** the history is empty
+- **WHEN** Home is shown
+- **THEN** the section is not shown
+
+### Requirement: Descubrimiento con filtros
+The system SHALL show on Home a "Descubrimiento" section with four groups of chips (Género, Vibra, Década, País), at most one selected per group, and a "Buscar" action that is enabled only when at least one chip is selected. Buscar SHALL search with the selected values joined in the order género, vibra, década, país and list up to 20 songs (no channels) as compact rows with "Reproducir todo". No LLM is used.
+
+#### Scenario: Componer la búsqueda
+- **GIVEN** Género "Reggaetón", Década "2010s" and País "Colombia" are selected
+- **WHEN** the user taps "Buscar"
+- **THEN** the query is "reggaetón 2010s colombia" and up to 20 songs are listed
+
+#### Scenario: Un chip por grupo
+- **GIVEN** Vibra "Chill" is selected
+- **WHEN** the user taps Vibra "Fiesta"
+- **THEN** only "Fiesta" is selected in Vibra; tapping it again leaves Vibra without selection
+
+#### Scenario: Nada seleccionado
+- **GIVEN** no chip is selected
+- **THEN** "Buscar" is disabled
+
+#### Scenario: Sin resultados o fallo
+- **WHEN** the search returns nothing or fails
+- **THEN** the section shows "Sin resultados" or a sanitized error and keeps the chips
+
+### Requirement: Composición de Inicio
+Home SHALL show, in this order and each only when it has content: Continuar, Selecciones rápidas, Escuchado hace poco, Descubrimiento, Tus podcasts, Favoritos. Home SHALL NOT show Novedades (most popular videos), Artistas destacados or Más escuchadas.
+
+#### Scenario: Secciones retiradas
+- **WHEN** Home is shown
+- **THEN** no "Artistas destacados", "Más escuchadas" or most-popular section appears
