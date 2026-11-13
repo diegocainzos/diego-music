@@ -5,7 +5,19 @@ struct HomeView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @EnvironmentObject private var navState: NavigationState
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model: HomeViewModel
+    @State private var genre: String?
+    @State private var vibe: String?
+    @State private var decade: String?
+    @State private var country: String?
+    @State private var discovery: DiscoveryState = .idle
+    @State private var discoveryGeneration = 0
+
+    private enum DiscoveryState {
+        case idle, loading, empty, failed
+        case loaded([MediaItem])
+    }
 
     private var isCompact: Bool { sizeClass == .compact }
 
@@ -34,17 +46,13 @@ struct HomeView: View {
                 // 2. Sección "ESCUCHADO HACE POCO"
                 recentlyPlayedSection
 
-                // 3. Sección "TUS PODCASTS"
-                followedPodcastsSection
-
-                // 4. Secciones posteriores de catálogo y favoritos restilizadas con tokens Donda
-                favoritesSection
-
+                // 3. Descubrimiento con filtros
                 discoverySection
 
-                featuredArtistsSection
+                // 4. Podcasts seguidos y favoritos
+                followedPodcastsSection
 
-                topSongsSection
+                favoritesSection
             }
             .padding(.bottom, 40)
             .responsiveHorizontalPadding()
@@ -55,9 +63,18 @@ struct HomeView: View {
         .background(DiegoTheme.background.ignoresSafeArea())
         .task {
             model.configure(service: environment.youtubeService)
-            model.load()
-            await model.loadQuickPicks(seed: environment.library.history.first?.mediaItem)
+            await refreshQuickPicks()
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await refreshQuickPicks() } }
+        }
+        .onChange(of: environment.library.history.first?.videoID) { _, _ in
+            Task { await refreshQuickPicks() }
+        }
+    }
+
+    private func refreshQuickPicks() async {
+        await model.refreshQuickPicks(history: environment.library.history.map(\.mediaItem))
     }
 
     // MARK: - Cabecera de sección Donda
@@ -153,63 +170,6 @@ struct HomeView: View {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     environment.playEpisode(progress.mediaItem, channelID: progress.channelID)
-                }
-            }
-        }
-    }
-
-    // MARK: - 2. Escuchado hace poco (historial reciente de música)
-
-    @ViewBuilder
-    private var recentlyPlayedSection: some View {
-        let historyRecords = environment.library.history
-        let recentItems: [SavedTrack] = Array(historyRecords.prefix(10))
-
-        if !recentItems.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                sectionHeader("ESCUCHADO HACE POCO")
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(Array(recentItems.enumerated()), id: \.element.id) { index, record in
-                            Button {
-                                environment.play(record.mediaItem)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    AsyncImage(url: record.mediaItem.thumbnailURL) { phase in
-                                        switch phase {
-                                        case let .success(image):
-                                            image
-                                                .resizable()
-                                                .scaledToFill()
-                                        default:
-                                            DiegoTheme.background
-                                        }
-                                    }
-                                    .frame(width: 128, height: 128)
-                                    .clipped()
-                                    .overlay(
-                                        Rectangle()
-                                            .stroke(DiegoTheme.hairline, lineWidth: 1)
-                                    )
-
-                                    Text(record.title)
-                                        .font(.system(size: 13, weight: .regular))
-                                        .foregroundStyle(DiegoTheme.textPrimary)
-                                        .lineLimit(1)
-
-                                    Text(record.channelTitle)
-                                        .dondaLabel()
-                                        .foregroundStyle(DiegoTheme.textSecondary)
-                                        .lineLimit(1)
-                                }
-                                .frame(width: 128, alignment: .leading)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Reproducir \(record.title)")
-                        }
-                    }
-                    .padding(.vertical, 4)
                 }
             }
         }
@@ -321,269 +281,176 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Descubrimiento / Novedades
-
-    @ViewBuilder
-    private var discoverySection: some View {
-        if case let .loaded(feed) = model.state, !feed.novedades.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                sectionHeader("DESCUBRIMIENTO")
-
-                mediaCarousel(feed.novedades)
-            }
-        }
-    }
-
-    // MARK: - Selecciones rápidas (Mix de la última escucha)
+    // MARK: - Selecciones rápidas y escuchado hace poco
 
     @ViewBuilder
     private var quickPicksSection: some View {
         if !model.quickPicks.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .center, spacing: 12) {
-                    sectionHeader("SELECCIONES RÁPIDAS")
-
-                    Button {
-                        environment.playQueue(model.quickPicks, startingAt: 0)
-                    } label: {
-                        Text("REPRODUCIR TODO")
-                            .dondaLabel()
-                            .foregroundStyle(DiegoTheme.textPrimary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .overlay(
-                                Rectangle()
-                                    .stroke(DiegoTheme.outline, lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                // Rejilla horizontal: 4 filas por columna; columna ≈ 85% del ancho (máx. 360 pt).
-                GeometryReader { geo in
-                    let columnWidth = min(geo.size.width * 0.85, 360)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHGrid(rows: Array(repeating: GridItem(.fixed(56)), count: 4), spacing: 16) {
-                            ForEach(model.quickPicks, id: \.id) { item in
-                                Button {
-                                    environment.play(item)
-                                } label: {
-                                    HStack(alignment: .center, spacing: 12) {
-                                        AsyncImage(url: item.thumbnailURL) { phase in
-                                            switch phase {
-                                            case let .success(image):
-                                                image
-                                                    .resizable()
-                                                    .scaledToFill()
-                                            default:
-                                                DiegoTheme.background
-                                            }
-                                        }
-                                        .frame(width: 48, height: 48)
-                                        .clipped()
-                                        .overlay(
-                                            Rectangle()
-                                                .stroke(DiegoTheme.hairline, lineWidth: 1)
-                                        )
-
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(item.title)
-                                                .font(.system(size: 15, weight: .semibold))
-                                                .foregroundStyle(DiegoTheme.textPrimary)
-                                                .lineLimit(1)
-
-                                            Text(item.channelTitle)
-                                                .dondaLabel()
-                                                .foregroundStyle(DiegoTheme.textSecondary)
-                                                .lineLimit(1)
-                                        }
-                                    }
-                                    .frame(width: columnWidth, height: 56, alignment: .leading)
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Reproducir \(item.title)")
-                            }
-                        }
-                    }
-                }
-                .frame(height: 4 * 56 + 3 * 16)
+                playAllHeader("SELECCIONES RÁPIDAS", items: model.quickPicks)
+                itemGrid(model.quickPicks)
             }
         }
     }
 
-    private func mediaCarousel(_ items: [MediaItem]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 16) {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    Button {
-                        environment.play(item)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 6) {
-                            AsyncImage(url: item.thumbnailURL) { phase in
-                                switch phase {
-                                case let .success(image):
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                default:
-                                    DiegoTheme.background
-                                }
-                            }
-                            .frame(width: 128, height: 128)
-                            .clipped()
-                            .overlay(
-                                Rectangle()
-                                    .stroke(DiegoTheme.hairline, lineWidth: 1)
-                            )
+    @ViewBuilder
+    private var recentlyPlayedSection: some View {
+        let recent = HomeLogic.distinctRecent(environment.library.history.map(\.mediaItem))
+        if !recent.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                sectionHeader("ESCUCHADO HACE POCO")
+                itemGrid(recent)
+            }
+        }
+    }
 
-                            Text(item.title)
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundStyle(DiegoTheme.textPrimary)
-                                .lineLimit(1)
+    private func playAllHeader(_ title: String, items: [MediaItem]) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            sectionHeader(title)
+            outlineButton("REPRODUCIR TODO") {
+                environment.playQueue(items, startingAt: 0)
+            }
+        }
+    }
 
-                            Text(item.channelTitle)
+    private func outlineButton(_ title: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .dondaLabel()
+                .foregroundStyle(DiegoTheme.textPrimary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .opacity(disabled ? 0.4 : 1)
+    }
+
+    /// Fila compacta: carátula 48 pt, título semibold y artista.
+    private func compactRow(_ item: MediaItem, width: CGFloat) -> some View {
+        Button {
+            environment.play(item)
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                AsyncImage(url: item.thumbnailURL) { phase in
+                    switch phase {
+                    case let .success(image):
+                        image.resizable().scaledToFill()
+                    default:
+                        DiegoTheme.background
+                    }
+                }
+                .frame(width: 48, height: 48)
+                .clipped()
+                .overlay(Rectangle().stroke(DiegoTheme.hairline, lineWidth: 1))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(DiegoTheme.textPrimary)
+                        .lineLimit(1)
+                    Text(item.channelTitle)
+                        .dondaLabel()
+                        .foregroundStyle(DiegoTheme.textSecondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(width: width, height: 56, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Reproducir \(item.title)")
+    }
+
+    /// Rejilla horizontal de 4 filas; columna ≈ 85% del ancho (máx. 360 pt).
+    private func itemGrid(_ items: [MediaItem]) -> some View {
+        GeometryReader { geo in
+            let columnWidth = min(geo.size.width * 0.85, 360)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHGrid(rows: Array(repeating: GridItem(.fixed(56)), count: 4), spacing: 16) {
+                    ForEach(items, id: \.id) { compactRow($0, width: columnWidth) }
+                }
+            }
+        }
+        .frame(height: 4 * 56 + 3 * 16)
+    }
+
+    // MARK: - Descubrimiento con filtros
+
+    private var discoveryQuery: String? {
+        HomeLogic.discoveryQuery(genre: genre, vibe: vibe, decade: decade, country: country)
+    }
+
+    private var discoverySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("DESCUBRIMIENTO")
+            chipRow("GÉNERO", DiscoveryChips.genre, $genre)
+            chipRow("VIBRA", DiscoveryChips.vibe, $vibe)
+            chipRow("DÉCADA", DiscoveryChips.decade, $decade)
+            chipRow("PAÍS", DiscoveryChips.country, $country)
+
+            HStack {
+                outlineButton("BUSCAR", disabled: discoveryQuery == nil) {
+                    Task { await runDiscovery() }
+                }
+                Spacer()
+            }
+
+            switch discovery {
+            case .idle:
+                EmptyView()
+            case .loading:
+                Text("BUSCANDO").dondaLabel().foregroundStyle(DiegoTheme.textSecondary)
+            case .empty:
+                Text("SIN RESULTADOS").dondaLabel().foregroundStyle(DiegoTheme.textSecondary)
+            case .failed:
+                Text("No se pudo buscar.").dondaLabel().foregroundStyle(DiegoTheme.textSecondary)
+            case let .loaded(items):
+                playAllHeader("RESULTADOS", items: items)
+                itemGrid(items)
+            }
+        }
+    }
+
+    private func chipRow(_ label: String, _ options: [String], _ selection: Binding<String?>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).dondaLabel().foregroundStyle(DiegoTheme.textSecondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(options, id: \.self) { option in
+                        let selected = selection.wrappedValue == option
+                        Button {
+                            selection.wrappedValue = selected ? nil : option
+                        } label: {
+                            Text(option.uppercased())
                                 .dondaLabel()
-                                .foregroundStyle(DiegoTheme.textSecondary)
-                                .lineLimit(1)
+                                .foregroundStyle(selected ? DiegoTheme.background : DiegoTheme.textPrimary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(selected ? DiegoTheme.textPrimary : Color.clear)
+                                .overlay(Rectangle().stroke(DiegoTheme.outline, lineWidth: 1))
                         }
-                        .frame(width: 128, alignment: .leading)
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Reproducir \(item.title)")
-                }
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    // MARK: - Artistas destacados
-
-    @ViewBuilder
-    private var featuredArtistsSection: some View {
-        if case let .loaded(feed) = model.state, !feed.artistas.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                sectionHeader("ARTISTAS DESTACADOS")
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(feed.artistas) { artist in
-                            Button {
-                                navState.navigate(to: .artistDetail(id: artist.id, name: artist.title))
-                            } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    AsyncImage(url: artist.thumbnailURL) { phase in
-                                        switch phase {
-                                        case let .success(image):
-                                            image
-                                                .resizable()
-                                                .scaledToFill()
-                                        default:
-                                            DiegoTheme.background
-                                        }
-                                    }
-                                    .frame(width: 128, height: 128)
-                                    .clipped()
-                                    .overlay(
-                                        Rectangle()
-                                            .stroke(DiegoTheme.hairline, lineWidth: 1)
-                                    )
-
-                                    Text(artist.title)
-                                        .dondaLabel()
-                                        .foregroundStyle(DiegoTheme.textPrimary)
-                                        .lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-                                }
-                                .frame(width: 128, alignment: .leading)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Artista \(artist.title)")
-                        }
-                    }
-                    .padding(.vertical, 4)
                 }
             }
         }
     }
 
-    // MARK: - Canciones más escuchadas
-
-    @ViewBuilder
-    private var topSongsSection: some View {
-        let topSongs = topMostListenedSongs
-        if !topSongs.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                sectionHeader("MÁS ESCUCHADAS")
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(Array(topSongs.enumerated()), id: \.element.id) { index, songItem in
-                            Button {
-                                environment.play(songItem.mediaItem)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    AsyncImage(url: songItem.mediaItem.thumbnailURL) { phase in
-                                        switch phase {
-                                        case let .success(image):
-                                            image
-                                                .resizable()
-                                                .scaledToFill()
-                                        default:
-                                            DiegoTheme.background
-                                        }
-                                    }
-                                    .frame(width: 128, height: 128)
-                                    .clipped()
-                                    .overlay(
-                                        Rectangle()
-                                            .stroke(DiegoTheme.hairline, lineWidth: 1)
-                                    )
-
-                                    Text(songItem.mediaItem.title)
-                                        .font(.system(size: 13, weight: .regular))
-                                        .foregroundStyle(DiegoTheme.textPrimary)
-                                        .lineLimit(1)
-
-                                    Text(songItem.mediaItem.channelTitle)
-                                        .dondaLabel()
-                                        .foregroundStyle(DiegoTheme.textSecondary)
-                                        .lineLimit(1)
-                                }
-                                .frame(width: 128, alignment: .leading)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Reproducir \(songItem.mediaItem.title)")
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
+    private func runDiscovery() async {
+        guard let query = discoveryQuery else { return }
+        discoveryGeneration += 1
+        let generation = discoveryGeneration
+        discovery = .loading
+        do {
+            let page = try await environment.youtubeService.search(query: query + " official", pageToken: nil)
+            guard generation == discoveryGeneration else { return }
+            let videos = Array(page.items.filter { $0.kind == .video && HomeLogic.looksLikeSong($0.title) }.prefix(20))
+            discovery = videos.isEmpty ? .empty : .loaded(videos)
+        } catch {
+            guard generation == discoveryGeneration else { return }
+            discovery = .failed
         }
-    }
-
-    // MARK: - Auxiliares de cálculo
-
-    private struct TopSongItem: Identifiable {
-        var id: String { mediaItem.id }
-        let mediaItem: MediaItem
-        let playCount: Int
-    }
-
-    private var topMostListenedSongs: [TopSongItem] {
-        let history = environment.library.history
-        guard !history.isEmpty else { return [] }
-        var counts: [String: (item: MediaItem, count: Int)] = [:]
-        for record in history {
-            let item = record.mediaItem
-            if let existing = counts[item.id] {
-                counts[item.id] = (item, existing.count + 1)
-            } else {
-                counts[item.id] = (item, 1)
-            }
-        }
-        return counts.values
-            .map { TopSongItem(mediaItem: $0.item, playCount: $0.count) }
-            .sorted { $0.playCount > $1.playCount }
     }
 
     private func formatRemaining(position: Double, duration: Double) -> String {

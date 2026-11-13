@@ -166,6 +166,7 @@ class LibraryStore(private val dao: LibraryDao) {
     // MARK: - Historial
 
     fun addHistory(item: MediaItem) {
+        if (_history.value.firstOrNull()?.videoId == item.id) return
         dao.insertHistory(PlaybackHistoryRecord(UUID.randomUUID().toString(), item.id, item.title, item.channelTitle, item.artworkUrl, now()))
         reload()
     }

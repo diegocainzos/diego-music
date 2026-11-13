@@ -83,6 +83,9 @@ class PlayerCoordinator(
     /** Avisa a la MediaSession de que cambian los controles (música ↔ episodio). */
     var onContextChanged: (() -> Unit)? = null
 
+    /** Se dispara al empezar a cargar una pista nueva con autoplay (no reintentos, restauración ni episodios). */
+    var onTrackStarted: ((MediaItem) -> Unit)? = null
+
     var episodeRate: Float = 1f
         set(value) {
             field = value
@@ -320,6 +323,7 @@ class PlayerCoordinator(
             recoveryJob?.cancel()
             automaticRetryAvailable = true
         }
+        if (autoplay && resetRetryBudget && !isPodcast) onTrackStarted?.invoke(item)
         val generation = ++loadGeneration
         // El estado cambia antes de `stop()`: ExoPlayer notifica de forma síncrona.
         _playbackState.value = AudioPlaybackState.RESOLVING

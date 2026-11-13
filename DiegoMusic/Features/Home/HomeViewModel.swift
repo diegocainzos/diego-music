@@ -3,64 +3,49 @@ import Foundation
 
 @MainActor
 final class HomeViewModel: ObservableObject {
-    enum FeedState: Equatable {
-        case idle
-        case loading
-        case loaded(DiscoveryFeed)
-        case empty
-        case failed(message: String)
-    }
+    private static let storageKey = "home.quickPicks"
 
-    @Published private(set) var state: FeedState = .idle
-    @Published private(set) var quickPicks: [MediaItem] = []
+    @Published private(set) var quickPicks: [MediaItem]
 
     private var service: (any YouTubeDataServicing)?
-    private var loadTask: Task<Void, Never>?
+    private let defaults: UserDefaults
+    private var refreshGeneration = 0
 
-    init(service: any YouTubeDataServicing) {
+    init(service: any YouTubeDataServicing, defaults: UserDefaults = .standard) {
         self.service = service
+        self.defaults = defaults
+        quickPicks = defaults.data(forKey: Self.storageKey)
+            .flatMap { try? JSONDecoder().decode([MediaItem].self, from: $0) } ?? []
     }
 
-    deinit { loadTask?.cancel() }
-
-    /// Sustituye el servicio provisional (usado antes de conocer el real del
-    /// entorno) y recarga si aún no había datos.
+    /// Sustituye el servicio provisional (usado antes de conocer el real del entorno).
     func configure(service: any YouTubeDataServicing) {
         self.service = service
-        if state == .idle { load() }
     }
 
-    /// Selecciones rápidas: Mix de la última pista escuchada, sin la semilla. Best-effort:
-    /// sin historial, fallo o lista vacía la sección simplemente no aparece (sin estado de error).
-    func loadQuickPicks(seed: MediaItem?) async {
-        guard let service, let seed else {
-            quickPicks = []
-            return
-        }
-        let mix = (try? await service.radio(seed: seed.id)) ?? []
-        quickPicks = Array(mix.filter { $0.id != seed.id }.prefix(20))
-    }
+    /// Selecciones rápidas: mezcla de los Mix de hasta 3 semillas del historial. Best-effort: sin
+    /// semillas, sin Mix o con fallos se conserva la lista previa (nunca queda vacía por un refresco).
+    func refreshQuickPicks(history: [MediaItem]) async {
+        guard let service else { return }
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        var rng = SystemRandomNumberGenerator()
+        let seeds = HomeLogic.quickPickSeeds(history, using: &rng)
+        guard !seeds.isEmpty else { return }
 
-    func load() {
-        guard let service else {
-            state = .idle
-            return
-        }
-        loadTask?.cancel()
-        state = .loading
-        loadTask = Task { [weak self, service] in
-            do {
-                let feed = try await service.discover()
-                guard !Task.isCancelled else { return }
-                self?.state = feed.novedades.isEmpty ? .empty : .loaded(feed)
-            } catch is CancellationError {
-                return
-            } catch {
-                guard !Task.isCancelled else { return }
-                let message = (error as? LocalizedError)?.errorDescription
-                    ?? "No se pudo cargar el descubrimiento."
-                self?.state = .failed(message: message)
+        let mixes: [[MediaItem]] = await withTaskGroup(of: (Int, [MediaItem]).self) { group in
+            for (index, seed) in seeds.enumerated() {
+                group.addTask { (index, (try? await service.radio(seed: seed)) ?? []) }
             }
+            var ordered = Array(repeating: [MediaItem](), count: seeds.count)
+            for await (index, items) in group { ordered[index] = items }
+            return ordered
         }
+
+        guard generation == refreshGeneration, !Task.isCancelled else { return }
+        let merged = HomeLogic.mergeMixes(seeds: seeds, mixes: mixes)
+        guard !merged.isEmpty else { return }
+        quickPicks = merged
+        defaults.set(try? JSONEncoder().encode(merged), forKey: Self.storageKey)
     }
 }

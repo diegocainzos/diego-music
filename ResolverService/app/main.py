@@ -14,6 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.background import BackgroundTask
 
 from .artist_cache import ArtistCache
+from .radio_cache import RadioCache
 from .audio_cache import PersistentAudioCache
 from .config import Settings
 from .models import (
@@ -87,6 +88,7 @@ def create_app(
         max_entries=service_settings.artist_cache_max_entries,
         ttl_seconds=service_settings.artist_cache_ttl_seconds,
     )
+    radio_cache = RadioCache()
     owns_upstream_client = upstream_client is None
 
     @asynccontextmanager
@@ -120,6 +122,7 @@ def create_app(
         openapi_url="/openapi.json",
         lifespan=lifespan,
     )
+    app.state.radio_cache = radio_cache
     bearer = HTTPBearer(auto_error=False)
 
     async def require_api_token(
@@ -233,7 +236,7 @@ def create_app(
         video_id: str = Path(pattern=r"^[A-Za-z0-9_-]{11}$"),
     ) -> RadioResponse:
         try:
-            return RadioResponse(items=await base_resolver.radio(video_id))
+            return RadioResponse(items=await radio_cache.get(video_id, lambda: base_resolver.radio(video_id)))
         except Exception as error:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,

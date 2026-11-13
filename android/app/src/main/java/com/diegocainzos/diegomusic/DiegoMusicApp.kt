@@ -31,6 +31,7 @@ import com.diegocainzos.diegomusic.net.YouTubeDataService
 import com.diegocainzos.diegomusic.player.PlayerCoordinator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -101,6 +102,7 @@ class AppContainer(app: Application) {
 
     init {
         player.offlineManager = downloads
+        player.onTrackStarted = { recordPlay(it, 0) }
         player.positionPersister = { item, seconds -> settings.persist(item, seconds) }
         player.episodeProgressPersister = { item, channelId, position, duration -> library.saveProgress(item, channelId, position, duration) }
         player.episodeRate = settings.podcastRate.value
@@ -185,29 +187,57 @@ class AppContainer(app: Application) {
 
     fun play(item: MediaItem) {
         player.select(item, autoRadio = true)
-        recordPlay(item, 0)
     }
 
     fun playEpisode(item: MediaItem, channelId: String) {
         val saved = library.progress(item.id)
         val resume = saved?.takeIf { !it.finished && it.position > 0 }?.position
         player.playEpisode(item, channelId, resume)
-        recordPlay(item, resume?.toInt() ?: 0)
     }
 
     /** Sustituye la cola por `items` y empieza en `index`. */
     fun playQueue(items: List<MediaItem>, index: Int = 0) {
         if (items.isEmpty()) return
         queue.replaceQueue(items, if (index in items.indices) index else 0)
-        queue.current?.let {
-            player.select(it)
-            recordPlay(it, 0)
-        }
+        queue.current?.let { player.select(it) }
     }
 
     private fun recordPlay(item: MediaItem, playedSeconds: Int) {
+        if (library.history.value.firstOrNull()?.videoId == item.id) return
         if (settings.historyEnabled.value) library.addHistory(item)
         withToken { token -> backend.recordPlay(token, item.payload(), playedSeconds) }
+    }
+
+    // MARK: - Selecciones rápidas
+
+    private val homePrefs = app.getSharedPreferences("home", android.content.Context.MODE_PRIVATE)
+    private val picksJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+    private val picksSerializer = kotlinx.serialization.builtins.ListSerializer(MediaItem.serializer())
+    private val _quickPicks = MutableStateFlow(
+        runCatching { picksJson.decodeFromString(picksSerializer, homePrefs.getString("quickPicks", null)!!) }.getOrDefault(emptyList()),
+    )
+    val quickPicks: StateFlow<List<MediaItem>> = _quickPicks
+    private var picksJob: kotlinx.coroutines.Job? = null
+
+    fun refreshQuickPicks() {
+        picksJob?.cancel()
+        picksJob = scope.launch {
+            val history = library.history.value.map { it.mediaItem }
+            val seeds = com.diegocainzos.diegomusic.ui.HomeLogic.quickPickSeeds(history, kotlin.random.Random.Default)
+            if (seeds.isEmpty()) return@launch
+            val mixes: List<List<MediaItem>> = kotlinx.coroutines.coroutineScope {
+                val jobs: List<kotlinx.coroutines.Deferred<List<MediaItem>>> = seeds.map { s ->
+                    async {
+                        try { youtube.radio(s) } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList<MediaItem>() }
+                    }
+                }
+                jobs.map { it.await() }
+            }
+            val merged = com.diegocainzos.diegomusic.ui.HomeLogic.mergeMixes(seeds, mixes)
+            if (merged.isEmpty()) return@launch
+            _quickPicks.value = merged
+            homePrefs.edit().putString("quickPicks", picksJson.encodeToString(picksSerializer, merged)).apply()
+        }
     }
 
     // MARK: - Autenticación

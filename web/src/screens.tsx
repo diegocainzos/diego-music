@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import * as api from './api.ts'
 import type { ArtistDetail, Playlist, Track } from './api.ts'
+import { DISCOVERY_CHIPS, discoveryQuery, distinctRecent, looksLikeSong, mergeMixes, quickPickSeeds } from './home.ts'
 import { login, logout, navigate, player, refreshLibrary, register, session, setTheme, toast, ui, useStore } from './store.ts'
 import { ApkButton, BackBar, Carousel, EmptyState, Icon, Label, Loading, Section, Title, TrackArt, TrackMenu, TrackRow } from './ui.tsx'
 
@@ -126,37 +127,129 @@ function RegisterForm() {
 
 // MARK: - Inicio
 
-// Selecciones rápidas: Mix de YouTube de la pista más reciente (sin ella). Si falla o está vacío, no se muestra.
-function QuickPicks({ seed }: { seed: Track }) {
-  const [picks, setPicks] = useState<Track[]>([])
+const PICKS_KEY = 'diegomusic.quickPicks'
+const loadPicks = (): Track[] => {
+  try {
+    const v = JSON.parse(localStorage.getItem(PICKS_KEY) ?? '[]')
+    return Array.isArray(v)
+      ? v.filter((t) => t && typeof t === 'object' && typeof t.id === 'string' && typeof t.title === 'string')
+      : []
+  } catch {
+    return []
+  }
+}
+
+// Rejilla compacta de 4 filas reutilizada por las tres listas de Inicio.
+function CompactGrid({ tracks, onPlay }: { tracks: Track[]; onPlay: (t: Track) => void }) {
+  return (
+    <div className="quick-picks">
+      {tracks.map((t) => (
+        <button key={t.id} className="row" style={{ gap: 12, textAlign: 'left' }} onClick={() => onPlay(t)}>
+          <TrackArt track={t} size={48} />
+          <div className="col grow" style={{ gap: 2 }}>
+            <span className="body ellipsis" style={{ fontSize: 16, fontWeight: 600 }}>{t.title}</span>
+            <Label className="ellipsis">{t.channel}</Label>
+          </div>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function PlayAll({ title, tracks }: { title: string; tracks: Track[] }) {
+  return (
+    <div className="row" style={{ justifyContent: 'space-between', gap: 12 }}>
+      <Label wide>{title}</Label>
+      <button className="btn-outline" onClick={() => player.playQueue(tracks, 0)}><Label>Reproducir todo</Label></button>
+    </div>
+  )
+}
+
+// Selecciones rápidas: Mixes de hasta 3 semillas del historial, entrelazados. Nunca se vacía.
+function QuickPicks({ history }: { history: Track[] }) {
+  const [picks, setPicks] = useState<Track[]>(loadPicks)
+  const newest = history[0]?.id
+  const gen = useRef(0)
+  const refresh = useCallback(() => {
+    const seeds = quickPickSeeds(history, Math.random)
+    if (!seeds.length) return
+    const mine = ++gen.current
+    Promise.allSettled(seeds.map((s) => api.radio(s))).then((rs) => {
+      if (mine !== gen.current) return
+      const merged = mergeMixes(seeds, rs.map((r) => (r.status === 'fulfilled' ? r.value : [])))
+      if (!merged.length) return
+      setPicks(merged)
+      try {
+        localStorage.setItem(PICKS_KEY, JSON.stringify(merged))
+      } catch {
+        /* sin almacenamiento */
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newest])
+  useEffect(refresh, [refresh])
   useEffect(() => {
-    let alive = true
-    setPicks([])
-    api.radio(seed.id)
-      .then((items) => alive && setPicks(items.filter((t) => t.id !== seed.id).slice(0, 20)))
-      .catch(() => undefined)
-    return () => {
-      alive = false
-    }
-  }, [seed.id])
+    const onVisible = () => document.visibilityState === 'visible' && refresh()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [refresh])
   if (!picks.length) return null
   return (
     <section className="section">
-      <div className="row" style={{ justifyContent: 'space-between', gap: 12 }}>
-        <Label wide>Selecciones rápidas</Label>
-        <button className="btn-outline" onClick={() => player.playQueue(picks, 0)}><Label>Reproducir todo</Label></button>
+      <PlayAll title="Selecciones rápidas" tracks={picks} />
+      <CompactGrid tracks={picks} onPlay={player.play} />
+    </section>
+  )
+}
+
+type Sel = { genre: string | null; vibe: string | null; decade: string | null; country: string | null }
+const GROUPS: [keyof Sel, string][] = [['genre', 'Género'], ['vibe', 'Vibra'], ['decade', 'Década'], ['country', 'País']]
+
+function Discovery() {
+  const [sel, setSel] = useState<Sel>({ genre: null, vibe: null, decade: null, country: null })
+  const [state, setState] = useState<SearchState>({ kind: 'idle' })
+  const query = discoveryQuery(sel.genre, sel.vibe, sel.decade, sel.country)
+  const gen = useRef(0)
+  const run = async () => {
+    if (!query) return
+    const mine = ++gen.current
+    setState({ kind: 'loading' })
+    try {
+      const items = (await api.search(`${query} official`)).filter((x) => looksLikeSong(x.title)).slice(0, 20)
+      if (mine === gen.current) setState({ kind: 'loaded', items })
+    } catch {
+      if (mine === gen.current) setState({ kind: 'failed', message: 'No se pudo buscar.' })
+    }
+  }
+  return (
+    <section className="section">
+      <Label wide>Descubrimiento</Label>
+      {GROUPS.map(([key, title]) => (
+        <div key={key} className="col" style={{ gap: 6 }}>
+          <Label>{title}</Label>
+          <div className="scroll-x" style={{ gap: 8 }}>
+            {DISCOVERY_CHIPS[key].map((c) => (
+              <button key={c} className={`chip ${sel[key] === c ? 'on' : ''}`} onClick={() => setSel({ ...sel, [key]: sel[key] === c ? null : c })}>
+                <Label>{c}</Label>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <div>
+        <button className="btn-outline" disabled={!query} onClick={run}><Label>Buscar</Label></button>
       </div>
-      <div className="quick-picks">
-        {picks.map((t) => (
-          <button key={t.id} className="row" style={{ gap: 12, textAlign: 'left' }} onClick={() => player.play(t)}>
-            <TrackArt track={t} size={48} />
-            <div className="col grow" style={{ gap: 2 }}>
-              <span className="body ellipsis" style={{ fontSize: 16, fontWeight: 600 }}>{t.title}</span>
-              <Label className="ellipsis">{t.channel}</Label>
-            </div>
-          </button>
+      {state.kind === 'loading' && <Loading text="Buscando…" />}
+      {state.kind === 'failed' && <span className="muted">{state.message}</span>}
+      {state.kind === 'loaded' &&
+        (state.items.length ? (
+          <>
+            <PlayAll title="Resultados" tracks={state.items} />
+            <CompactGrid tracks={state.items} onPlay={player.play} />
+          </>
+        ) : (
+          <span className="muted">Sin resultados</span>
         ))}
-      </div>
     </section>
   )
 }
@@ -164,16 +257,18 @@ function QuickPicks({ seed }: { seed: Track }) {
 export function Home() {
   const history = useStore(session, (s) => s.history)
   const favorites = useStore(session, (s) => s.favorites)
-  const recent = useMemo(() => history.slice(0, 10), [history])
+  const recent = useMemo(() => distinctRecent(history, 10), [history])
   return (
     <div className="page">
       <div className="wordmark" style={{ paddingTop: 36 }}>DiegoMusic</div>
-      {history[0] && <QuickPicks seed={history[0]} />}
+      <QuickPicks history={history} />
       {recent.length > 0 && (
-        <Section title="Escuchado hace poco">
-          <Carousel items={recent} onPlay={player.play} />
-        </Section>
+        <section className="section">
+          <Label wide>Escuchado hace poco</Label>
+          <CompactGrid tracks={recent} onPlay={player.play} />
+        </section>
       )}
+      <Discovery />
       {favorites.length > 0 && (
         <Section title="Favoritos">
           <Carousel items={favorites} onPlay={player.play} />

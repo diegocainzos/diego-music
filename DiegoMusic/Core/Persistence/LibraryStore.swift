@@ -195,6 +195,7 @@ final class LibraryStore: ObservableObject {
     }
 
     func addHistory(_ item: MediaItem) throws {
+        guard history.first?.videoID != item.id else { return }
         let record: PlaybackHistoryRecord = insertRecord(entityName: "PlaybackHistory")
         record.id = UUID()
         record.videoID = item.id

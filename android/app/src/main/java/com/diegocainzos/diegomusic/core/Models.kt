@@ -2,15 +2,17 @@ package com.diegocainzos.diegomusic.core
 
 import java.time.Instant
 
+@kotlinx.serialization.Serializable
 enum class MediaKind { VIDEO, CHANNEL, PLAYLIST }
 
+@kotlinx.serialization.Serializable
 data class MediaItem(
     val id: String,
     val title: String,
     val channelTitle: String,
     val thumbnailUrl: String? = null,
     val kind: MediaKind = MediaKind.VIDEO,
-    val publishedAt: Instant? = null,
+    @kotlinx.serialization.Transient val publishedAt: Instant? = null,
     val durationSeconds: Int? = null,
 ) {
     /** Igual que Swift: un vídeo sin carátula usa la miniatura pública de YouTube. */

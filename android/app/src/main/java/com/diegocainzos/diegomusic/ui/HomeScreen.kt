@@ -32,7 +32,16 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.diegocainzos.diegomusic.core.DiscoveryFeed
+import com.diegocainzos.diegomusic.core.MediaKind
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import com.diegocainzos.diegomusic.core.MediaItem
 import com.diegocainzos.diegomusic.core.formatRemaining
 import com.diegocainzos.diegomusic.ui.theme.DLabel
@@ -55,17 +64,15 @@ fun HomeScreen() {
     val favorites by app.library.favorites.collectAsState()
     val shows by app.library.followedShows.collectAsState()
     val progressVersion by app.library.progressVersion.collectAsState()
-    var feed by remember { mutableStateOf<DiscoveryFeed?>(null) }
-    var quickPicks by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
-    val seed = history.firstOrNull()?.mediaItem
+    val quickPicks by app.quickPicks.collectAsState()
+    val newestId = history.firstOrNull()?.videoId
 
-    LaunchedEffect(Unit) { feed = app.youtube.discover() }
-    // Selecciones rápidas: Mix de la pista más reciente sin ella. Best-effort: fallo o vacío → sección oculta.
-    LaunchedEffect(seed?.id) {
-        quickPicks = emptyList()
-        if (seed != null) {
-            quickPicks = runCatching { app.youtube.radio(seed.id) }.getOrDefault(emptyList()).filter { it.id != seed.id }.take(20)
-        }
+    LaunchedEffect(newestId) { app.refreshQuickPicks() }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) app.refreshQuickPicks() }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
     }
 
     Column(
@@ -100,45 +107,27 @@ fun HomeScreen() {
             }
         }
 
-        // 1b. Selecciones rápidas (Mix de la última pista): rejilla horizontal de 4 filas.
-        if (seed != null && quickPicks.isNotEmpty()) {
+        // Selecciones rápidas
+        if (quickPicks.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     DLabel("Selecciones rápidas", modifier = Modifier.weight(1f), tracking = 4.sp, maxLines = 1)
                     OutlineButton("Reproducir todo") { app.playQueue(quickPicks, 0) }
                 }
-                val cellWidth = minOf(LocalConfiguration.current.screenWidthDp.dp * 0.85f, 360.dp)
-                LazyHorizontalGrid(
-                    rows = GridCells.Fixed(4),
-                    modifier = Modifier.fillMaxWidth().height(56.dp * 4 + 8.dp * 3),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(quickPicks, key = { it.id }) { item ->
-                        Row(
-                            Modifier.width(cellWidth).height(56.dp).plainClickable { app.play(item) },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TrackArtwork(item.artworkUrl, Modifier.size(48.dp))
-                            Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.Center) {
-                                DText(item.title, size = 15.sp, weight = FontWeight.SemiBold, maxLines = 1)
-                                DLabel(item.channelTitle, maxLines = 1)
-                            }
-                        }
-                    }
-                }
+                CompactGrid(quickPicks) { app.play(it) }
             }
         }
 
-        // 2. Escuchado hace poco
-        if (history.isNotEmpty()) {
+        // Escuchado hace poco
+        val recent = remember(history) { HomeLogic.distinctRecent(history.map { it.mediaItem }) }
+        if (recent.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SectionHeader("Escuchado hace poco")
-                CardCarousel(history.distinctBy { it.videoId }.take(10), { it.videoId }, { it.thumbnailUrl }, { app.play(it.mediaItem) }) {
-                    MediaCardTitle(it.title, it.channelTitle)
-                }
+                CompactGrid(recent) { app.play(it) }
             }
         }
+
+        DiscoverySection()
 
         // 3. Tus podcasts
         if (shows.isNotEmpty()) {
@@ -157,33 +146,97 @@ fun HomeScreen() {
             }
         }
 
-        feed?.takeIf { it.novedades.isNotEmpty() }?.let { f ->
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeader("Descubrimiento")
-                CardCarousel(f.novedades, { it.id }, { it.artworkUrl }, { app.play(it) }) { MediaCardTitle(it.title, it.channelTitle) }
-            }
-        }
+        BottomInsetSpacer(40.dp)
+    }
+}
 
-        feed?.takeIf { it.artistas.isNotEmpty() }?.let { f ->
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeader("Artistas destacados")
-                CardCarousel(f.artistas, { it.id }, { it.thumbnailUrl }, { nav.navigate(Destination.ArtistDetail(it.id, it.title)) }) {
-                    DLabel(it.title, color = c.textPrimary, maxLines = 2)
+@Composable
+private fun CompactGrid(items: List<MediaItem>, onClick: (MediaItem) -> Unit) {
+    val cellWidth = minOf(LocalConfiguration.current.screenWidthDp.dp * 0.85f, 360.dp)
+    LazyHorizontalGrid(
+        rows = GridCells.Fixed(4),
+        modifier = Modifier.fillMaxWidth().height(56.dp * 4 + 8.dp * 3),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(items, key = { it.id }) { item ->
+            Row(
+                Modifier.width(cellWidth).height(56.dp).plainClickable { onClick(item) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TrackArtwork(item.artworkUrl, Modifier.size(48.dp))
+                Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.Center) {
+                    DText(item.title, size = 15.sp, weight = FontWeight.SemiBold, maxLines = 1)
+                    DLabel(item.channelTitle, maxLines = 1)
                 }
             }
         }
+    }
+}
 
-        // Más escuchadas: historial agrupado por pista, ordenado por número de reproducciones.
-        val top = remember(history) {
-            history.groupBy { it.videoId }.values.sortedByDescending { it.size }.map { it.first() }
-        }
-        if (top.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeader("Más escuchadas")
-                CardCarousel(top, { it.videoId }, { it.thumbnailUrl }, { app.play(it.mediaItem) }) { MediaCardTitle(it.title, it.channelTitle) }
+@Composable
+private fun ChipGroup(title: String, options: List<String>, selected: String?, onSelect: (String?) -> Unit) {
+    val c = Donda.colors
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        DLabel(title)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { o ->
+                val on = o == selected
+                Box(
+                    Modifier.background(if (on) c.textPrimary else c.background).hairlineBorder(c.outline)
+                        .plainClickable { onSelect(if (on) null else o) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) { DLabel(o, color = if (on) c.background else c.textPrimary, maxLines = 1) }
             }
         }
+    }
+}
 
-        BottomInsetSpacer(40.dp)
+@Composable
+private fun DiscoverySection() {
+    val app = LocalApp.current
+    var genre by rememberSaveable { mutableStateOf<String?>(null) }
+    var vibe by rememberSaveable { mutableStateOf<String?>(null) }
+    var decade by rememberSaveable { mutableStateOf<String?>(null) }
+    var country by rememberSaveable { mutableStateOf<String?>(null) }
+    var results by remember { mutableStateOf<List<MediaItem>?>(null) }
+    var failed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var searchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val query = HomeLogic.discoveryQuery(genre, vibe, decade, country)
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionHeader("Descubrimiento")
+        ChipGroup("Género", DiscoveryChips.genre, genre) { genre = it }
+        ChipGroup("Vibra", DiscoveryChips.vibe, vibe) { vibe = it }
+        ChipGroup("Década", DiscoveryChips.decade, decade) { decade = it }
+        ChipGroup("País", DiscoveryChips.country, country) { country = it }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            OutlineButton("Buscar", enabled = query != null) {
+                val q = query ?: return@OutlineButton
+                failed = false
+                searchJob?.cancel()
+                searchJob = scope.launch {
+                    try {
+                        results = app.youtube.search("$q official").items.filter { it.kind == MediaKind.VIDEO && HomeLogic.looksLikeSong(it.title) }.take(20)
+                        failed = false
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        results = null
+                        failed = true
+                    }
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            val r = results
+            if (r != null && r.isNotEmpty()) OutlineButton("Reproducir todo") { app.playQueue(r, 0) }
+        }
+        val r = results
+        when {
+            failed -> DLabel("No se pudo buscar.")
+            r != null && r.isEmpty() -> DLabel("Sin resultados")
+            r != null -> CompactGrid(r) { app.play(it) }
+        }
     }
 }

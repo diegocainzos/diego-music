@@ -50,6 +50,9 @@ final class AudioPlayerCoordinator: ObservableObject {
         }
     }
 
+    /// Se dispara al empezar a cargar una pista de música nueva con autoplay (no reintentos, restauración ni episodios).
+    var onTrackStarted: ((MediaItem) -> Void)?
+
     private let player = AVPlayer()
     private let queue: PlaybackQueue
     /// Resolver compartido; también lo usan las vistas (p. ej. DownloadAllButton).
@@ -381,6 +384,7 @@ final class AudioPlayerCoordinator: ObservableObject {
             recoveryTask?.cancel()
             automaticRetryAvailable = true
         }
+        if autoplay, resetRetryBudget, context == .music { onTrackStarted?(item) }
         loadGeneration += 1
         let generation = loadGeneration
         player.pause()

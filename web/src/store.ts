@@ -216,6 +216,7 @@ function canRetreat(s = playback.get()) {
 
 async function load(track: Track, autoplay: boolean, resetRetry: boolean) {
   if (resetRetry) retryAvailable = true
+  if (autoplay && resetRetry) recordPlay(track)
   const gen = ++generation
   audio.pause()
   audio.removeAttribute('src')
@@ -301,7 +302,6 @@ export const player = {
     else playback.set({ items: [...s.items, t], index: s.items.length, radioSeed: null })
     reshuffle()
     load(t, true, true)
-    recordPlay(t)
     player.startRadio(true)
   },
 
@@ -313,10 +313,7 @@ export const player = {
     playback.set({ items, index: Math.min(Math.max(index, 0), items.length - 1), radioSeed: null })
     reshuffle()
     const cur = currentTrack()
-    if (cur) {
-      load(cur, true, true)
-      recordPlay(cur)
-    }
+    if (cur) load(cur, true, true)
   },
 
   selectFromQueue(index: number) {
@@ -437,6 +434,7 @@ export const player = {
 }
 
 function recordPlay(t: Track) {
+  if (session.get().history[0]?.id === t.id) return
   session.set((s) => ({ history: [t, ...s.history.filter((h) => h.id !== t.id)].slice(0, 50) }))
   api.recordPlay(t).catch(() => undefined)
 }

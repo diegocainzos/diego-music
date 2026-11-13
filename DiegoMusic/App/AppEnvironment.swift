@@ -78,6 +78,7 @@ final class AppEnvironment: ObservableObject {
         if let restore = playbackSettings.restoreState {
             player.restorePlayback(to: restore.item, at: restore.seconds)
         }
+        player.onTrackStarted = { [weak self] item in self?.recordPlay(item) }
         Self.shared = self
 
         // Configurar sincronización en tiempo real desde LibraryStore hacia el Backend
@@ -197,8 +198,9 @@ final class AppEnvironment: ObservableObject {
         try await backendClient.renamePlaylist(token: token, playlistID: remoteID, name: name)
     }
 
-    func play(_ item: MediaItem) {
-        player.select(item, autoRadio: true)
+    /// Historial local + backend de toda pista de música que empieza a sonar.
+    private func recordPlay(_ item: MediaItem) {
+        if library.history.first?.id == item.id { return }
         if playbackSettings.historyEnabled {
             try? library.addHistory(item)
         }
@@ -217,6 +219,10 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
+    func play(_ item: MediaItem) {
+        player.select(item, autoRadio: true)
+    }
+
     func playEpisode(_ item: MediaItem, channelID: String) {
         let savedProgress = library.progress(videoID: item.id)
         let resumeSeconds: Double?
@@ -226,22 +232,6 @@ final class AppEnvironment: ObservableObject {
             resumeSeconds = nil
         }
         player.playEpisode(item, channelID: channelID, resumeAt: resumeSeconds)
-        if playbackSettings.historyEnabled {
-            try? library.addHistory(item)
-        }
-        if let token = tokenManager.getToken(), authState.isAuthenticated {
-            Task {
-                _ = try? await backendClient.recordPlayHistory(
-                    token: token,
-                    youtubeVideoId: item.id,
-                    title: item.title,
-                    channelTitle: item.channelTitle,
-                    thumbnailUrl: item.thumbnailURL?.absoluteString,
-                    durationSeconds: item.durationSeconds,
-                    playedSeconds: Int(resumeSeconds ?? 0)
-                )
-            }
-        }
     }
 
     /// Reemplaza la cola activa por la lista completa dada y comienza la reproducción en `index`.
