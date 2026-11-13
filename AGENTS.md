@@ -195,6 +195,35 @@ Para cambios OpenSpec:
 
 Las capacidades de pantalla bloqueada, auriculares, interrupciones y controles remotos deben verificarse en un iPhone físico con una versión compatible de Xcode.
 
+## CI/CD (GitHub Actions)
+
+Specs: `openspec/specs/ci-pipeline/` y `openspec/specs/cd-deploy/`. El repositorio es **público**, con secret scanning y push protection activos.
+
+### CI
+
+- Un workflow por componente en `.github/workflows/`: `resolver`, `web`, `android` y `apple` (`macos-15`). Se ejecutan en `pull_request` y en `push` a `main`, solo si cambian sus rutas (`paths`), y ejecutan los mismos comandos de «Validación obligatoria».
+- No usan secretos. Dependabot (`.github/dependabot.yml`) revisa cada semana actions, pip, npm y Gradle.
+- Reglas al editar workflows:
+  - fijar cada action por SHA completo, con la versión en un comentario;
+  - `permissions` mínimos (`contents: read`), `persist-credentials: false` en checkout y `timeout-minutes` en cada job;
+  - nunca interpolar `${{ ... }}` dentro de `run:`; pasar los valores por `env:`;
+  - CI con `concurrency` y `cancel-in-progress: true`; el deploy nunca se cancela.
+- `scripts/tests/` comprueba la estructura de los workflows y `scripts/deploy.sh` (lo ejecuta `openspec/gates.sh`):
+  `ResolverService/.venv/bin/python -m pytest -q -p no:cacheprovider scripts/tests`
+
+### CD (despliegue al VPS)
+
+- **Un push a `main` es un despliegue a producción.** `deploy.yml` se lanza (`workflow_run`) cuando `resolver` o `web` terminan en verde para un `push` a `main`. Si el commit dispara ambos, espera a que los dos estén en verde. También admite lanzamiento manual: `gh workflow run deploy` (despliega el HEAD de `main`).
+- Un commit que solo toca Android, Swift u openspec no dispara el deploy; si hace falta, lanzarlo a mano.
+- El job usa el environment `production` con los secretos `VPS_SSH_KEY`, `VPS_KNOWN_HOSTS` y `VPS_HOST`, y conecta por SSH con `StrictHostKeyChecking=yes`, enviando solo el SHA.
+- En el VPS, la clave de deploy tiene un forced command (`restrict,command=...`) que solo ejecuta `scripts/deploy.sh <sha>`:
+  1. valida el SHA (40 hex), que esté en `origin/main` y que sea fast-forward;
+  2. hace backup de SQLite en `/root/backups` (guarda 14);
+  3. `git merge --ff-only`, `docker compose --file compose.yml up -d --build`;
+  4. espera `/health` y, si falla cualquier paso, hace rollback al commit anterior.
+- Códigos de salida: `0` desplegado o ya desplegado, `1` rollback, `2` SHA inválido, `3` no está en `origin/main` o no es fast-forward, `4` backup fallido.
+- No hacer cambios manuales en el checkout del VPS: rompen el fast-forward. El despliegue manual por SSH (`git pull --ff-only` y `compose up -d --build`) queda solo como último recurso.
+
 ## Convenciones de implementación
 
 - Swift: tipos pequeños, errores explícitos, dependencias inyectables y aislamiento de concurrencia correcto.
